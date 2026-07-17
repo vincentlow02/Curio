@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 
-import type { StoreSnapshot } from "./types.js";
+import type { StoreSnapshot } from "./types";
 
 export function buildStoreSearchUrl(query: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query.trim())}`;

@@ -241,6 +241,55 @@ npm run price-reference -- --fixture --input ./fixtures/price-reference/input.js
 
 fixture 不调用 Qwen，不启动浏览器，不访问 Rakuten、Mercari、Google、Tavily 或其他网络服务。
 
+# Web Demo
+
+Web 版本将技术测试组合为桌面优先的 Next.js 应用。原有 `analyze`、`price-reference` 和 `daytona-smoke` 命令保持可用。
+
+## 两阶段数据边界
+
+Qwen VL 的 Detect 阶段只返回 `itemName`、`version`、`priceSearchKeywordJa` 和三个一级类别之一。`subtype`、推荐区域和店铺不属于图片识别输出。无法可靠归类时任务进入 `needs_review`，不会强行选择分类。
+
+最终阶段才组合 Rakuten、Mercari、必要时的一次 Tavily fallback、Node/Daytona 价格计算、东京区域和有来源的店铺。没有可靠店铺来源时，`storeSuggestions` 返回空数组并附 warning。
+
+## Web 本地启动
+
+```powershell
+Copy-Item .env.example .env.local
+npm install
+npm run dev
+```
+
+打开 `http://localhost:3000`。开发环境可访问 `/dev/analysis-states` 查看所有固定 UI 状态，生产环境该路由返回 404。
+
+不消耗额度的模式：
+
+```dotenv
+WEB_USE_FIXTURE=true
+DEMO_ACCESS_CODE=your-local-demo-code
+```
+
+真实模式使用 `WEB_USE_FIXTURE=false`。图片发送给 Qwen 后立即删除，session 默认保留一小时。
+
+## Web API 与限制
+
+- `POST /api/analysis`：multipart `image` + `X-Demo-Code`，返回 HTTP 202 和 `sessionId`。
+- `GET /api/analysis/{sessionId}`：前端每 1.5 秒轮询公开状态。
+- `GET /api/health`：Railway 健康检查。
+- 单实例只执行一个分析，最多排队三个；同一 IP 每小时五次。
+- 支持 JPG、PNG、WEBP，最大 10 MB。
+
+## Web 验证与 Railway
+
+```powershell
+npm run typecheck
+npm test
+npm run build
+```
+
+根目录 `Dockerfile` 使用含 Chromium 的 Playwright 镜像。Railway 使用单实例，health check 为 `/api/health`，不需要数据库或持久卷。所有密钥只能配置在 Railway Variables，禁止使用 `NEXT_PUBLIC_` 前缀。
+
+部署前必须轮换所有曾粘贴到聊天、截图或共享文档的 API Key。不要提交 `.env.local`、`.tmp/`、`.cache/` 或运行输出。Demo code 只保存在浏览器 `sessionStorage`。
+
 ## 常见错误
 
 - `Missing script`：先进入 `qwen-spike` 目录。

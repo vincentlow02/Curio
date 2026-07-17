@@ -1,6 +1,6 @@
 import { chromium, type Page } from "playwright";
 
-import type { MarketplaceSource, RakutenListingCandidate, SearchSnapshot } from "./types.js";
+import type { MarketplaceSource, RakutenListingCandidate, SearchSnapshot } from "./types";
 
 export function buildRakutenSearchUrl(keyword: string): string {
   return `https://search.rakuten.co.jp/search/mall/${encodeURIComponent(keyword.trim())}/`;

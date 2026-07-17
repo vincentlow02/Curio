@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["itemName", "version", "priceSearchKeywordJa", "category"],
+  "properties": {
+    "itemName": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "priceSearchKeywordJa": { "type": "string", "minLength": 1 },
+    "category": {
+      "enum": [
+        "Toys & Character Collectibles",
+        "Cards & Game Collectibles",
+        "Records & Music Collectibles"
+      ]
+    }
+  }
+}

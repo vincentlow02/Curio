@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["identification", "priceReference", "recommendedAreas", "storeSuggestions", "warnings", "cost"],
+  "properties": {
+    "identification": { "$ref": "detection-result.schema.json" },
+    "priceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currency", "low", "median", "high", "sampleCount", "samples", "disclaimer"],
+      "properties": {
+        "currency": { "const": "JPY" },
+        "low": { "type": ["integer", "null"], "minimum": 0 },
+        "median": { "type": ["integer", "null"], "minimum": 0 },
+        "high": { "type": ["integer", "null"], "minimum": 0 },
+        "sampleCount": { "type": "integer", "minimum": 0 },
+        "disclaimer": { "const": "Online asking-price reference" },
+        "samples": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["title", "price", "currency", "source", "url", "condition", "versionMatch", "packageStatus", "includedInReferenceRange"],
+            "properties": {
+              "title": { "type": "string" }, "price": { "type": "integer", "minimum": 0 }, "currency": { "const": "JPY" },
+              "source": { "enum": ["Rakuten", "Mercari", "Web fallback"] }, "url": { "type": "string", "format": "uri" },
+              "condition": { "enum": ["used", "new", "unknown"] }, "versionMatch": { "enum": ["exact", "similar"] },
+              "packageStatus": { "enum": ["with_box", "without_box", "unknown"] }, "includedInReferenceRange": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "recommendedAreas": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["area", "reason", "searchKeywordJa"], "properties": { "area": { "type": "string" }, "reason": { "type": "string" }, "searchKeywordJa": { "type": "string" } } } },
+    "storeSuggestions": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["name", "reason", "sourceUrl"], "properties": { "name": { "type": "string" }, "reason": { "type": "string" }, "sourceUrl": { "type": "string", "format": "uri" } } } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "cost": { "type": "object", "additionalProperties": false, "required": ["qwenCalls", "inputTokens", "outputTokens", "marketplacePages", "tavilyCalls", "daytonaCalls", "totalMs"], "properties": { "qwenCalls": { "type": "integer", "minimum": 0 }, "inputTokens": { "type": "integer", "minimum": 0 }, "outputTokens": { "type": "integer", "minimum": 0 }, "marketplacePages": { "type": "integer", "minimum": 0 }, "tavilyCalls": { "type": "integer", "minimum": 0 }, "daytonaCalls": { "type": "integer", "minimum": 0 }, "totalMs": { "type": "integer", "minimum": 0 } } }
+  }
+}

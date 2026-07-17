@@ -1,6 +1,6 @@
 import { Daytona, type Sandbox } from "@daytona/sdk";
 
-import type { NumericRange, PriceReferenceResult, PriceSample } from "../price/types.js";
+import type { NumericRange, PriceReferenceResult, PriceSample } from "../price/types";
 
 const PROCESSOR_VERSION = "daytona-price-mad-v1";
 const OUTPUT_MARKER = "DAYTONA_PRICE_STATE=";

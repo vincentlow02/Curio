@@ -2,9 +2,9 @@ import { isIP } from "node:net";
 
 import { chromium, type BrowserContext, type Page } from "playwright";
 
-import type { ItemProfile } from "../profile/types.js";
-import { identityMatches } from "./identity.js";
-import type { TavilyFallbackSnapshot } from "./types.js";
+import type { ItemProfile } from "../profile/types";
+import { identityMatches } from "./identity";
+import type { TavilyFallbackSnapshot } from "./types";
 
 type TavilyResponse = {
   results?: Array<{ title?: string; url?: string; content?: string; score?: number }>;

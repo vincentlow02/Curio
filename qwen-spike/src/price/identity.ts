@@ -1,4 +1,4 @@
-import type { ItemProfile } from "../profile/types.js";
+import type { ItemProfile } from "../profile/types";
 
 const GENERIC = new Set([
   "中古", "価格", "本体", "商品", "フィギュア", "ソフビ", "トイ", "TOY", "FIGURE",

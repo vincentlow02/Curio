@@ -1,6 +1,6 @@
-import type { ItemProfile } from "../profile/types.js";
-import { identityMatches } from "./identity.js";
-import { buildStoreSearchUrl } from "./store-verifier.js";
+import type { ItemProfile } from "../profile/types";
+import { identityMatches } from "./identity";
+import { buildStoreSearchUrl } from "./store-verifier";
 import type {
   ExclusionReason,
   TavilyFallbackSnapshot,
@@ -10,7 +10,7 @@ import type {
   PriceSample,
   SearchSnapshot,
   StoreSnapshot,
-} from "./types.js";
+} from "./types";
 
 const SOLD_OUT = /売り切れ|売切れ|販売終了|在庫なし|sold_out/i;
 const JUNK = /ジャンク|故障|動作不良|動作未確認|通電のみ|部品取り|訳あり|訳アリ|アウトレット/i;

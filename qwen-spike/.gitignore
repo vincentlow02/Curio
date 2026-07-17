@@ -3,3 +3,7 @@ node_modules/
 output/**/*.json
 .cache/
 *.log
+.next/
+.tmp/
+coverage/
+*.tsbuildinfo
