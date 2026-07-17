@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="zh-CN"><body><div className="mobile-notice">当前版本针对桌面浏览器优化，请使用宽度 1024px 以上的设备。</div>{children}</body></html>;
+  return <html lang="zh-CN" className={`${GeistSans.className} ${GeistSans.variable}`}><body><div className="mobile-notice">当前版本针对桌面浏览器优化，请使用宽度 1024px 以上的设备。</div>{children}</body></html>;
 }

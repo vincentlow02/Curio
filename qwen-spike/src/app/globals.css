@@ -5,6 +5,59 @@ body { margin:0; min-width:1024px; background:radial-gradient(circle at 78% 10%,
 a { color:inherit; }
 button, input { font:inherit; }
 main { min-height:100vh; }
+.home-page { min-height:100vh; background:#fcfcfc; }
+body:has(.home-page) .mobile-notice { display:none; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.figma-left-toolbar { position:fixed; z-index:10; inset:0 auto auto 0; width:52px; height:min(832px, 100vh); padding:71px 14px 17px 15px; background:#f7f7f7; overflow:hidden; transition:width 240ms ease, padding-right 240ms ease; }
+.figma-left-toolbar.is-expanded { width:232px; padding-right:133px; }
+.figma-left-toolbar__content { width:23px; height:100%; display:flex; flex-direction:column; align-items:flex-start; justify-content:space-between; transition:width 240ms ease; }
+.figma-left-toolbar.is-expanded .figma-left-toolbar__content { width:84px; }
+.figma-left-toolbar__tools { width:84px; display:flex; flex-direction:column; align-items:flex-start; gap:25px; }
+.figma-left-toolbar.is-expanded .figma-left-toolbar__tools { gap:27px; }
+.figma-toolbar-row { display:flex; flex:none; align-items:center; height:17px; border:0; padding:0; background:transparent; color:#000; cursor:pointer; font:400 14px/normal -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; letter-spacing:-.28px; white-space:nowrap; }
+.figma-toolbar-row img { display:block; flex:none; }
+.figma-toolbar-row span { display:block; max-width:0; margin-left:0; overflow:hidden; opacity:0; transition:max-width 180ms ease, margin-left 180ms ease, opacity 140ms ease; }
+.figma-left-toolbar.is-expanded .figma-toolbar-row span { max-width:58px; opacity:1; }
+.figma-toolbar-row--new img { width:17px; height:17px; }
+.figma-toolbar-row--new span { margin-left:0; }
+.figma-left-toolbar.is-expanded .figma-toolbar-row--new span { margin-left:11px; }
+.figma-toolbar-row--search img { width:15px; height:15px; }
+.figma-left-toolbar.is-expanded .figma-toolbar-row--search span { margin-left:13px; }
+.figma-toolbar-recent { height:17px; margin:0; color:#000; font:510 14px/normal -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; letter-spacing:-.28px; opacity:0; white-space:nowrap; transition:opacity 140ms ease; }
+.figma-left-toolbar.is-expanded .figma-toolbar-recent { opacity:1; }
+.figma-toolbar-status { display:block; width:23px; height:23px; }
+.figma-home-composer { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:768px; height:482px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; font-family:var(--font-geist-sans), Geist, Arial, sans-serif; transition:transform 240ms ease; }
+.figma-home-experience.is-sidebar-expanded .figma-home-composer { transform:translate(-50%, -50%) translateX(90px); }
+.figma-home-discovery { width:628px; height:322px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; }
+.figma-home-heading { width:100%; height:73px; text-align:center; }
+.figma-home-heading h1 { width:100%; height:47px; margin:0; color:#000; font-size:36px; line-height:normal; font-weight:500; letter-spacing:-.72px; }
+.figma-home-heading p { width:100%; height:26px; margin:0; color:#4f4b4b; font-size:20px; line-height:normal; font-weight:400; letter-spacing:-.4px; }
+.figma-category-grid { width:628px; height:209px; display:flex; align-items:center; justify-content:space-between; }
+.figma-category-card { position:relative; width:186px; height:209px; flex:none; padding:0; border:1px solid #e6e6e6; border-radius:21px; background:transparent; box-shadow:0 0 3.5px rgba(124,124,124,.09); cursor:pointer; color:#000; font:inherit; overflow:hidden; }
+.figma-category-card:hover { border-color:#d0d0d0; box-shadow:0 4px 14px rgba(124,124,124,.12); }
+.figma-category-visual { display:block; width:100%; height:100%; }
+.figma-category-image { display:block; position:absolute; overflow:hidden; z-index:1; }
+.figma-category-image img { position:absolute; display:block; max-width:none; }
+.figma-category-label { display:block; position:absolute; top:149px; left:50%; z-index:2; height:32px; transform:translateX(-50%); font-size:13px; font-weight:500; line-height:1.2; letter-spacing:-.26px; text-align:center; white-space:normal; overflow:visible; }
+.figma-category-card--toys .figma-category-image { left:26px; top:15px; width:134px; height:134px; }
+.figma-category-card--toys .figma-category-image img { inset:0; width:100%; height:100%; object-fit:cover; }
+.figma-category-card--toys .figma-category-label { width:99px; }
+.figma-category-card--games .figma-category-image { left:9px; top:15px; width:167px; height:154px; }
+.figma-category-card--games .figma-category-image img { left:0; top:-8.64%; width:100%; height:108.64%; }
+.figma-category-card--games .figma-category-label { width:114px; line-height:1.2; }
+.figma-category-card--music .figma-category-image { left:9px; top:6px; width:162px; height:143px; }
+.figma-category-card--music .figma-category-image img { left:-15.12%; top:0; width:132.56%; height:100%; }
+.figma-category-card--music .figma-category-label { width:99px; line-height:1.2; }
+.figma-composer-box { width:768px; height:94px; padding:7px 14px; border:1px solid #e5e7eb; border-radius:16px; background:#fff; display:flex; flex-direction:column; gap:32px; align-items:center; justify-content:center; }
+.figma-composer-box textarea { display:block; width:740px; height:15px; min-height:15px; resize:none; overflow:hidden; padding:0; border:0; outline:0; background:transparent; color:#4f4b4b; font:500 13px/normal var(--font-geist-sans), Geist, Arial, sans-serif; letter-spacing:-.26px; }
+.figma-composer-box textarea::placeholder { color:#a3a3a3; opacity:1; }
+.figma-composer-actions { width:740px; height:33px; display:flex; align-items:center; justify-content:space-between; }
+.figma-composer-actions button { padding:0; border:0; background:transparent; cursor:pointer; }
+.figma-composer-round-button { width:33px; height:33px; flex:none; }
+.figma-composer-round-button img { display:block; width:33px; height:33px; }
+.figma-composer-actions-right { width:61px; height:33px; display:flex; align-items:center; justify-content:space-between; }
+.figma-composer-microphone { width:9px; height:16px; flex:none; }
+.figma-composer-microphone img { display:block; width:9px; height:16px; }
 .mobile-notice { display:none; }
 .site-header { height:92px; border-bottom:1px solid var(--line); padding:0 clamp(36px,6vw,104px); display:flex; align-items:center; justify-content:space-between; }
 .brand { display:flex; gap:12px; align-items:center; text-decoration:none; font-size:11px; line-height:1.05; letter-spacing:.14em; }
