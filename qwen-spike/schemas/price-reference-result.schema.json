@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["query", "recommendedAreas", "storeRecommendationDisclaimer", "samples", "observedRange", "referenceRange", "referenceRangeBySource", "conditionRanges", "warnings"],
+  "properties": {
+    "query": {
+      "type": "object", "additionalProperties": false, "required": ["itemName", "versionOrPeriod", "priceSearchKeywordJa", "sources"],
+      "properties": {
+        "itemName": { "type": "string" }, "versionOrPeriod": { "type": "string" }, "priceSearchKeywordJa": { "type": "string" },
+        "sources": {
+          "type": "array", "minItems": 2, "maxItems": 3,
+          "items": { "type": "object", "additionalProperties": false, "required": ["source", "keyword", "searchUrl"], "properties": { "source": { "enum": ["Rakuten", "Mercari", "Web fallback"] }, "keyword": { "type": "string" }, "searchUrl": { "type": "string" } } }
+        }
+      }
+    },
+    "recommendedAreas": {
+      "type": "array", "maxItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["area", "reason", "storeSearchKeywordJa", "storeSearchUrl", "verifiedStores"],
+        "properties": {
+          "area": { "type": "string" }, "reason": { "type": "string" }, "storeSearchKeywordJa": { "type": "string" }, "storeSearchUrl": { "type": "string" },
+          "verifiedStores": {
+            "type": "array", "maxItems": 3,
+            "items": { "type": "object", "additionalProperties": false, "required": ["name", "sourceUrl", "verificationStatus"], "properties": { "name": { "type": "string" }, "sourceUrl": { "type": "string" }, "verificationStatus": { "const": "maps_search_result" } } }
+          }
+        }
+      }
+    },
+    "storeRecommendationDisclaimer": { "type": "string" },
+    "samples": {
+      "type": "array", "maxItems": 10,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["rank", "title", "price", "currency", "source", "url", "shopName", "listingStatus", "condition", "versionMatch", "packageStatus", "includedInReferenceRange", "aggregationExclusionReason"],
+        "properties": {
+          "rank": { "type": "integer", "minimum": 1 }, "title": { "type": "string", "minLength": 1 }, "price": { "type": "integer", "minimum": 1 },
+          "currency": { "const": "JPY" }, "source": { "enum": ["Rakuten", "Mercari", "Web fallback"] }, "url": { "type": "string" }, "shopName": { "type": "string" },
+          "listingStatus": { "enum": ["active", "unknown"] }, "condition": { "enum": ["used", "new", "unknown"] }, "versionMatch": { "enum": ["exact", "similar"] },
+          "packageStatus": { "enum": ["with_box", "without_box", "unknown"] }, "includedInReferenceRange": { "type": "boolean" },
+          "aggregationExclusionReason": { "enum": ["price_outlier", "new_condition", "unknown_condition", null] }
+        }
+      }
+    },
+    "observedRange": {
+      "type": "object", "additionalProperties": false, "required": ["currency", "min", "max", "sampleCount"],
+      "properties": { "currency": { "const": "JPY" }, "min": { "type": ["integer", "null"] }, "max": { "type": ["integer", "null"] }, "sampleCount": { "type": "integer", "minimum": 0, "maximum": 10 } }
+    },
+    "referenceRange": {
+      "allOf": [
+        { "$ref": "#/$defs/range" },
+        { "type": "object", "required": ["currency", "label", "method"], "properties": { "currency": { "const": "JPY" }, "label": { "const": "Online asking-price reference" }, "method": { "const": "median_absolute_deviation" } } }
+      ]
+    },
+    "referenceRangeBySource": {
+      "type": "array", "minItems": 2, "maxItems": 3,
+      "items": { "allOf": [{ "$ref": "#/$defs/range" }, { "type": "object", "required": ["source"], "properties": { "source": { "enum": ["Rakuten", "Mercari", "Web fallback"] } } }] }
+    },
+    "conditionRanges": {
+      "type": "array", "maxItems": 3,
+      "items": { "allOf": [{ "$ref": "#/$defs/range" }, { "type": "object", "required": ["condition"], "properties": { "condition": { "enum": ["used", "new", "unknown"] } } }] }
+    },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "range": {
+      "type": "object", "required": ["low", "median", "high", "sampleCount"],
+      "properties": { "low": { "type": ["integer", "null"] }, "median": { "type": ["integer", "null"] }, "high": { "type": ["integer", "null"] }, "sampleCount": { "type": "integer", "minimum": 0, "maximum": 10 } }
+    }
+  }
+}

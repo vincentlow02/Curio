@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "enabled": true,
+  "query": "秋葉原 中古 レトロゲーム 店舗",
+  "searchUrl": "https://www.google.com/maps/search/?api=1&query=%E7%A7%8B%E8%91%89%E5%8E%9F%20%E4%B8%AD%E5%8F%A4%20%E3%83%AC%E3%83%88%E3%83%AD%E3%82%B2%E3%83%BC%E3%83%A0%20%E5%BA%97%E8%88%97",
+  "capturedAt": "2026-07-16T00:00:00.000Z",
+  "error": null,
+  "stores": [
+    { "name": "Fixture Retro Games A", "sourceUrl": "https://www.google.com/maps/place/fixture-a" },
+    { "name": "Fixture Retro Games B", "sourceUrl": "https://www.google.com/maps/place/fixture-b" }
+  ]
+}

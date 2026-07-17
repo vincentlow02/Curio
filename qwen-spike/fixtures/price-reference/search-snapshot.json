@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "capturedAt": "2026-07-16T00:00:00.000Z",
+  "sources": [
+    {
+      "source": "Rakuten",
+      "keyword": "PSP-3000 本体 中古",
+      "searchUrl": "https://search.rakuten.co.jp/search/mall/PSP-3000%20%E6%9C%AC%E4%BD%93%20%E4%B8%AD%E5%8F%A4/",
+      "error": null,
+      "candidates": [
+        { "source": "Rakuten", "rank": 1, "title": "中古 PSP-3000 本体 ブラック 箱付き", "displayedPrice": 8000, "url": "https://item.rakuten.co.jp/fixture/psp3000-r1/", "shopName": "Fixture Rakuten 1", "availabilityText": "" },
+        { "source": "Rakuten", "rank": 2, "title": "PSP-3000 本体 中古 ホワイト", "displayedPrice": 9000, "url": "https://item.rakuten.co.jp/fixture/psp3000-r2/", "shopName": "Fixture Rakuten 2", "availabilityText": "" },
+        { "source": "Rakuten", "rank": 3, "title": "PSP-3000 充電器のみ 中古", "displayedPrice": 1200, "url": "https://item.rakuten.co.jp/fixture/accessory/", "shopName": "Fixture Parts", "availabilityText": "" },
+        { "source": "Rakuten", "rank": 4, "title": "PSP-2000 本体 中古", "displayedPrice": 7000, "url": "https://item.rakuten.co.jp/fixture/psp2000/", "shopName": "Fixture Rakuten", "availabilityText": "" },
+        { "source": "Rakuten", "rank": 5, "title": "PSP-3000 本体 ジャンク 部品取り", "displayedPrice": 3000, "url": "https://item.rakuten.co.jp/fixture/junk/", "shopName": "Fixture Junk", "availabilityText": "" },
+        { "source": "Rakuten", "rank": 6, "title": "PSP-3000 本体 中古 ブルー 本体のみ", "displayedPrice": 10000, "url": "https://item.rakuten.co.jp/fixture/psp3000-r3/", "shopName": "Fixture Rakuten 3", "availabilityText": "" },
+        { "source": "Rakuten", "rank": 7, "title": "中古 PSP-3000 本体 レッド", "displayedPrice": 11000, "url": "https://item.rakuten.co.jp/fixture/psp3000-r4/", "shopName": "Fixture Rakuten 4", "availabilityText": "" },
+        { "source": "Rakuten", "rank": 8, "title": "PSP-3000 本体 中古 シルバー", "displayedPrice": 12000, "url": "https://item.rakuten.co.jp/fixture/psp3000-r5/", "shopName": "Fixture Rakuten 5", "availabilityText": "" },
+        { "source": "Rakuten", "rank": 9, "title": "PSP-3000 本体 中古 シルバー", "displayedPrice": 12000, "url": "https://item.rakuten.co.jp/fixture/duplicate/", "shopName": "Fixture Duplicate", "availabilityText": "" }
+      ]
+    },
+    {
+      "source": "Mercari",
+      "keyword": "PSP-3000 本体",
+      "searchUrl": "https://jp.mercari.com/search?keyword=PSP-3000%20%E6%9C%AC%E4%BD%93&status=on_sale",
+      "error": null,
+      "candidates": [
+        { "source": "Mercari", "rank": 1, "title": "SONY PSP-3000 本体 グリーン", "displayedPrice": 13000, "url": "https://jp.mercari.com/item/fixture-m1", "shopName": "individual_seller", "availabilityText": "" },
+        { "source": "Mercari", "rank": 2, "title": "SONY PSP 3000 本体 レッド ジャンク", "displayedPrice": 6000, "url": "https://jp.mercari.com/item/fixture-junk", "shopName": "individual_seller", "availabilityText": "" },
+        { "source": "Mercari", "rank": 3, "title": "PSP-3000 本体 ピンク", "displayedPrice": 14000, "url": "https://jp.mercari.com/item/fixture-m2", "shopName": "individual_seller", "availabilityText": "" },
+        { "source": "Mercari", "rank": 4, "title": "PSP-3000 本体 2台セット", "displayedPrice": 20000, "url": "https://jp.mercari.com/item/fixture-bundle", "shopName": "individual_seller", "availabilityText": "" },
+        { "source": "Mercari", "rank": 5, "title": "SONY PSP-3000 本体 ホワイト", "displayedPrice": 15000, "url": "https://jp.mercari.com/item/fixture-m3", "shopName": "individual_seller", "availabilityText": "" },
+        { "source": "Mercari", "rank": 6, "title": "PSP-3000 本体 ブラック", "displayedPrice": 16000, "url": "https://jp.mercari.com/item/fixture-m4", "shopName": "individual_seller", "availabilityText": "" },
+        { "source": "Mercari", "rank": 7, "title": "PSP-3000 本体 ブルー", "displayedPrice": 70000, "url": "https://jp.mercari.com/item/fixture-m5", "shopName": "individual_seller", "availabilityText": "" },
+        { "source": "Mercari", "rank": 8, "title": "PSP-3000 本体 ブルー", "displayedPrice": 8500, "url": "https://jp.mercari.com/item/fixture-sold", "shopName": "individual_seller", "availabilityText": "sold_out" },
+        { "source": "Mercari", "rank": 9, "title": "PSP-3000 本体 シルバー 裏蓋なし", "displayedPrice": 6500, "url": "https://jp.mercari.com/item/fixture-incomplete", "shopName": "individual_seller", "availabilityText": "" }
+      ]
+    }
+  ]
+}

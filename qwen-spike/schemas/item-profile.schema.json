@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["itemName", "brandCharacterSeries", "versionOrPeriod", "color", "category", "subtype", "searchKeywordsJa", "priceSearchKeywordJa", "recommendedAreas", "storeRecommendationDisclaimer", "notes"],
+  "properties": {
+    "itemName": { "type": "string", "minLength": 1 },
+    "brandCharacterSeries": { "type": "string", "minLength": 1 },
+    "versionOrPeriod": { "type": "string", "minLength": 1 },
+    "color": { "type": "string", "minLength": 1 },
+    "category": { "enum": ["Toys & Character Collectibles", "Cards & Game Collectibles", "Records & Music Collectibles", "unknown"] },
+    "subtype": { "enum": ["toys_character", "trading_cards", "retro_games", "records_vinyl", "music_memorabilia", "unknown"] },
+    "searchKeywordsJa": { "type": "array", "minItems": 3, "maxItems": 6, "items": { "type": "string", "minLength": 1 } },
+    "priceSearchKeywordJa": { "type": "string", "minLength": 1 },
+    "recommendedAreas": { "$ref": "#/$defs/recommendedAreas" },
+    "storeRecommendationDisclaimer": { "const": "候选区域和店铺根据商品类别与通常经营范围推荐，不代表实时库存；请在出发前自行确认店铺状态。" },
+    "notes": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  },
+  "$defs": {
+    "recommendedAreas": {
+      "type": "array",
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["area", "reason", "storeSearchKeywordJa"],
+        "properties": {
+          "area": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 },
+          "storeSearchKeywordJa": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
