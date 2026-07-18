@@ -8,7 +8,7 @@ class AnalysisQueue {
   private pending: Job[] = [];
 
   enqueue(job: Job): number {
-    if (this.pending.length >= env.maxQueued) throw new Error("分析队列已满，请稍后重试。");
+    if (this.pending.length >= env.maxQueued) throw new Error("The analysis queue is full. Please try again shortly.");
     this.pending.push(job);
     const position = this.pending.length + (this.active ? 1 : 0);
     void this.refreshPositions();
@@ -17,7 +17,7 @@ class AnalysisQueue {
   }
 
   private async refreshPositions(): Promise<void> {
-    await Promise.all(this.pending.map((job, index) => updateSession(job.id, { queuePosition: index + (this.active ? 1 : 0), message: "等待前一个分析完成" })));
+    await Promise.all(this.pending.map((job, index) => updateSession(job.id, { queuePosition: index + (this.active ? 1 : 0), message: "Waiting for the previous analysis to finish" })));
   }
 
   private async drain(): Promise<void> {

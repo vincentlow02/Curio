@@ -11,6 +11,7 @@ export const env = {
   qwenApiKey: process.env.QWEN_API_KEY?.trim() ?? "",
   qwenBaseUrl: process.env.QWEN_BASE_URL?.trim().replace(/\/$/, "") ?? "",
   qwenVisionModel: process.env.QWEN_VISION_MODEL?.trim() ?? "",
+  qwenTextModel: process.env.QWEN_TEXT_MODEL?.trim() ?? "",
   tavilyApiKey: process.env.TAVILY_API_KEY?.trim(),
   daytonaApiKey: process.env.DAYTONA_API_KEY?.trim(),
   daytonaApiUrl: process.env.DAYTONA_API_URL?.trim(),
@@ -25,11 +26,24 @@ export const env = {
   maxQueued: integer("MAX_QUEUED_ANALYSES", 3),
 };
 
-export function assertLiveConfiguration(): void {
+export function liveReadiness(): Record<string, boolean> {
+  return {
+    demoAccessCode: process.env.NODE_ENV !== "production" || Boolean(env.demoAccessCode),
+    qwenApiKey: Boolean(env.qwenApiKey),
+    qwenBaseUrl: Boolean(env.qwenBaseUrl),
+    qwenVisionModel: Boolean(env.qwenVisionModel),
+    qwenTextModel: Boolean(env.qwenTextModel),
+    daytona: !env.enableDaytona || Boolean(env.daytonaApiKey),
+    tavily: !env.enableTavily || Boolean(env.tavilyApiKey),
+  };
+}
+
+export function assertLiveConfiguration(mode: "image" | "text" = "image"): void {
   const missing = [
     !env.qwenApiKey && "QWEN_API_KEY",
     !env.qwenBaseUrl && "QWEN_BASE_URL",
-    !env.qwenVisionModel && "QWEN_VISION_MODEL",
+    mode === "image" && !env.qwenVisionModel && "QWEN_VISION_MODEL",
+    mode === "text" && !env.qwenTextModel && "QWEN_TEXT_MODEL",
   ].filter(Boolean);
-  if (missing.length) throw new Error(`服务端缺少环境变量：${missing.join(", ")}`);
+  if (missing.length) throw new Error(`The server is missing environment variables: ${missing.join(", ")}`);
 }

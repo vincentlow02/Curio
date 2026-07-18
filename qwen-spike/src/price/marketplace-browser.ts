@@ -2,12 +2,21 @@ import { chromium, type Page } from "playwright";
 
 import type { MarketplaceSource, RakutenListingCandidate, SearchSnapshot } from "./types";
 
+export function buildMarketplaceKeyword(keyword: string): string {
+  return keyword
+    .replace(/["“”「」『』]/g, " ")
+    .replace(/五重奏団?/g, " ")
+    .replace(/\b(?:QUINTET|ORCHESTRA)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function buildRakutenSearchUrl(keyword: string): string {
-  return `https://search.rakuten.co.jp/search/mall/${encodeURIComponent(keyword.trim())}/`;
+  return `https://search.rakuten.co.jp/search/mall/${encodeURIComponent(buildMarketplaceKeyword(keyword))}/`;
 }
 
 export function buildMercariKeyword(keyword: string): string {
-  return keyword.replace(/中古/g, " ").replace(/\s+/g, " ").trim();
+  return buildMarketplaceKeyword(keyword).replace(/中古/g, " ").replace(/\s+/g, " ").trim();
 }
 
 export function buildMercariSearchUrl(keyword: string): string {
@@ -49,7 +58,13 @@ async function captureRakuten(page: Page, maxCards: number): Promise<RakutenList
 }
 
 async function captureMercari(page: Page, maxCards: number): Promise<RakutenListingCandidate[]> {
-  await page.waitForSelector("a[href*='/item/']", { timeout: 10_000 });
+  try {
+    await page.waitForSelector("a[href*='/item/']", { timeout: 10_000 });
+  } catch {
+    // A valid Mercari zero-result page has no item anchors. Treat it as an
+    // empty source rather than a provider failure; no retry is performed.
+    return [];
+  }
   return page.evaluate((limit): RakutenListingCandidate[] => {
     const results: RakutenListingCandidate[] = [];
     const urls = new Set<string>();
@@ -101,6 +116,7 @@ async function captureSource(args: {
 }
 
 export async function captureMarketplaceSearches(args: { keyword: string; maxCardsPerSource: number; headless: boolean }): Promise<SearchSnapshot> {
+  const rakutenKeyword = buildMarketplaceKeyword(args.keyword);
   const mercariKeyword = buildMercariKeyword(args.keyword);
   const browser = await chromium.launch({ headless: args.headless });
   try {
@@ -108,7 +124,7 @@ export async function captureMarketplaceSearches(args: { keyword: string; maxCar
     const rakutenPage = await context.newPage();
     const mercariPage = await context.newPage();
     const sources = await Promise.all([
-      captureSource({ page: rakutenPage, source: "Rakuten", keyword: args.keyword, searchUrl: buildRakutenSearchUrl(args.keyword), maxCards: args.maxCardsPerSource }),
+      captureSource({ page: rakutenPage, source: "Rakuten", keyword: rakutenKeyword, searchUrl: buildRakutenSearchUrl(args.keyword), maxCards: args.maxCardsPerSource }),
       captureSource({ page: mercariPage, source: "Mercari", keyword: mercariKeyword, searchUrl: buildMercariSearchUrl(args.keyword), maxCards: args.maxCardsPerSource }),
     ]);
     return { version: 2, capturedAt: new Date().toISOString(), sources };

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { AnalysisSessionView } from "../../../core/analysis/types";
 
 const stageLabels: Record<string, string> = {
-  queued: "Queued", identifying: "Identifying item", searching_marketplaces: "Searching marketplaces", searching_fallback: "Checking fallback sources", processing_prices: "Processing prices", completed: "Complete", needs_review: "Needs review", failed: "Failed",
+  queued: "Queued", identifying: "Identifying item", searching_marketplaces: "Searching marketplaces", searching_auctions: "Checking active auctions", searching_fallback: "Checking fallback sources", processing_prices: "Processing prices", completed: "Complete", needs_review: "Needs review", failed: "Failed",
 };
 
 function yen(value: number | null): string { return value === null ? "—" : `¥${value.toLocaleString("ja-JP")}`; }

@@ -2,9 +2,54 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": ["identification", "priceReference", "recommendedAreas", "storeSuggestions", "warnings", "cost"],
+  "required": ["identification", "collectorMode", "collectorEvidence", "auctionSources", "priceReference", "recommendedAreas", "storeSuggestions", "warnings", "cost"],
   "properties": {
     "identification": { "$ref": "detection-result.schema.json" },
+    "collectorMode": { "type": "boolean" },
+    "collectorEvidence": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["editionSignals", "conditionSignals", "visibleIdentifiers", "missingEvidence"],
+      "properties": {
+        "editionSignals": { "type": "array", "items": { "type": "string" } },
+        "conditionSignals": { "type": "array", "items": { "type": "string" } },
+        "visibleIdentifiers": { "type": "array", "items": { "type": "string" } },
+        "missingEvidence": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "auctionSources": {
+      "type": "array", "maxItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["source", "status", "candidatesSeen", "comparableSignals", "signals"],
+        "properties": {
+          "source": { "enum": ["Yahoo Auctions", "Mandarake Auction"] },
+          "status": { "enum": ["succeeded", "no_results", "failed", "skipped"] },
+          "candidatesSeen": { "type": "integer", "minimum": 0 },
+          "comparableSignals": { "type": "integer", "minimum": 0 },
+          "signals": {
+            "type": "array", "maxItems": 5,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["source", "title", "currentPrice", "startingPrice", "buyNowPrice", "bidCount", "remainingTime", "conditionText", "matchedEvidence", "unresolvedDifferences", "url"],
+              "properties": {
+                "source": { "enum": ["Yahoo Auctions", "Mandarake Auction"] },
+                "title": { "type": "string" },
+                "currentPrice": { "type": ["integer", "null"], "minimum": 0 },
+                "startingPrice": { "type": ["integer", "null"], "minimum": 0 },
+                "buyNowPrice": { "type": ["integer", "null"], "minimum": 0 },
+                "bidCount": { "type": ["integer", "null"], "minimum": 0 },
+                "remainingTime": { "type": "string" },
+                "conditionText": { "type": "string" },
+                "matchedEvidence": { "type": "array", "items": { "type": "string" } },
+                "unresolvedDifferences": { "type": "array", "items": { "type": "string" } },
+                "url": { "type": "string", "format": "uri" }
+              }
+            }
+          }
+        }
+      }
+    },
     "priceReference": {
       "type": "object",
       "additionalProperties": false,
@@ -35,6 +80,6 @@
     "recommendedAreas": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["area", "reason", "searchKeywordJa"], "properties": { "area": { "type": "string" }, "reason": { "type": "string" }, "searchKeywordJa": { "type": "string" } } } },
     "storeSuggestions": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["name", "reason", "sourceUrl"], "properties": { "name": { "type": "string" }, "reason": { "type": "string" }, "sourceUrl": { "type": "string", "format": "uri" } } } },
     "warnings": { "type": "array", "items": { "type": "string" } },
-    "cost": { "type": "object", "additionalProperties": false, "required": ["qwenCalls", "inputTokens", "outputTokens", "marketplacePages", "tavilyCalls", "daytonaCalls", "totalMs"], "properties": { "qwenCalls": { "type": "integer", "minimum": 0 }, "inputTokens": { "type": "integer", "minimum": 0 }, "outputTokens": { "type": "integer", "minimum": 0 }, "marketplacePages": { "type": "integer", "minimum": 0 }, "tavilyCalls": { "type": "integer", "minimum": 0 }, "daytonaCalls": { "type": "integer", "minimum": 0 }, "totalMs": { "type": "integer", "minimum": 0 } } }
+    "cost": { "type": "object", "additionalProperties": false, "required": ["qwenCalls", "inputTokens", "outputTokens", "marketplacePages", "auctionPages", "tavilyCalls", "daytonaCalls", "totalMs"], "properties": { "qwenCalls": { "type": "integer", "minimum": 0 }, "inputTokens": { "type": "integer", "minimum": 0 }, "outputTokens": { "type": "integer", "minimum": 0 }, "marketplacePages": { "type": "integer", "minimum": 0 }, "auctionPages": { "type": "integer", "minimum": 0 }, "tavilyCalls": { "type": "integer", "minimum": 0 }, "daytonaCalls": { "type": "integer", "minimum": 0 }, "totalMs": { "type": "integer", "minimum": 0 } } }
   }
 }

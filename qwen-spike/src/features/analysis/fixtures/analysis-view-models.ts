@@ -4,19 +4,20 @@ import type { FixtureState } from "../types";
 
 const now = new Date(0).toISOString();
 const stages: Record<FixtureState, Partial<AnalysisSessionView>> = {
-  queued: { status: "queued", progress: 4, message: "等待前一个分析完成", queuePosition: 2 },
-  identifying: { status: "identifying", progress: 18, message: "正在识别收藏品" },
-  searching_marketplaces: { status: "searching_marketplaces", progress: 42, message: "正在读取 Rakuten 与 Mercari 挂牌样本" },
-  searching_fallback: { status: "searching_fallback", progress: 60, message: "正在执行一次受控备用搜索" },
-  processing_prices: { status: "processing_prices", progress: 82, message: "正在去重并计算价格区间" },
-  success: { status: "completed", progress: 100, message: "分析完成", result: fixtureResult() },
-  insufficient_price: { status: "completed", progress: 100, message: "识别完成，价格样本不足", result: { ...fixtureResult(), priceReference: { ...fixtureResult().priceReference, low: null, median: null, high: null, sampleCount: 0, samples: [] }, warnings: ["没有取得足够的可比较挂牌样本。"] } },
-  partial_failure: { status: "completed", progress: 100, message: "分析完成，部分来源不可用", result: { ...fixtureResult(), warnings: ["Mercari 暂时无法读取，当前区间仅来自 Rakuten。"] } },
-  needs_review: { status: "needs_review", progress: 100, message: "需要重新确认图片", error: "无法可靠判断收藏品类别，请换一张更清晰的图片。" },
-  failed: { status: "failed", progress: 100, message: "分析失败", error: "分析服务暂时不可用，请稍后重试。" },
-  expired: { status: "failed", progress: 100, message: "任务已过期", error: "任务不存在或已经过期。" },
+  queued: { status: "queued", progress: 4, message: "Waiting for the previous analysis to finish", queuePosition: 2 },
+  identifying: { status: "identifying", progress: 18, message: "Identifying the collectible" },
+  searching_marketplaces: { status: "searching_marketplaces", progress: 42, message: "Searching Rakuten and Mercari asking-price listings" },
+  searching_auctions: { status: "searching_auctions", progress: 58, message: "Searching Yahoo! Auctions and Mandarake Auction" },
+  searching_fallback: { status: "searching_fallback", progress: 60, message: "Running one controlled fallback search" },
+  processing_prices: { status: "processing_prices", progress: 82, message: "Deduplicating samples and calculating the price range" },
+  success: { status: "completed", progress: 100, message: "Analysis complete", result: fixtureResult() },
+  insufficient_price: { status: "completed", progress: 100, message: "Identification complete, but price samples are insufficient", result: { ...fixtureResult(), priceReference: { ...fixtureResult().priceReference, low: null, median: null, high: null, sampleCount: 0, samples: [] }, warnings: ["There were not enough comparable asking-price samples."] } },
+  partial_failure: { status: "completed", progress: 100, message: "Analysis complete with a partial source failure", result: { ...fixtureResult(), warnings: ["Mercari could not be read. The current range uses Rakuten only."] } },
+  needs_review: { status: "needs_review", progress: 100, message: "The image needs another review", error: "The collectible category could not be identified reliably. Try a clearer image." },
+  failed: { status: "failed", progress: 100, message: "Analysis failed", error: "The analysis service is temporarily unavailable. Please try again." },
+  expired: { status: "failed", progress: 100, message: "Session expired", error: "The analysis session does not exist or has expired." },
 };
 
 export function fixtureSession(state: FixtureState): AnalysisSessionView {
-  return { id: `fixture-${state}`, status: "queued", queuePosition: null, progress: 0, message: "", createdAt: now, updatedAt: now, result: null, error: null, ...stages[state] };
+  return { id: `fixture-${state}`, status: "queued", queuePosition: null, progress: 0, message: "", identification: null, collectorMode: false, collectorEvidence: null, toolActivity: [], createdAt: now, updatedAt: now, result: null, error: null, ...stages[state] };
 }

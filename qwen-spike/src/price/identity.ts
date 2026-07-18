@@ -37,7 +37,15 @@ export function identityMatches(profile: ItemProfile, text: string): boolean {
 
   if (profile.subtype === "records_vinyl" || profile.subtype === "music_memorabilia") {
     const mediaContext = /中古|レコード|アナログ|VINYL|LP|CD|カセット|ALBUM|盤/i.test(text);
-    return (brand.length >= 3 && normalized.includes(brand)) || (item.length >= 3 && normalized.includes(item) && mediaContext);
+    const identityTerms = terms([profile.itemName, profile.brandCharacterSeries, profile.priceSearchKeywordJa])
+      .flatMap((term) => {
+        const withoutEnsemble = term.replace(/五重奏団?|QUINTET|ORCHESTRA/gi, "");
+        return withoutEnsemble.length >= 2 && withoutEnsemble !== term ? [term, withoutEnsemble] : [term];
+      })
+      .filter((term) => term !== "UNKNOWN");
+    const matched = [...new Set(identityTerms.filter((term) => normalized.includes(term)))];
+    const hasTwoIdentityAnchors = matched.some((left) => matched.some((right) => left !== right && !left.includes(right) && !right.includes(left)));
+    return (brand !== "UNKNOWN" && brand.length >= 3 && normalized.includes(brand)) || (hasTwoIdentityAnchors && mediaContext) || (item.length >= 3 && normalized.includes(item) && mediaContext);
   }
 
   if (profile.subtype === "toys_character") {

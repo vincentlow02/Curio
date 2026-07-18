@@ -3,12 +3,29 @@ import type { DetectionResult } from "../profile/types";
 export type AnalysisStage =
   | "queued"
   | "identifying"
+  | "identified"
+  | "queued_research"
   | "needs_review"
   | "searching_marketplaces"
+  | "searching_auctions"
   | "searching_fallback"
   | "processing_prices"
   | "completed"
   | "failed";
+
+export type ToolActivity = {
+  provider: "Qwen" | "Rakuten" | "Mercari" | "Yahoo Auctions" | "Mandarake Auction" | "Tavily" | "Daytona";
+  status: "pending" | "running" | "succeeded" | "failed" | "skipped" | "fallback";
+  calls: number;
+  durationMs: number | null;
+  model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  resultCount?: number;
+  validResultCount?: number;
+  fallbackUsed?: boolean;
+  cacheHit?: boolean;
+};
 
 export type PublicPriceSample = {
   title: string;
@@ -29,13 +46,47 @@ export type CostSummary = {
   inputTokens: number;
   outputTokens: number;
   marketplacePages: number;
+  auctionPages: number;
   tavilyCalls: number;
   daytonaCalls: number;
   totalMs: number;
 };
 
+export type CollectorEvidence = {
+  editionSignals: string[];
+  conditionSignals: string[];
+  visibleIdentifiers: string[];
+  missingEvidence: string[];
+};
+
+export type AuctionSource = "Yahoo Auctions" | "Mandarake Auction";
+export type AuctionSignal = {
+  source: AuctionSource;
+  title: string;
+  currentPrice: number | null;
+  startingPrice: number | null;
+  buyNowPrice: number | null;
+  bidCount: number | null;
+  remainingTime: string;
+  conditionText: string;
+  matchedEvidence: string[];
+  unresolvedDifferences: string[];
+  url: string;
+};
+
+export type AuctionSourceSummary = {
+  source: AuctionSource;
+  status: "succeeded" | "no_results" | "failed" | "skipped";
+  candidatesSeen: number;
+  comparableSignals: number;
+  signals: AuctionSignal[];
+};
+
 export type AnalysisResult = {
   identification: DetectionResult;
+  collectorMode: boolean;
+  collectorEvidence: CollectorEvidence | null;
+  auctionSources: AuctionSourceSummary[];
   priceReference: {
     currency: "JPY";
     low: number | null;
@@ -57,6 +108,10 @@ export type AnalysisSessionView = {
   queuePosition: number | null;
   progress: number;
   message: string;
+  identification: DetectionResult | null;
+  collectorMode: boolean;
+  collectorEvidence: CollectorEvidence | null;
+  toolActivity: ToolActivity[];
   createdAt: string;
   updatedAt: string;
   result: AnalysisResult | null;

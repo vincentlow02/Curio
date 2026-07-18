@@ -3,6 +3,7 @@ import { isIP } from "node:net";
 import { chromium, type BrowserContext, type Page } from "playwright";
 
 import type { ItemProfile } from "../profile/types";
+import { buildMarketplaceKeyword } from "./marketplace-browser";
 import { identityMatches } from "./identity";
 import type { TavilyFallbackSnapshot } from "./types";
 
@@ -12,10 +13,9 @@ type TavilyResponse = {
 };
 
 export function buildTavilyPriceQuery(profile: ItemProfile): string {
-  const parts = [profile.itemName, profile.brandCharacterSeries, profile.versionOrPeriod, profile.priceSearchKeywordJa]
-    .map((value) => value.trim())
-    .filter((value) => value && value.toLowerCase() !== "unknown");
-  return `${[...new Set(parts)].map((value) => value.replace(/"/g, "")).join(" ")} 価格`;
+  const primary = buildMarketplaceKeyword(profile.priceSearchKeywordJa).replace(/中古/g, " ").replace(/\s+/g, " ").trim();
+  const version = profile.versionOrPeriod.trim().toLowerCase() === "unknown" ? "" : profile.versionOrPeriod.trim();
+  return `${primary}${version && !primary.toUpperCase().includes(version.toUpperCase()) ? ` ${version}` : ""} 中古 価格`.replace(/\s+/g, " ").trim();
 }
 
 function safeResultUrl(raw: string): string | null {
@@ -73,7 +73,7 @@ export async function captureTavilyPriceFallback(args: { profile: ItemProfile; a
   const query = buildTavilyPriceQuery(args.profile);
   const snapshot: TavilyFallbackSnapshot = { version: 1, provider: "Tavily", triggered: true, query, searchUrl: "https://api.tavily.com/search", capturedAt: new Date().toISOString(), searchError: null, results: [], candidates: [], usage: null };
   if (!args.apiKey) {
-    snapshot.searchError = "TAVILY_API_KEY 未配置。";
+    snapshot.searchError = "TAVILY_API_KEY is not configured.";
     return snapshot;
   }
   let rawResults: Array<{ title: string; url: string }> = [];
@@ -91,7 +91,7 @@ export async function captureTavilyPriceFallback(args: { profile: ItemProfile; a
       const url = result.url ? safeResultUrl(result.url) : null;
       return url ? [{ title: result.title?.trim() || url, url }] : [];
     }).slice(0, Math.min(args.maxResultsToOpen, 2));
-    if (!rawResults.length) snapshot.searchError = "Tavily 没有返回可打开的 HTTPS 搜索结果。";
+    if (!rawResults.length) snapshot.searchError = "Tavily returned no usable HTTPS search result.";
   } catch (error) {
     snapshot.searchError = error instanceof Error ? error.message : String(error);
     return snapshot;

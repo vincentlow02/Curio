@@ -14,7 +14,7 @@ export function useAnalysis(sessionId: string, initial?: AnalysisSessionView): {
         const demoCode = sessionStorage.getItem("collectible-demo-code") ?? "";
         const response = await fetch(`/api/analysis/${encodeURIComponent(sessionId)}`, { headers: { "X-Demo-Code": demoCode }, cache: "no-store" });
         const body = await response.json() as AnalysisSessionView | { error: string };
-        if (!response.ok) throw new Error(("error" in body ? body.error : null) ?? "无法读取任务状态。");
+        if (!response.ok) throw new Error(("error" in body ? body.error : null) ?? "Unable to read the analysis status.");
         if (cancelled) return;
         const next = body as AnalysisSessionView;
         setSession(next);

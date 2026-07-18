@@ -1,10 +1,16 @@
 import "server-only";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import type { AnalysisResult, AnalysisSessionView, AnalysisStage } from "../../core/analysis/types";
+import type { AnalysisResult, AnalysisSessionView, AnalysisStage, ToolActivity } from "../../core/analysis/types";
+import type { CollectibleCategory } from "../../core/profile/types";
 import { env } from "../config/env";
 
-type InternalSession = AnalysisSessionView & { imagePath: string; mimeType: string };
+type InternalSession = AnalysisSessionView & {
+  imagePath: string | null;
+  mimeType: string | null;
+  inputText: string;
+  selectedCategory: CollectibleCategory | null;
+};
 const ROOT = resolve(process.cwd(), ".tmp", "sessions");
 const globalSessions = globalThis as typeof globalThis & { __analysisSessions?: Map<string, InternalSession> };
 const sessions = globalSessions.__analysisSessions ??= new Map();
@@ -12,14 +18,28 @@ const sessions = globalSessions.__analysisSessions ??= new Map();
 async function persist(session: InternalSession): Promise<void> {
   const directory = resolve(ROOT, session.id);
   await mkdir(directory, { recursive: true });
-  const { imagePath: _imagePath, mimeType: _mimeType, ...safe } = session;
+  const { imagePath: _imagePath, mimeType: _mimeType, inputText: _inputText, selectedCategory: _selectedCategory, ...safe } = session;
   await writeFile(resolve(directory, "session.json"), `${JSON.stringify(safe, null, 2)}\n`, "utf8");
   if (session.result) await writeFile(resolve(directory, "result.json"), `${JSON.stringify(session.result, null, 2)}\n`, "utf8");
 }
 
-export async function createSession(id: string, imagePath: string, mimeType: string): Promise<InternalSession> {
+export async function createSession(id: string, input: { imagePath: string | null; mimeType: string | null; inputText: string; selectedCategory: CollectibleCategory | null; collectorMode: boolean }): Promise<InternalSession> {
   const now = new Date().toISOString();
-  const session: InternalSession = { id, status: "queued", queuePosition: null, progress: 4, message: "等待分析", createdAt: now, updatedAt: now, result: null, error: null, imagePath, mimeType };
+  const session: InternalSession = {
+    id,
+    status: "queued",
+    queuePosition: null,
+    progress: 4,
+    message: "Waiting to identify the collectible",
+    createdAt: now,
+    updatedAt: now,
+    identification: null,
+    collectorEvidence: null,
+    toolActivity: [],
+    result: null,
+    error: null,
+    ...input,
+  };
   sessions.set(id, session);
   await persist(session);
   return session;
@@ -27,7 +47,7 @@ export async function createSession(id: string, imagePath: string, mimeType: str
 
 export function internalSession(id: string): InternalSession | null { return sessions.get(id) ?? null; }
 
-export async function updateSession(id: string, patch: Partial<Pick<InternalSession, "queuePosition" | "progress" | "message" | "result" | "error">> & { status?: AnalysisStage }): Promise<void> {
+export async function updateSession(id: string, patch: Partial<Pick<InternalSession, "queuePosition" | "progress" | "message" | "identification" | "collectorEvidence" | "toolActivity" | "result" | "error">> & { status?: AnalysisStage }): Promise<void> {
   const session = sessions.get(id);
   if (!session) return;
   if (["completed", "failed", "needs_review"].includes(session.status) && patch.status && patch.status !== session.status) return;
@@ -38,7 +58,7 @@ export async function updateSession(id: string, patch: Partial<Pick<InternalSess
 export async function publicSession(id: string): Promise<AnalysisSessionView | null> {
   const session = sessions.get(id);
   if (session) {
-    const { imagePath: _imagePath, mimeType: _mimeType, ...safe } = session;
+    const { imagePath: _imagePath, mimeType: _mimeType, inputText: _inputText, selectedCategory: _selectedCategory, ...safe } = session;
     return safe;
   }
   try {
@@ -51,6 +71,10 @@ export async function publicSession(id: string): Promise<AnalysisSessionView | n
 export async function deleteImage(id: string): Promise<void> {
   const session = sessions.get(id);
   if (session?.imagePath) await rm(session.imagePath, { force: true });
+}
+
+export function replaceToolActivity(activities: ToolActivity[], activity: ToolActivity): ToolActivity[] {
+  return [...activities.filter((entry) => entry.provider !== activity.provider), activity];
 }
 
 export async function cleanupExpiredSessions(now = Date.now()): Promise<void> {

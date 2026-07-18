@@ -245,6 +245,51 @@ fixture 不调用 Qwen，不启动浏览器，不访问 Rakuten、Mercari、Goog
 
 Web 版本将技术测试组合为桌面优先的 Next.js 应用。原有 `analyze`、`price-reference` 和 `daytona-smoke` 命令保持可用。
 
+## Live demo runtime
+
+The production home screen uses a real two-stage session. It does not use the UI fixture timer or fixture prices:
+
+```text
+image or concrete text
+-> Qwen Detect
+-> editable identification
+-> Continue research
+-> one Rakuten page + one Mercari page
+-> Tavily basic only when both primary sources yield zero valid samples
+-> Node matching
+-> Daytona MAD processing (Node fallback on failure)
+-> sourced asking-price reference and Tokyo area links
+```
+
+The first submission asks for `DEMO_ACCESS_CODE`. The browser stores it only in `sessionStorage` and sends it as `X-Demo-Code`; it is never placed in a URL or a `NEXT_PUBLIC_*` variable. Recent history stores at most 12 result records in `localStorage`; their local image previews are stored separately in browser IndexedDB and removed when the corresponding Recent record is deleted or evicted. The server-side upload is still deleted after identification.
+
+Required Railway variables for live mode:
+
+```dotenv
+WEB_USE_FIXTURE=false
+DEMO_ACCESS_CODE=
+QWEN_API_KEY=
+QWEN_BASE_URL=
+QWEN_VISION_MODEL=
+QWEN_TEXT_MODEL=
+PLAYWRIGHT_HEADLESS=true
+ENABLE_TAVILY_PRICE_FALLBACK=true
+TAVILY_API_KEY=
+ENABLE_DAYTONA_PROCESSING=true
+DAYTONA_API_KEY=
+DAYTONA_API_URL=https://app.daytona.io/api
+```
+
+`POST /api/analysis` performs Detect and accepts optional multipart fields `image`, `text`, and `category`. `POST /api/analysis/{sessionId}/research` accepts the user-corrected identification and can start only once from `identified`. `GET /api/analysis/{sessionId}` returns safe progress and tool activity. `/api/health` returns provider readiness without secrets and returns HTTP 503 when required production configuration is missing.
+
+The expandable **Run details** section exposes only safe evidence: provider status, call count, Qwen model and token usage, marketplace candidate/valid counts, Tavily fallback status, Daytona duration/fallback status, and total duration. It does not expose keys, local paths, stack traces, or raw internal traces.
+
+## Collector Mode
+
+Collector Mode is an explicit per-analysis option. It does not add a second Qwen call: the existing Detect request also records only visible edition, condition and identifier evidence plus facts that remain unconfirmed. Research then reads at most one public Yahoo! Auctions results page and one public Mandarake Auction results page. It keeps at most five Yahoo signals and three Mandarake signals, never logs in, bids, paginates or follows item detail pages.
+
+Active-auction signals stay separate from the Rakuten/Mercari `Online asking-price reference`. Current, starting and buy-now prices retain their original meanings and are never treated as confirmed sale prices. A failure or empty result from either auction source does not fail marketplace research and does not trigger another auction search. Mandarake listings are specialist-source evidence, not automatic proof of authenticity; a certificate may be stated only when the source explicitly displays one.
+
 ## 两阶段数据边界
 
 Qwen VL 的 Detect 阶段只返回 `itemName`、`version`、`priceSearchKeywordJa` 和三个一级类别之一。`subtype`、推荐区域和店铺不属于图片识别输出。无法可靠归类时任务进入 `needs_review`，不会强行选择分类。

@@ -133,15 +133,15 @@ export function buildPriceResult(args: {
   for (const source of ["Rakuten", "Mercari"] as const) {
     const count = samples.filter((sample) => sample.source === source).length;
     const sourceError = args.snapshot.sources.find((entry) => entry.source === source)?.error;
-    if (sourceError) warnings.push(`${source} 搜索页读取失败：${sourceError}`);
-    if (count < args.maxSamplesPerSource) warnings.push(`${source} 仅获得 ${count} 个可比较挂牌样本，目标为 ${args.maxSamplesPerSource} 个。`);
+    if (sourceError) warnings.push(`${source} search page could not be read: ${sourceError}`);
+    if (count < args.maxSamplesPerSource) warnings.push(`${source} produced ${count} comparable asking-price samples; the target was ${args.maxSamplesPerSource}.`);
   }
-  if (args.tavilyFallback.triggered && !args.tavilyFallback.candidates.length) warnings.push("Rakuten、Mercari 和 Tavily fallback 均未找到可验证价格。");
-  if (args.tavilyFallback.candidates.length) warnings.push("Rakuten 和 Mercari 未找到有效结果；Tavily 仅发现来源 URL，价格来自打开的网页，当前销售状态和商品状态可能未确认。");
+  if (args.tavilyFallback.triggered && !args.tavilyFallback.candidates.length) warnings.push("Rakuten, Mercari and the Tavily fallback did not produce a verifiable price.");
+  if (args.tavilyFallback.candidates.length) warnings.push("Rakuten and Mercari produced no valid result. Tavily only discovered source URLs; sale and condition details may remain unconfirmed.");
   const outlierCount = samples.filter((sample) => sample.aggregationExclusionReason === "price_outlier").length;
-  if (outlierCount) warnings.push(`${outlierCount} 个极端挂牌价已保留在样本中，但未计入参考区间。`);
-  if (referenceSamples.length < 3) warnings.push("参考区间样本少于 3 个，仅供初步参考。");
-  if (args.storeSnapshot.error) warnings.push(`店铺验证失败，已仅保留区域搜索链接：${args.storeSnapshot.error}`);
+  if (outlierCount) warnings.push(`${outlierCount} extreme asking-price listings remain visible but were excluded from the reference range.`);
+  if (referenceSamples.length < 3) warnings.push("The reference range contains fewer than 3 samples and should be treated as preliminary.");
+  if (args.storeSnapshot.error) warnings.push(`Store verification failed. Only area search links were retained: ${args.storeSnapshot.error}`);
   const prices = samples.map((sample) => sample.price);
   return {
     result: {
