@@ -124,6 +124,13 @@ export function FigmaLeftToolbar({ expanded, history, activeHistoryId, onToggle,
             </nav>
           </div>
         </div>
+        <div className="figma-toolbar-location" title="Tokyo, Japan" aria-label="Recommendation area: Tokyo, Japan">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 21s6-5.14 6-11a6 6 0 1 0-12 0c0 5.86 6 11 6 11Z" />
+            <circle cx="12" cy="10" r="2.25" />
+          </svg>
+          <span><b>Tokyo</b><small>Japan</small></span>
+        </div>
       </div>
       </aside>
     </>
