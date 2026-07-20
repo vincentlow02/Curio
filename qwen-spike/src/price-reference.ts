@@ -253,7 +253,8 @@ async function main(): Promise<void> {
     executionTimeoutSeconds: positiveInt("DAYTONA_EXECUTION_TIMEOUT_SECONDS", 30, 60),
     stateTtlHours: positiveInt("DAYTONA_STATE_TTL_HOURS", 168, 168),
   });
-  if (daytona.report.fallbackUsed) built.result.warnings.push(`Daytona 处理失败，已使用本地 Node 计算结果：${daytona.report.error ?? "unknown error"}`);
+  if (daytona.report.verificationStatus === "mismatch") built.result.warnings.push(`Daytona 验证结果与 Node 计算不一致，已保留 Node 确定性结果：${daytona.report.error ?? "unknown error"}`);
+  if (daytona.report.verificationStatus === "unavailable") built.result.warnings.push(`Daytona 验证不可用，已保留 Node 确定性结果：${daytona.report.error ?? "unknown error"}`);
   assertSafeResult(built.result);
   await validateSchema(built.result, RESULT_SCHEMA, "result");
   const completed = Date.now();

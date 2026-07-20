@@ -14,7 +14,7 @@ export type AnalysisStage =
   | "failed";
 
 export type ToolActivity = {
-  provider: "Qwen" | "Rakuten" | "Mercari" | "Yahoo Auctions" | "Mandarake Auction" | "Tavily" | "Daytona";
+  provider: "Qwen" | "Rakuten" | "Mercari" | "Yahoo Auctions" | "Mandarake Auction" | "Tavily" | "Node" | "Daytona";
   status: "pending" | "running" | "succeeded" | "failed" | "skipped" | "fallback";
   calls: number;
   durationMs: number | null;
@@ -24,6 +24,7 @@ export type ToolActivity = {
   resultCount?: number;
   validResultCount?: number;
   fallbackUsed?: boolean;
+  verificationStatus?: "not_run" | "verified" | "mismatch" | "unavailable";
   cacheHit?: boolean;
 };
 

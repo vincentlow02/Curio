@@ -256,10 +256,12 @@ image or concrete text
 -> Continue research
 -> one Rakuten page + one Mercari page
 -> Tavily basic only when both primary sources yield zero valid samples
--> Node matching
--> Daytona MAD processing (Node fallback on failure)
+-> Node matching, exclusion rules and MAD price calculation
+-> optional Daytona Sandbox recalculation and consistency verification
 -> sourced asking-price reference and Tokyo area links
 ```
+
+Node.js is the authoritative deterministic calculation layer. Daytona never replaces or mutates the Node result: it independently recalculates the sample decisions and numeric range in an isolated, network-blocked Sandbox, then reports whether both outputs match. If the Sandbox is unavailable or differs, Curio retains the Node result and adds a warning.
 
 The first submission asks for `DEMO_ACCESS_CODE`. The browser stores it only in `sessionStorage` and sends it as `X-Demo-Code`; it is never placed in a URL or a `NEXT_PUBLIC_*` variable. Recent history stores at most 12 result records in `localStorage`; their local image previews are stored separately in browser IndexedDB and removed when the corresponding Recent record is deleted or evicted. The server-side upload is still deleted after identification.
 
@@ -282,7 +284,7 @@ DAYTONA_API_URL=https://app.daytona.io/api
 
 `POST /api/analysis` performs Detect and accepts optional multipart fields `image`, `text`, and `category`. `POST /api/analysis/{sessionId}/research` accepts the user-corrected identification and can start only once from `identified`. `GET /api/analysis/{sessionId}` returns safe progress and tool activity. `/api/health` returns provider readiness without secrets and returns HTTP 503 when required production configuration is missing.
 
-The expandable **Run details** section exposes only safe evidence: provider status, call count, Qwen model and token usage, marketplace candidate/valid counts, Tavily fallback status, Daytona duration/fallback status, and total duration. It does not expose keys, local paths, stack traces, or raw internal traces.
+The expandable **Run details** section exposes only safe evidence: provider status, call count, Qwen model and token usage, marketplace candidate/valid counts, Tavily fallback status, the Node calculation, Daytona verification status and total duration. It does not expose keys, local paths, stack traces, or raw internal traces.
 
 ## Collector Mode
 

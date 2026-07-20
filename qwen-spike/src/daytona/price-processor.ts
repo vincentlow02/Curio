@@ -27,6 +27,8 @@ export type DaytonaRunReport = {
   attempted: boolean;
   succeeded: boolean;
   fallbackUsed: boolean;
+  verificationStatus: "not_run" | "verified" | "mismatch" | "unavailable";
+  nodeResultRetained: true;
   sandboxId: string | null;
   remoteStatePath: string | null;
   error: string | null;
@@ -124,16 +126,22 @@ console.log(${JSON.stringify(OUTPUT_MARKER)} + JSON.stringify(state));
 `;
 }
 
-function applyState(result: PriceReferenceResult, state: DaytonaPriceState): void {
+function sameRange(left: NumericRange, right: NumericRange): boolean {
+  return left.low === right.low && left.median === right.median && left.high === right.high && left.sampleCount === right.sampleCount;
+}
+
+export function daytonaStateMatchesNodeResult(state: DaytonaPriceState, result: PriceReferenceResult): boolean {
   const byKey = new Map(state.samples.map((sample) => [`${sample.source}|${sample.rank}|${sample.url}`, sample]));
-  for (const sample of result.samples) {
-    const processed = byKey.get(`${sample.source}|${sample.rank}|${sample.url}`)!;
-    sample.includedInReferenceRange = processed.includedInReferenceRange;
-    sample.aggregationExclusionReason = processed.aggregationExclusionReason;
-  }
-  result.referenceRange = { ...result.referenceRange, ...state.referenceRange };
-  result.referenceRangeBySource = state.referenceRangeBySource;
-  result.conditionRanges = state.conditionRanges;
+  const samplesMatch = result.samples.every((sample) => {
+    const verified = byKey.get(`${sample.source}|${sample.rank}|${sample.url}`);
+    return verified?.includedInReferenceRange === sample.includedInReferenceRange
+      && verified.aggregationExclusionReason === sample.aggregationExclusionReason;
+  });
+  const sourceRangesMatch = result.referenceRangeBySource.length === state.referenceRangeBySource.length
+    && result.referenceRangeBySource.every((entry, index) => entry.source === state.referenceRangeBySource[index]?.source && sameRange(entry, state.referenceRangeBySource[index]));
+  const conditionRangesMatch = result.conditionRanges.length === state.conditionRanges.length
+    && result.conditionRanges.every((entry, index) => entry.condition === state.conditionRanges[index]?.condition && sameRange(entry, state.conditionRanges[index]));
+  return samplesMatch && sameRange(result.referenceRange, state.referenceRange) && sourceRangesMatch && conditionRangesMatch;
 }
 
 export async function processPriceResultWithDaytona(result: PriceReferenceResult, options: DaytonaOptions): Promise<{ state: DaytonaPriceState | null; report: DaytonaRunReport }> {
@@ -143,6 +151,8 @@ export async function processPriceResultWithDaytona(result: PriceReferenceResult
     attempted: false,
     succeeded: false,
     fallbackUsed: false,
+    verificationStatus: "not_run",
+    nodeResultRetained: true,
     sandboxId: null,
     remoteStatePath: null,
     error: null,
@@ -152,6 +162,7 @@ export async function processPriceResultWithDaytona(result: PriceReferenceResult
   report.attempted = true;
   if (!options.apiKey) {
     report.fallbackUsed = true;
+    report.verificationStatus = "unavailable";
     report.error = "DAYTONA_API_KEY 未配置。";
     report.durationMs = Date.now() - started;
     return { state: null, report };
@@ -183,12 +194,17 @@ export async function processPriceResultWithDaytona(result: PriceReferenceResult
     if (!line) throw new Error("Daytona 返回了空 state。");
     const state = JSON.parse(line) as unknown;
     assertState(state, options.sessionId, result);
-    applyState(result, state);
-    report.succeeded = true;
+    report.succeeded = daytonaStateMatchesNodeResult(state, result);
+    report.verificationStatus = report.succeeded ? "verified" : "mismatch";
+    if (!report.succeeded) {
+      report.fallbackUsed = true;
+      report.error = "Daytona verification did not match the deterministic Node.js result.";
+    }
     report.durationMs = Date.now() - started;
     return { state, report };
   } catch (error) {
     report.fallbackUsed = true;
+    report.verificationStatus = "unavailable";
     report.error = error instanceof Error ? error.message : String(error);
     report.durationMs = Date.now() - started;
     return { state: null, report };

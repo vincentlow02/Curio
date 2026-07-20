@@ -16,7 +16,7 @@ const researchSteps: Array<{ status: AnalysisStage; label: string }> = [
   { status: "searching_marketplaces", label: "Searching Rakuten and Mercari listings" },
   { status: "searching_auctions", label: "Checking Yahoo! Auctions and Mandarake Auction" },
   { status: "searching_fallback", label: "Checking a controlled fallback when needed" },
-  { status: "processing_prices", label: "Cleaning samples and calculating the price range in Daytona" },
+  { status: "processing_prices", label: "Calculating the reference range and verifying it in an isolated sandbox" },
 ];
 
 const researchOrder: AnalysisStage[] = ["queued_research", "searching_marketplaces", "searching_auctions", "searching_fallback", "processing_prices", "completed"];
@@ -70,7 +70,7 @@ function stageMessage(status: AnalysisStage | null, fallback?: string): string {
     searching_marketplaces: "Searching Rakuten and Mercari asking-price listings",
     searching_auctions: "Searching Yahoo! Auctions and Mandarake Auction",
     searching_fallback: "Running one controlled fallback search",
-    processing_prices: "Cleaning samples and calculating the price range",
+    processing_prices: "Calculating the reference range and checking sandbox consistency",
     completed: "Analysis complete",
     needs_review: "More identification details are needed",
     failed: "Analysis stopped",
@@ -126,10 +126,13 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
       return activity.status === "skipped"
         ? { title: "Skipped fallback search", description: sampleCount > 0 ? "Rakuten or Mercari already produced comparable samples, so no fallback search was needed." : "Fallback search was disabled for this run." }
         : { title: "Used controlled fallback search", description: `The primary sources had no usable samples. Tavily returned ${candidates} candidates and ${valid} were retained.` };
+    case "Node":
+      return { title: "Calculated the reference range", description: `Node.js applied the deterministic matching, exclusion and MAD price rules. ${valid} of ${candidates} retained samples were included in the reference range.` };
     case "Daytona":
-      return activity.status === "succeeded"
-        ? { title: "Processed prices in Daytona", description: "Ran MAD outlier filtering and price-range aggregation inside an isolated sandbox." }
-        : { title: "Used deterministic price fallback", description: "The Daytona sandbox was unavailable, so the same deterministic processing ran safely in Node." };
+      if (activity.verificationStatus === "verified") return { title: "Verified in Daytona Sandbox", description: "The isolated Sandbox independently recalculated the sample decisions and price range, and its output matched the Node.js result." };
+      if (activity.verificationStatus === "mismatch") return { title: "Sandbox verification differed", description: "The isolated recalculation did not match. Curio retained the deterministic Node.js result and reported the difference." };
+      if (activity.verificationStatus === "unavailable") return { title: "Sandbox verification unavailable", description: "The Node.js calculation completed normally, but Daytona could not independently verify this run." };
+      return { title: "Skipped Sandbox verification", description: "The deterministic Node.js calculation was used without an additional Daytona verification run." };
   }
 }
 

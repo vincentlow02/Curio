@@ -140,14 +140,18 @@ export async function runResearch(id: string, identification: DetectionResult): 
     }
 
     let fallback = disabledTavilyFallback(profile);
+    let nodeCalculationStarted = Date.now();
     let built = buildPriceResult({ profile, snapshot, tavilyFallback: fallback, storeSnapshot: disabledStoreSnapshot(), maxCardsScannedPerSource: 30, maxSamplesPerSource: 5 });
+    let nodeCalculationMs = Date.now() - nodeCalculationStarted;
     if (built.result.samples.length === 0 && env.enableTavily) {
       await updateSession(id, { status: "searching_fallback", progress: 62, message: "No comparable primary samples found. Running one controlled fallback search." });
       const tavilyStarted = Date.now();
       await setActivity(id, { provider: "Tavily", status: "running", calls: 1, durationMs: null });
       fallback = await captureTavilyPriceFallback({ profile, apiKey: env.tavilyApiKey, maxResultsToOpen: 2, headless: env.headless });
       await setActivity(id, { provider: "Tavily", status: fallback.searchError ? "failed" : "fallback", calls: 1, durationMs: Date.now() - tavilyStarted, resultCount: fallback.candidates.length, cacheHit: false });
+      nodeCalculationStarted = Date.now();
       built = buildPriceResult({ profile, snapshot, tavilyFallback: fallback, storeSnapshot: disabledStoreSnapshot(), maxCardsScannedPerSource: 30, maxSamplesPerSource: 5 });
+      nodeCalculationMs += Date.now() - nodeCalculationStarted;
     } else {
       await setActivity(id, { provider: "Tavily", status: "skipped", calls: 0, durationMs: 0, resultCount: 0 });
     }
@@ -156,7 +160,8 @@ export async function runResearch(id: string, identification: DetectionResult): 
     await patchActivity(id, "Mercari", { validResultCount: built.result.samples.filter((sample) => sample.source === "Mercari").length });
     await patchActivity(id, "Tavily", { validResultCount: built.result.samples.filter((sample) => sample.source === "Web fallback").length });
 
-    await updateSession(id, { status: "processing_prices", progress: 80, message: "Cleaning samples and calculating the price range in Daytona" });
+    await updateSession(id, { status: "processing_prices", progress: 80, message: "Calculating the reference range in Node.js and verifying it in Daytona" });
+    await setActivity(id, { provider: "Node", status: "succeeded", calls: 0, durationMs: nodeCalculationMs, resultCount: built.result.samples.length, validResultCount: built.result.referenceRange.sampleCount });
     await setActivity(id, { provider: "Daytona", status: env.enableDaytona ? "running" : "skipped", calls: env.enableDaytona ? 1 : 0, durationMs: null });
     const daytona = await processPriceResultWithDaytona(built.result, {
       enabled: env.enableDaytona,
@@ -170,10 +175,11 @@ export async function runResearch(id: string, identification: DetectionResult): 
     });
     await setActivity(id, {
       provider: "Daytona",
-      status: daytona.report.succeeded ? "succeeded" : daytona.report.fallbackUsed ? "fallback" : "skipped",
+      status: daytona.report.succeeded ? "succeeded" : daytona.report.attempted ? "failed" : "skipped",
       calls: daytona.report.attempted ? 1 : 0,
       durationMs: daytona.report.durationMs,
       fallbackUsed: daytona.report.fallbackUsed,
+      verificationStatus: daytona.report.verificationStatus,
     });
 
     const areas = recommendAreas(identification.category);
@@ -184,7 +190,8 @@ export async function runResearch(id: string, identification: DetectionResult): 
     if (session.collectorMode && auctionSources.every((source) => source.comparableSignals === 0)) warnings.push("No comparable public active-auction signals were found. No additional auction search was attempted.");
     for (const source of auctionSources.filter((entry) => entry.status === "failed")) warnings.push(`${source.source} could not be read; the other sources and marketplace range are unaffected.`);
     if (!stores.length) warnings.push("No Tokyo physical store with verified source evidence is available yet. Use the area map search and confirm before visiting.");
-    if (daytona.report.error) warnings.push("Daytona processing was unavailable. The deterministic Node.js result was used instead.");
+    if (daytona.report.verificationStatus === "mismatch") warnings.push("Daytona sandbox verification did not match the Node.js calculation. The deterministic Node.js result was retained.");
+    if (daytona.report.verificationStatus === "unavailable") warnings.push("Daytona sandbox verification was unavailable. The deterministic Node.js result was retained.");
     const current = internalSession(id);
     const tokens = qwenCost(current?.toolActivity ?? []);
     const result: AnalysisResult = {

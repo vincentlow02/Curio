@@ -137,6 +137,8 @@ export type PriceTrace = {
     attempted: boolean;
     succeeded: boolean;
     fallbackUsed: boolean;
+    verificationStatus: "not_run" | "verified" | "mismatch" | "unavailable";
+    nodeResultRetained: true;
     sandboxId: string | null;
     remoteStatePath: string | null;
     error: string | null;
