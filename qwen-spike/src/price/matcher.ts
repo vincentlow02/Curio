@@ -1,5 +1,6 @@
 import type { ItemProfile } from "../profile/types";
 import { identityMatches } from "./identity";
+import { matchPokemonCardIdentity } from "../core/profile/pokemon-card";
 import { buildStoreSearchUrl } from "./store-verifier";
 import type {
   ExclusionReason,
@@ -97,7 +98,11 @@ export function buildPriceResult(args: {
       else if (candidate.source === "Rakuten" && NEW_ITEM.test(candidate.title)) reason = "new_item";
       else if (INCOMPLETE.test(candidate.title)) reason = "incomplete_item";
       else if (ACCESSORY_OR_SOFTWARE.test(candidate.title)) reason = "accessory_or_software_only";
-      else if (!identityMatches(args.profile, combined)) reason = "different_model";
+      else if (args.profile.pokemonCard) {
+        const cardMatch = matchPokemonCardIdentity(args.profile.pokemonCard, combined);
+        if (cardMatch === "ambiguous") reason = "unconfirmed_card_identity";
+        else if (cardMatch === "different") reason = "different_model";
+      } else if (!identityMatches(args.profile, combined)) reason = "different_model";
       else if (BUNDLE.test(candidate.title)) reason = "bundle_or_lot";
       else if (candidate.source === "Rakuten" && !/中古|USED/i.test(candidate.title)) reason = "new_item";
       const dedupeKey = `${normalize(candidate.title)}|${candidate.displayedPrice ?? ""}`;
@@ -140,6 +145,8 @@ export function buildPriceResult(args: {
   if (args.tavilyFallback.candidates.length) warnings.push("Rakuten and Mercari produced no valid result. Tavily only discovered source URLs; sale and condition details may remain unconfirmed.");
   const outlierCount = samples.filter((sample) => sample.aggregationExclusionReason === "price_outlier").length;
   if (outlierCount) warnings.push(`${outlierCount} extreme asking-price listings remain visible but were excluded from the reference range.`);
+  const ambiguousCardCount = excluded.filter((entry) => entry.reason === "unconfirmed_card_identity").length;
+  if (ambiguousCardCount) warnings.push(`${ambiguousCardCount} same-name Pokémon Card listings were excluded because their exact card number could not be confirmed.`);
   if (referenceSamples.length < 3) warnings.push("The reference range contains fewer than 3 samples and should be treated as preliminary.");
   if (args.storeSnapshot.error) warnings.push(`Store verification failed. Only area search links were retained: ${args.storeSnapshot.error}`);
   const prices = samples.map((sample) => sample.price);

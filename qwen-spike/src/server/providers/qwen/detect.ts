@@ -2,6 +2,7 @@ import "server-only";
 import OpenAI from "openai";
 import type { CollectorEvidence } from "../../../core/analysis/types";
 import { assertDetectionResult, detectionReviewReason, type CollectibleCategory, type DetectionOutcome } from "../../../core/profile/types";
+import { buildPokemonCardSearchKeyword } from "../../../core/profile/pokemon-card";
 import { env, assertLiveConfiguration } from "../../config/env";
 
 const OUTPUT_RULES = `你的任务是识别可用于日本二手市场搜索的“完整商品身份”，不是简单抄写图片中最大的文字。
@@ -18,8 +19,18 @@ const OUTPUT_RULES = `你的任务是识别可用于日本二手市场搜索的�
 6. 不得根据风格、颜色或常识猜测图片中看不到的品牌、年份、型号、艺术家或版本。
 
 只返回 JSON，不要解释，不要 Markdown。
-只允许返回：
+只允许返回基础字段：
 {"itemName":"string","version":"string or unknown","priceSearchKeywordJa":"one precise Japanese marketplace keyword","category":"Toys & Character Collectibles | Cards & Game Collectibles | Records & Music Collectibles | unknown"}
+
+Pokémon Card 专用规则：
+- 只有在确认实物是 Pokémon Trading Card / ポケモンカード时，才额外返回 pokemonCard。Pokémon 玩具、游戏软件、主机、贴纸或其他角色商品绝对不能返回此字段。
+- pokemonCard 固定格式：
+{"cardName":"exact Japanese card name or unknown","cardNumber":"exact printed card number such as 201/165, 025/165, 098/XY-P or No.025; otherwise unknown","setCode":"printed set code such as SV2a or unknown","setName":"printed set name or unknown","rarity":"SAR | SR | AR | RR | promo rarity or unknown","language":"Japanese | English | unknown","edition":"visible edition such as 1st Edition or unknown","gradingCompany":"PSA | BGS | CGC | ungraded | unknown","grade":"visible numeric grade or unknown"}
+- 必须优先读取卡片正面的卡号、系列代码、稀有度和语言。不得仅根据 Pokémon 名称猜测版本。
+- itemName 使用“卡名 + 卡号”的日本市场身份，例如「リザードンex 201/165」。
+- Pokémon Card 的 priceSearchKeywordJa 必须包含 cardName、cardNumber，并尽可能包含 setCode 和 rarity。不得只使用角色名。
+- 如果确认是 Pokémon Card 但看不清 cardNumber，cardNumber 写 unknown；系统会要求更清晰的完整卡片正面图片。
+- 非 Pokémon Card 不要返回 pokemonCard，不要返回 null，也不要增加其他字段。
 
 分类按 PRIMARY COLLECTIBLE TYPE：
 - Toys & Character Collectibles：designer toys、手办、ソフビ、角色周边。
@@ -41,7 +52,7 @@ function stripFence(text: string): string {
 
 const COLLECTOR_RULES = `
 
-Collector Mode is enabled. Keep the four identification fields and add exactly one field named collectorEvidence:
+Collector Mode is enabled. Keep all identification fields, including pokemonCard only when the item is a confirmed Pokémon Card, and add exactly one field named collectorEvidence:
 {"editionSignals":["visible edition or release evidence"],"conditionSignals":["visible condition evidence"],"visibleIdentifiers":["visible model, catalog, serial, signature or package identifiers"],"missingEvidence":["important collector evidence that cannot be confirmed"]}
 Only record evidence visible in the image or explicitly stated by the user. Never infer authenticity, hidden damage, completeness, rarity, grade, year, packaging or accessories that are not visible. All collectorEvidence strings must be written in English. Use empty arrays when there is no positive evidence. Put unconfirmable collector facts in missingEvidence. Return only the combined JSON object.`;
 
@@ -68,6 +79,7 @@ function parseOutcome(text: string, selectedCategory?: CollectibleCategory | nul
   }
   if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
     const object = parsed as Record<string, unknown>;
+    if (object.category !== "Cards & Game Collectibles") delete object.pokemonCard;
     if (typeof object.itemName === "string") object.itemName = trimWrappingQuotes(object.itemName);
     if (typeof object.version === "string") object.version = trimWrappingQuotes(object.version) || "unknown";
     if (typeof object.priceSearchKeywordJa === "string") object.priceSearchKeywordJa = trimWrappingQuotes(object.priceSearchKeywordJa);
@@ -77,6 +89,7 @@ function parseOutcome(text: string, selectedCategory?: CollectibleCategory | nul
   }
   try { assertDetectionResult(parsed); }
   catch { return { status: "needs_review", reason: "The item name, version or category could not be identified reliably. Add more specific information." }; }
+  if (parsed.pokemonCard) parsed.priceSearchKeywordJa = buildPokemonCardSearchKeyword(parsed.pokemonCard);
   const reviewReason = detectionReviewReason(parsed);
   if (reviewReason) return { status: "needs_review", reason: reviewReason };
   return { status: "identified", result: parsed };
@@ -109,7 +122,7 @@ export async function detectCollectible(dataUrl: string, selectedCategory?: Coll
     messages: [{ role: "user", content: [{ type: "text", text: `${IMAGE_PROMPT}${hint}${categoryConstraint(selectedCategory)}${collectorMode ? COLLECTOR_RULES : ""}` }, { type: "image_url", image_url: { url: dataUrl, detail: "high" } }] }],
     response_format: { type: "json_object" },
     temperature: 0,
-    max_tokens: collectorMode ? 650 : 300,
+    max_tokens: collectorMode ? 800 : 520,
   });
   const usage = { inputTokens: response.usage?.prompt_tokens ?? 0, outputTokens: response.usage?.completion_tokens ?? 0 };
   const text = response.choices[0]?.message.content;
@@ -125,7 +138,7 @@ export async function detectTextCollectible(input: string, selectedCategory?: Co
     messages: [{ role: "user", content: `${TEXT_PROMPT}${categoryConstraint(selectedCategory)}${collectorMode ? COLLECTOR_RULES : ""}\n\n用户文字：${input.trim()}` }],
     response_format: { type: "json_object" },
     temperature: 0,
-    max_tokens: collectorMode ? 650 : 300,
+    max_tokens: collectorMode ? 800 : 520,
   });
   const usage = { inputTokens: response.usage?.prompt_tokens ?? 0, outputTokens: response.usage?.completion_tokens ?? 0 };
   const text = response.choices[0]?.message.content;

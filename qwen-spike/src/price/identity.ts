@@ -1,4 +1,5 @@
 import type { ItemProfile } from "../profile/types";
+import { matchPokemonCardIdentity } from "../core/profile/pokemon-card";
 
 const GENERIC = new Set([
   "中古", "価格", "本体", "商品", "フィギュア", "ソフビ", "トイ", "TOY", "FIGURE",
@@ -30,6 +31,7 @@ function termCounts(values: string[]): Map<string, number> {
 }
 
 export function identityMatches(profile: ItemProfile, text: string): boolean {
+  if (profile.pokemonCard) return matchPokemonCardIdentity(profile.pokemonCard, text) === "exact";
   const normalized = normalizeIdentity(text);
   if (!normalized) return false;
   const item = normalizeIdentity(profile.itemName);

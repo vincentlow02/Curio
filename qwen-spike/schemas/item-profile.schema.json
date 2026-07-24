@@ -14,7 +14,23 @@
     "priceSearchKeywordJa": { "type": "string", "minLength": 1 },
     "recommendedAreas": { "$ref": "#/$defs/recommendedAreas" },
     "storeRecommendationDisclaimer": { "const": "候选区域和店铺根据商品类别与通常经营范围推荐，不代表实时库存；请在出发前自行确认店铺状态。" },
-    "notes": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+    "notes": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "pokemonCard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cardName", "cardNumber", "setCode", "setName", "rarity", "language", "edition", "gradingCompany", "grade"],
+      "properties": {
+        "cardName": { "type": "string", "minLength": 1 },
+        "cardNumber": { "type": "string", "minLength": 1 },
+        "setCode": { "type": "string", "minLength": 1 },
+        "setName": { "type": "string", "minLength": 1 },
+        "rarity": { "type": "string", "minLength": 1 },
+        "language": { "enum": ["Japanese", "English", "unknown"] },
+        "edition": { "type": "string", "minLength": 1 },
+        "gradingCompany": { "enum": ["PSA", "BGS", "CGC", "ungraded", "unknown"] },
+        "grade": { "type": "string", "minLength": 1 }
+      }
+    }
   },
   "$defs": {
     "recommendedAreas": {

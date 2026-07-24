@@ -64,10 +64,8 @@ body:has(.home-page) { background:#fcfcfc; }
 .figma-toolbar-search-input { width:203px; height:34px; margin-top:-17px; padding:0 10px; border:1px solid #dedede; border-radius:8px; outline:0; background:#fff; color:#222; font:400 12px/34px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; }
 .figma-toolbar-search-input:focus { border-color:#aaa; box-shadow:0 0 0 2px rgba(0,0,0,.04); }
 .figma-toolbar-mobile-toggle,.figma-toolbar-backdrop { display:none; }
-.figma-left-toolbar.is-expanded .figma-toolbar-mobile-toggle { position:absolute; z-index:2; top:22px; right:16px; width:22px; height:22px; display:block; padding:0; border:0; background:transparent; cursor:pointer; }
-.figma-left-toolbar.is-expanded .figma-toolbar-mobile-toggle span { display:none; }
-.figma-left-toolbar.is-expanded .figma-toolbar-mobile-toggle::before { content:""; position:absolute; left:2px; top:3px; width:17px; height:15px; border:1.5px solid #737373; border-radius:4px; }
-.figma-left-toolbar.is-expanded .figma-toolbar-mobile-toggle::after { content:""; position:absolute; left:8px; top:4.5px; width:1.5px; height:12px; border-radius:2px; background:#737373; }
+.figma-left-toolbar.is-expanded .figma-toolbar-mobile-toggle { position:absolute; z-index:2; top:22px; right:16px; width:22px; height:22px; display:grid; place-items:center; padding:0; border:0; background:transparent; cursor:pointer; }
+.figma-left-toolbar.is-expanded .figma-toolbar-mobile-toggle img { display:block; width:17px; height:14px; }
 .figma-home-composer { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:768px; height:482px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; font-family:var(--font-geist-sans), Geist, Arial, sans-serif; transition:height 280ms cubic-bezier(.22,1,.36,1), transform 240ms ease; }
 .figma-home-experience.is-sidebar-expanded .figma-home-composer { transform:translate(-50%, -50%) translateX(90px); }
 .figma-home-discovery { position:absolute; top:0; width:628px; height:322px; display:flex; flex-direction:column; align-items:center; justify-content:space-between; transition:height 280ms cubic-bezier(.22,1,.36,1); }
@@ -170,6 +168,7 @@ body:has(.home-page) { background:#fcfcfc; }
 .figma-recognition-details select { cursor:pointer; }
 .figma-recognition-details input:disabled,.figma-recognition-details select:disabled { cursor:default; opacity:1; -webkit-text-fill-color:#000; }
 .figma-recognition-details input:disabled:hover,.figma-recognition-details select:disabled:hover { border-color:transparent; background:transparent; }
+.figma-recognition-details .figma-pokemon-match-mode dd { color:#286246; font-weight:600; }
 .figma-recognition-actions { position:absolute; right:20px; bottom:15px; display:flex; align-items:center; gap:10px; }
 .figma-recognition-actions button { height:26px; border-radius:8px; font:400 12px/normal var(--font-geist-sans), Geist, Arial, sans-serif; letter-spacing:-.24px; cursor:pointer; }
 .figma-recognition-edit { width:60px; padding:6px 9px; display:flex; align-items:center; gap:7px; border:.7px solid #d9d9d9; background:#fff; color:#000; }

@@ -53,6 +53,7 @@ export type ExclusionReason =
   | "incomplete_item"
   | "accessory_or_software_only"
   | "different_model"
+  | "unconfirmed_card_identity"
   | "bundle_or_lot"
   | "duplicate"
   | "sample_limit";

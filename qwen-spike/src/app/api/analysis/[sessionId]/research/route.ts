@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { assertDetectionResult } from "../../../../../core/profile/types";
+import { buildPokemonCardSearchKeyword } from "../../../../../core/profile/pokemon-card";
 import { runResearch } from "../../../../../server/analysis/run-pipeline";
 import { analysisQueue } from "../../../../../server/queue/analysis-queue";
 import { hasDemoAccess } from "../../../../../server/security/demo-access";
@@ -20,6 +21,7 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
     const body = await request.json() as { identification?: unknown };
     assertDetectionResult(body.identification);
     const identification = body.identification;
+    if (identification.pokemonCard) identification.priceSearchKeywordJa = buildPokemonCardSearchKeyword(identification.pokemonCard);
     await updateSession(sessionId, { status: "queued_research", identification, progress: 36, message: "Research has been added to the queue", error: null });
     let queuePosition: number;
     try {

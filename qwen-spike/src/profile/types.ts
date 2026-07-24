@@ -35,7 +35,9 @@ export type ItemProfile = {
   recommendedAreas: RecommendedArea[];
   storeRecommendationDisclaimer: string;
   notes: string[];
+  pokemonCard?: PokemonCardIdentity;
 };
 
 export const STORE_DISCLAIMER =
   "候选区域和店铺根据商品类别与通常经营范围推荐，不代表实时库存；请在出发前自行确认店铺状态。";
+import type { PokemonCardIdentity } from "../core/profile/types";

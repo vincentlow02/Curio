@@ -50,7 +50,9 @@ export function FigmaLeftToolbar({ expanded, history, activeHistoryId, onToggle,
     <>
       {expanded ? <button className="figma-toolbar-backdrop" type="button" aria-label="Close navigation" onClick={onToggle} /> : null}
       <aside className={`figma-left-toolbar ${expanded ? "is-expanded" : ""}`} aria-label="Primary tools" data-node-id={expanded ? "18:581" : "15:529"}>
-      <button className="figma-toolbar-mobile-toggle" type="button" aria-label="Close navigation" aria-expanded={expanded} onClick={onToggle}><span /><span /><span /></button>
+      <button className="figma-toolbar-mobile-toggle" type="button" aria-label="Close navigation" aria-expanded={expanded} onClick={onToggle}>
+        <img src="/figma/sidebar-collapse.svg" alt="" />
+      </button>
       <button className="figma-toolbar-brand" type="button" aria-label={expanded ? "Curio" : "Open navigation"} onClick={() => { if (!expanded) onToggle(); }}>
         <span className="figma-toolbar-brand__icon"><img src="/brands/curio-logo.png" alt="" /></span>
         <span className="figma-toolbar-brand__wordmark"><img src="/brands/curio-logo.png" alt="" /></span>

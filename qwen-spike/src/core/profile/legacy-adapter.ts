@@ -20,5 +20,6 @@ export function toLegacyItemProfile(result: DetectionResult): ItemProfile {
     recommendedAreas: [],
     storeRecommendationDisclaimer: STORE_DISCLAIMER,
     notes: [],
+    ...(result.pokemonCard ? { pokemonCard: result.pokemonCard } : {}),
   };
 }

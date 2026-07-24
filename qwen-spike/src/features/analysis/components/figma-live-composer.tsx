@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { AnalysisResult, AnalysisSessionView, AnalysisStage, ToolActivity } from "../../../core/analysis/types";
 import { isSpecificDescription } from "../../../core/profile/input-routing";
-import { COLLECTIBLE_CATEGORIES, type CollectibleCategory, type DetectionResult } from "../../../core/profile/types";
+import { buildPokemonCardSearchKeyword } from "../../../core/profile/pokemon-card";
+import { COLLECTIBLE_CATEGORIES, type CollectibleCategory, type DetectionResult, type PokemonCardIdentity } from "../../../core/profile/types";
 import { loadRecentImage, saveRecentImage } from "../storage/recent-image-store";
 
 const categories = [
@@ -107,8 +108,10 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
   switch (activity.provider) {
     case "Qwen":
       return {
-        title: "Identified the collectible",
-        description: `Qwen ${activity.model ?? "vision model"} identified ${identification.itemName} and generated the Japanese price-search keyword. ${activity.inputTokens ?? 0} input / ${activity.outputTokens ?? 0} output tokens.`,
+        title: identification.pokemonCard ? "Identified the exact Pokémon card" : "Identified the collectible",
+        description: identification.pokemonCard
+          ? `Qwen ${activity.model ?? "vision model"} identified ${identification.itemName}, card number ${identification.pokemonCard.cardNumber}, set ${identification.pokemonCard.setCode}, rarity ${identification.pokemonCard.rarity}, and generated an exact Japanese search keyword. ${activity.inputTokens ?? 0} input / ${activity.outputTokens ?? 0} output tokens.`
+          : `Qwen ${activity.model ?? "vision model"} identified ${identification.itemName} and generated the Japanese price-search keyword. ${activity.inputTokens ?? 0} input / ${activity.outputTokens ?? 0} output tokens.`,
       };
     case "Rakuten":
       return { title: "Searched Rakuten", description: `Read one public search page, found ${candidates} candidates and retained ${valid} comparable samples.` };
@@ -397,7 +400,20 @@ export function FigmaLiveComposer({ initialHistory = null, onHistorySave, onHist
   }
 
   function updateRecognized<Key extends keyof DetectionResult>(key: Key, value: DetectionResult[Key]): void {
-    setRecognitionDraft((current) => current ? { ...current, [key]: value } : current);
+    setRecognitionDraft((current) => {
+      if (!current) return current;
+      const next = { ...current, [key]: value };
+      if (key === "category" && value !== "Cards & Game Collectibles") delete next.pokemonCard;
+      return next;
+    });
+  }
+
+  function updatePokemonCard<Key extends keyof PokemonCardIdentity>(key: Key, value: PokemonCardIdentity[Key]): void {
+    setRecognitionDraft((current) => {
+      if (!current?.pokemonCard) return current;
+      const pokemonCard = { ...current.pokemonCard, [key]: value };
+      return { ...current, pokemonCard, priceSearchKeywordJa: buildPokemonCardSearchKeyword(pokemonCard) };
+    });
   }
 
   function startSpeech(setter: (value: string) => void): void {
@@ -418,7 +434,7 @@ export function FigmaLiveComposer({ initialHistory = null, onHistorySave, onHist
 
   return <section className={composerClass} aria-labelledby="collectible-heading">
     {!isConversation ? <div className="figma-home-discovery">
-      <header className="figma-home-heading"><h1 id="collectible-heading">What are you looking for ?</h1><p>Discover where to look in Tokyo and what price to expect.</p></header>
+      <header className="figma-home-heading"><h1 id="collectible-heading">Discover your next collectible in Tokyo</h1><p>Check the price and where to find it.</p></header>
       <div className={`figma-category-grid${selectedCategory ? " is-hidden" : ""}`}>
         {categories.map((category) => <button className={`figma-category-card figma-category-card--${category.id}`} type="button" key={category.id} onClick={() => setSelectedCategory(category)} disabled={Boolean(selectedCategory)}>
           <span className="figma-category-visual"><span className="figma-category-image"><img src={category.image} alt="" /></span><span className="figma-category-label">{category.label}</span></span>
@@ -468,6 +484,14 @@ export function FigmaLiveComposer({ initialHistory = null, onHistorySave, onHist
           <dl className="figma-recognition-details">
             <div><dt>Items name：</dt><dd><input ref={itemNameInputRef} aria-label="Item name" disabled={status !== "identified"} value={recognitionDraft.itemName} onChange={(event) => updateRecognized("itemName", event.target.value)} /></dd></div>
             <div><dt>Version/ Period：</dt><dd><input aria-label="Version" disabled={status !== "identified"} value={recognitionDraft.version} onChange={(event) => updateRecognized("version", event.target.value)} /></dd></div>
+            {recognitionDraft.pokemonCard ? <>
+              <div className="figma-pokemon-match-mode"><dt>Match mode：</dt><dd>Exact Pokémon card</dd></div>
+              <div><dt>Card number：</dt><dd><input aria-label="Pokémon card number" disabled={status !== "identified"} value={recognitionDraft.pokemonCard.cardNumber} onChange={(event) => updatePokemonCard("cardNumber", event.target.value)} /></dd></div>
+              <div><dt>Set code：</dt><dd><input aria-label="Pokémon set code" disabled={status !== "identified"} value={recognitionDraft.pokemonCard.setCode} onChange={(event) => updatePokemonCard("setCode", event.target.value)} /></dd></div>
+              <div><dt>Rarity：</dt><dd><input aria-label="Pokémon rarity" disabled={status !== "identified"} value={recognitionDraft.pokemonCard.rarity} onChange={(event) => updatePokemonCard("rarity", event.target.value)} /></dd></div>
+              <div><dt>Language：</dt><dd><select aria-label="Pokémon card language" disabled={status !== "identified"} value={recognitionDraft.pokemonCard.language} onChange={(event) => updatePokemonCard("language", event.target.value as PokemonCardIdentity["language"])}><option value="Japanese">Japanese</option><option value="English">English</option><option value="unknown">Unknown</option></select></dd></div>
+              <div><dt>Grading：</dt><dd><select aria-label="Pokémon card grading" disabled={status !== "identified"} value={recognitionDraft.pokemonCard.gradingCompany} onChange={(event) => updatePokemonCard("gradingCompany", event.target.value as PokemonCardIdentity["gradingCompany"])}><option value="ungraded">Ungraded</option><option value="PSA">PSA</option><option value="BGS">BGS</option><option value="CGC">CGC</option><option value="unknown">Unknown</option></select></dd></div>
+            </> : null}
             <div><dt>Category：</dt><dd><select aria-label="Category" disabled={status !== "identified"} value={recognitionDraft.category} onChange={(event) => updateRecognized("category", event.target.value as CollectibleCategory)}>{COLLECTIBLE_CATEGORIES.map((category) => <option value={category} key={category}>{category}</option>)}</select></dd></div>
             <div><dt>Price search keyword：</dt><dd><input lang="ja" aria-label="Price keyword" disabled={status !== "identified"} value={recognitionDraft.priceSearchKeywordJa} onChange={(event) => updateRecognized("priceSearchKeywordJa", event.target.value)} /></dd></div>
           </dl>

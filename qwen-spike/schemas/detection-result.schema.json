@@ -2,6 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": { "required": ["pokemonCard"] },
+      "then": { "properties": { "category": { "const": "Cards & Game Collectibles" } } }
+    }
+  ],
   "required": ["itemName", "version", "priceSearchKeywordJa", "category"],
   "properties": {
     "itemName": { "type": "string", "minLength": 1 },
@@ -13,6 +19,25 @@
         "Cards & Game Collectibles",
         "Records & Music Collectibles"
       ]
+    },
+    "pokemonCard": { "$ref": "#/$defs/pokemonCard" }
+  },
+  "$defs": {
+    "pokemonCard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cardName", "cardNumber", "setCode", "setName", "rarity", "language", "edition", "gradingCompany", "grade"],
+      "properties": {
+        "cardName": { "type": "string", "minLength": 1 },
+        "cardNumber": { "type": "string", "minLength": 1 },
+        "setCode": { "type": "string", "minLength": 1 },
+        "setName": { "type": "string", "minLength": 1 },
+        "rarity": { "type": "string", "minLength": 1 },
+        "language": { "enum": ["Japanese", "English", "unknown"] },
+        "edition": { "type": "string", "minLength": 1 },
+        "gradingCompany": { "enum": ["PSA", "BGS", "CGC", "ungraded", "unknown"] },
+        "grade": { "type": "string", "minLength": 1 }
+      }
     }
   }
 }
