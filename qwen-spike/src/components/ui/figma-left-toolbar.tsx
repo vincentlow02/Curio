@@ -16,9 +16,10 @@ type FigmaLeftToolbarProps = {
   onOpenHistory: (record: RecentAnalysisRecord) => void;
   onDeleteHistory: (id: string) => void;
   onLocaleChange: (locale: UiLocale) => void;
+  languageDisabled?: boolean;
 };
 
-export function FigmaLeftToolbar({ expanded, locale, history, activeHistoryId, onToggle, onNewChat, onOpenHistory, onDeleteHistory, onLocaleChange }: FigmaLeftToolbarProps): React.ReactElement {
+export function FigmaLeftToolbar({ expanded, locale, history, activeHistoryId, onToggle, onNewChat, onOpenHistory, onDeleteHistory, onLocaleChange, languageDisabled = false }: FigmaLeftToolbarProps): React.ReactElement {
   const copy = uiCopy[locale];
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ left: number; top: number } | null>(null);
@@ -132,7 +133,7 @@ export function FigmaLeftToolbar({ expanded, locale, history, activeHistoryId, o
           </div>
         </div>
         <div className="figma-toolbar-footer">
-          <LanguageSwitcher locale={locale} onChange={onLocaleChange} placement="mobile" />
+          <LanguageSwitcher locale={locale} onChange={onLocaleChange} placement="mobile" disabled={languageDisabled} />
           <div className="figma-toolbar-location" title="Tokyo, Japan" aria-label="Recommendation area: Tokyo, Japan">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 21s6-5.14 6-11a6 6 0 1 0-12 0c0 5.86 6 11 6 11Z" />

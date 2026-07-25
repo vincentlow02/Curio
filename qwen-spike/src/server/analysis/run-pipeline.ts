@@ -52,7 +52,7 @@ export async function runDetection(id: string): Promise<void> {
     } else if (session.imagePath && session.mimeType) {
       try {
         const bytes = await readFile(session.imagePath);
-        const detected = await detectCollectible(`data:${session.mimeType};base64,${bytes.toString("base64")}`, session.selectedCategory, session.inputText, session.collectorMode);
+        const detected = await detectCollectible(`data:${session.mimeType};base64,${bytes.toString("base64")}`, session.selectedCategory, session.inputText, session.collectorMode, session.locale);
         usage = detected.usage;
         collectorEvidence = detected.collectorEvidence;
         if (detected.outcome.status === "needs_review") {
@@ -65,7 +65,7 @@ export async function runDetection(id: string): Promise<void> {
         await deleteImage(id);
       }
     } else {
-      const detected = await detectTextCollectible(session.inputText, session.selectedCategory, session.collectorMode);
+      const detected = await detectTextCollectible(session.inputText, session.selectedCategory, session.collectorMode, session.locale);
       usage = detected.usage;
       collectorEvidence = detected.collectorEvidence;
       if (detected.outcome.status === "needs_review") {

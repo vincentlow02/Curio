@@ -50,11 +50,16 @@ function stripFence(text: string): string {
   return (clean.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)?.[1] ?? clean).trim();
 }
 
-const COLLECTOR_RULES = `
+type OutputLocale = "en" | "zh" | "ja";
+
+function collectorRules(locale: OutputLocale): string {
+  const outputLanguage = locale === "zh" ? "Simplified Chinese" : locale === "ja" ? "Japanese" : "English";
+  return `
 
 Collector Mode is enabled. Keep all identification fields, including pokemonCard only when the item is a confirmed Pokémon Card, and add exactly one field named collectorEvidence:
 {"editionSignals":["visible edition or release evidence"],"conditionSignals":["visible condition evidence"],"visibleIdentifiers":["visible model, catalog, serial, signature or package identifiers"],"missingEvidence":["important collector evidence that cannot be confirmed"]}
-Only record evidence visible in the image or explicitly stated by the user. Never infer authenticity, hidden damage, completeness, rarity, grade, year, packaging or accessories that are not visible. All collectorEvidence strings must be written in English. Use empty arrays when there is no positive evidence. Put unconfirmable collector facts in missingEvidence. Return only the combined JSON object.`;
+Only record evidence visible in the image or explicitly stated by the user. Never infer authenticity, hidden damage, completeness, rarity, grade, year, packaging or accessories that are not visible. All collectorEvidence strings must be written in ${outputLanguage}. Use empty arrays when there is no positive evidence. Put unconfirmable collector facts in missingEvidence. Return only the combined JSON object.`;
+}
 
 function stringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -113,13 +118,13 @@ function parseCollectorResponse(text: string, selectedCategory: CollectibleCateg
   return { outcome: parseOutcome(JSON.stringify(object), selectedCategory), collectorEvidence };
 }
 
-export async function detectCollectible(dataUrl: string, selectedCategory?: CollectibleCategory | null, textHint = "", collectorMode = false): Promise<{ outcome: DetectionOutcome; collectorEvidence: CollectorEvidence | null; usage: { inputTokens: number; outputTokens: number } }> {
+export async function detectCollectible(dataUrl: string, selectedCategory?: CollectibleCategory | null, textHint = "", collectorMode = false, locale: OutputLocale = "en"): Promise<{ outcome: DetectionOutcome; collectorEvidence: CollectorEvidence | null; usage: { inputTokens: number; outputTokens: number } }> {
   assertLiveConfiguration("image");
   const client = new OpenAI({ apiKey: env.qwenApiKey, baseURL: env.qwenBaseUrl, timeout: 60_000, maxRetries: 0 });
   const hint = textHint.trim() ? `\n\n用户补充描述：${textHint.trim()}` : "";
   const response = await client.chat.completions.create({
     model: env.qwenVisionModel,
-    messages: [{ role: "user", content: [{ type: "text", text: `${IMAGE_PROMPT}${hint}${categoryConstraint(selectedCategory)}${collectorMode ? COLLECTOR_RULES : ""}` }, { type: "image_url", image_url: { url: dataUrl, detail: "high" } }] }],
+    messages: [{ role: "user", content: [{ type: "text", text: `${IMAGE_PROMPT}${hint}${categoryConstraint(selectedCategory)}${collectorMode ? collectorRules(locale) : ""}` }, { type: "image_url", image_url: { url: dataUrl, detail: "high" } }] }],
     response_format: { type: "json_object" },
     temperature: 0,
     max_tokens: collectorMode ? 800 : 520,
@@ -130,12 +135,12 @@ export async function detectCollectible(dataUrl: string, selectedCategory?: Coll
   return { ...parseCollectorResponse(text, selectedCategory, collectorMode), usage };
 }
 
-export async function detectTextCollectible(input: string, selectedCategory?: CollectibleCategory | null, collectorMode = false): Promise<{ outcome: DetectionOutcome; collectorEvidence: CollectorEvidence | null; usage: { inputTokens: number; outputTokens: number } }> {
+export async function detectTextCollectible(input: string, selectedCategory?: CollectibleCategory | null, collectorMode = false, locale: OutputLocale = "en"): Promise<{ outcome: DetectionOutcome; collectorEvidence: CollectorEvidence | null; usage: { inputTokens: number; outputTokens: number } }> {
   assertLiveConfiguration("text");
   const client = new OpenAI({ apiKey: env.qwenApiKey, baseURL: env.qwenBaseUrl, timeout: 45_000, maxRetries: 0 });
   const response = await client.chat.completions.create({
     model: env.qwenTextModel,
-    messages: [{ role: "user", content: `${TEXT_PROMPT}${categoryConstraint(selectedCategory)}${collectorMode ? COLLECTOR_RULES : ""}\n\n用户文字：${input.trim()}` }],
+    messages: [{ role: "user", content: `${TEXT_PROMPT}${categoryConstraint(selectedCategory)}${collectorMode ? collectorRules(locale) : ""}\n\n用户文字：${input.trim()}` }],
     response_format: { type: "json_object" },
     temperature: 0,
     max_tokens: collectorMode ? 800 : 520,

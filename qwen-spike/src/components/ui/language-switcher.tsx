@@ -6,6 +6,7 @@ type Props = {
   locale: UiLocale;
   onChange: (locale: UiLocale) => void;
   placement: "desktop" | "mobile";
+  disabled?: boolean;
 };
 
 const options: Array<{ locale: UiLocale; label: string; ariaLabel: string }> = [
@@ -14,7 +15,7 @@ const options: Array<{ locale: UiLocale; label: string; ariaLabel: string }> = [
   { locale: "ja", label: "日", ariaLabel: "日本語" },
 ];
 
-export function LanguageSwitcher({ locale, onChange, placement }: Props): React.ReactElement {
+export function LanguageSwitcher({ locale, onChange, placement, disabled = false }: Props): React.ReactElement {
   return (
     <div className={`figma-language-switcher is-${placement}`} role="group" aria-label="Language">
       {options.map((option) => (
@@ -25,6 +26,7 @@ export function LanguageSwitcher({ locale, onChange, placement }: Props): React.
           lang={option.locale === "zh" ? "zh-CN" : option.locale}
           aria-label={option.ariaLabel}
           aria-pressed={locale === option.locale}
+          disabled={disabled}
           onClick={() => onChange(option.locale)}
         >
           {option.label}
