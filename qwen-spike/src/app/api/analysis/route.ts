@@ -30,6 +30,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     const rawCollectorMode = String(data.get("collectorMode") ?? "false");
     if (!/^(?:true|false)$/.test(rawCollectorMode)) return NextResponse.json({ error: "collectorMode must be true or false." }, { status: 400 });
     const collectorMode = rawCollectorMode === "true";
+    const rawLocale = String(data.get("locale") ?? "en");
+    const locale = rawLocale === "zh" || rawLocale === "ja" ? rawLocale : "en";
     if (category !== null && !isCollectibleCategory(category)) return NextResponse.json({ error: "Invalid collectible category." }, { status: 400 });
     const hasImage = file instanceof File && file.size > 0;
     if (!hasImage && !text) return NextResponse.json({ error: "Upload an image or enter a collectible description.", code: "empty_input" }, { status: 400 });
@@ -49,7 +51,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       mimeType = image.type;
       await writeFile(imagePath, bytes);
     }
-    await createSession(id, { imagePath, mimeType, inputText: text, selectedCategory: category, collectorMode });
+    await createSession(id, { imagePath, mimeType, inputText: text, selectedCategory: category, collectorMode, locale });
     const queuePosition = await enqueueSessionOrRollback(analysisQueue, id, () => runDetection(id));
     await updateSession(id, { queuePosition });
     pendingSessionId = null;

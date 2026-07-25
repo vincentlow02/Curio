@@ -17,6 +17,7 @@ export function FigmaHomeExperience(): React.ReactElement {
   const [selectedHistory, setSelectedHistory] = useState<RecentAnalysisRecord | null>(null);
   const [composerKey, setComposerKey] = useState(0);
   const [locale, setLocale] = useState<UiLocale>("en");
+  const [languageDisabled, setLanguageDisabled] = useState(false);
   const [accessCode, setAccessCode] = useState("");
   const [accessInput, setAccessInput] = useState("");
   const [accessChecking, setAccessChecking] = useState(false);
@@ -63,6 +64,7 @@ export function FigmaHomeExperience(): React.ReactElement {
   }, []);
 
   const changeLocale = (nextLocale: UiLocale): void => {
+    if (languageDisabled) return;
     setLocale(nextLocale);
     localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
     document.documentElement.lang = nextLocale === "zh" ? "zh-CN" : nextLocale;
@@ -127,9 +129,10 @@ export function FigmaHomeExperience(): React.ReactElement {
         onOpenHistory={openHistory}
         onDeleteHistory={deleteHistory}
         onLocaleChange={changeLocale}
+        languageDisabled={languageDisabled}
       />
-      <LanguageSwitcher locale={locale} onChange={changeLocale} placement="desktop" />
-      <FigmaLiveComposer key={composerKey} locale={locale} accessCode={accessCode} onAccessExpired={expireAccess} initialHistory={selectedHistory} onHistorySave={saveHistory} onHistoryPromote={promoteHistory} />
+      <LanguageSwitcher locale={locale} onChange={changeLocale} placement="desktop" disabled={languageDisabled} />
+      <FigmaLiveComposer key={composerKey} locale={locale} accessCode={accessCode} onAccessExpired={expireAccess} initialHistory={selectedHistory} onHistorySave={saveHistory} onHistoryPromote={promoteHistory} onBusyChange={setLanguageDisabled} />
       {!accessCode ? <div className="figma-access-backdrop" role="presentation">
         <form className="figma-access-dialog" onSubmit={(event) => { event.preventDefault(); const code = accessInput.trim(); if (code) void verifyAccess(code); }}>
           <h2>Demo Access</h2>

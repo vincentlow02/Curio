@@ -10,6 +10,7 @@ type InternalSession = AnalysisSessionView & {
   mimeType: string | null;
   inputText: string;
   selectedCategory: CollectibleCategory | null;
+  locale: "en" | "zh" | "ja";
 };
 const ROOT = resolve(process.cwd(), ".tmp", "sessions");
 const globalSessions = globalThis as typeof globalThis & { __analysisSessions?: Map<string, InternalSession> };
@@ -23,7 +24,7 @@ async function persist(session: InternalSession): Promise<void> {
   if (session.result) await writeFile(resolve(directory, "result.json"), `${JSON.stringify(session.result, null, 2)}\n`, "utf8");
 }
 
-export async function createSession(id: string, input: { imagePath: string | null; mimeType: string | null; inputText: string; selectedCategory: CollectibleCategory | null; collectorMode: boolean }): Promise<InternalSession> {
+export async function createSession(id: string, input: { imagePath: string | null; mimeType: string | null; inputText: string; selectedCategory: CollectibleCategory | null; collectorMode: boolean; locale?: "en" | "zh" | "ja" }): Promise<InternalSession> {
   const now = new Date().toISOString();
   const session: InternalSession = {
     id,
@@ -39,6 +40,7 @@ export async function createSession(id: string, input: { imagePath: string | nul
     result: null,
     error: null,
     ...input,
+    locale: input.locale ?? "en",
   };
   sessions.set(id, session);
   await persist(session);

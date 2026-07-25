@@ -35,6 +35,8 @@ body:has(.home-page) { background:#fcfcfc; }
 .figma-language-switcher button { position:relative; min-width:20px; height:32px; padding:0; border:0; background:transparent; color:#888; cursor:pointer; font:400 17px/32px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; }
 .figma-language-switcher button::after { content:""; position:absolute; right:0; bottom:0; left:0; height:2px; background:#111; opacity:0; transform:scaleX(.55); transition:opacity 140ms ease,transform 140ms ease; }
 .figma-language-switcher button:hover { color:#333; }
+.figma-language-switcher button:disabled { color:#bbb; cursor:not-allowed; }
+.figma-language-switcher button:disabled::after { background:#aaa; }
 .figma-language-switcher button.is-active { color:#111; }
 .figma-language-switcher button.is-active::after { opacity:1; transform:scaleX(1); }
 .figma-language-switcher.is-desktop { position:fixed; z-index:9; top:25px; right:36px; }
