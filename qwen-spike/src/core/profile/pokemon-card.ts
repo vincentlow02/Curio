@@ -9,11 +9,11 @@ function known(value: string): boolean {
   return Boolean(value.trim()) && !UNKNOWN.test(value.trim());
 }
 
-export function normalizePokemonCardToken(value: string): string {
+function normalizePokemonCardToken(value: string): string {
   return value.normalize("NFKC").toUpperCase().replace(/\s+/g, "").replace(/／/g, "/");
 }
 
-export function pokemonCardNumbers(value: string): string[] {
+function pokemonCardNumbers(value: string): string[] {
   return [...new Set((value.normalize("NFKC").match(CARD_NUMBER_PATTERN) ?? []).map(normalizePokemonCardToken))];
 }
 

@@ -11,7 +11,7 @@ export function buildMarketplaceKeyword(keyword: string): string {
     .trim();
 }
 
-export function buildRakutenSearchUrl(keyword: string): string {
+function buildRakutenSearchUrl(keyword: string): string {
   return `https://search.rakuten.co.jp/search/mall/${encodeURIComponent(buildMarketplaceKeyword(keyword))}/`;
 }
 
@@ -19,7 +19,7 @@ export function buildMercariKeyword(keyword: string): string {
   return buildMarketplaceKeyword(keyword).replace(/中古/g, " ").replace(/\s+/g, " ").trim();
 }
 
-export function buildMercariSearchUrl(keyword: string): string {
+function buildMercariSearchUrl(keyword: string): string {
   return `https://jp.mercari.com/search?keyword=${encodeURIComponent(buildMercariKeyword(keyword))}&status=on_sale`;
 }
 
