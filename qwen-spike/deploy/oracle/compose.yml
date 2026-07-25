@@ -1,0 +1,23 @@
+services:
+  curio:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      NODE_ENV: production
+      PLAYWRIGHT_HEADLESS: "true"
+    init: true
+    ipc: host
+    restart: unless-stopped
+    ports:
+      - "80:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 4
+      start_period: 120s
