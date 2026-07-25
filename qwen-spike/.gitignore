@@ -1,5 +1,6 @@
 node_modules/
 .env.local
+deploy/oracle/.env
 output/**/*.json
 .cache/
 *.log
