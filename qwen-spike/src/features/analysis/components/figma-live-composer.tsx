@@ -5,6 +5,7 @@ import type { AnalysisResult, AnalysisSessionView, AnalysisStage, ToolActivity }
 import { isSpecificDescription } from "../../../core/profile/input-routing";
 import { buildPokemonCardSearchKeyword } from "../../../core/profile/pokemon-card";
 import { COLLECTIBLE_CATEGORIES, type CollectibleCategory, type DetectionResult, type PokemonCardIdentity } from "../../../core/profile/types";
+import { uiCopy, type UiLocale } from "../locales";
 import { loadRecentImage, saveRecentImage } from "../storage/recent-image-store";
 
 const categories = [
@@ -36,6 +37,7 @@ export type RecentAnalysisRecord = {
 };
 
 type Props = {
+  locale?: UiLocale;
   initialHistory?: RecentAnalysisRecord | null;
   onHistorySave?: (record: RecentAnalysisRecord) => void;
   onHistoryPromote?: (id: string) => void;
@@ -139,7 +141,8 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
   }
 }
 
-export function FigmaLiveComposer({ initialHistory = null, onHistorySave, onHistoryPromote }: Props): React.ReactElement {
+export function FigmaLiveComposer({ locale = "en", initialHistory = null, onHistorySave, onHistoryPromote }: Props): React.ReactElement {
+  const copy = uiCopy[locale];
   const [uploadMenuOpen, setUploadMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<(typeof categories)[number] | null>(null);
@@ -153,16 +156,10 @@ export function FigmaLiveComposer({ initialHistory = null, onHistorySave, onHist
   const [creating, setCreating] = useState(false);
   const [clarificationRequested, setClarificationRequested] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [accessOpen, setAccessOpen] = useState(false);
-  const [accessCode, setAccessCode] = useState("");
-  const [accessError, setAccessError] = useState<string | null>(null);
   const [nextText, setNextText] = useState("");
   const [nextFile, setNextFile] = useState<File | null>(null);
   const [speechSupported, setSpeechSupported] = useState(false);
-  const [pollRevision, setPollRevision] = useState(0);
   const [researchStarting, setResearchStarting] = useState(false);
-  const pendingInputRef = useRef<PendingInput | null>(null);
-  const pendingResearchRef = useRef(false);
   const previewUrlRef = useRef<string | null>(null);
   const uploadMenuRef = useRef<HTMLDivElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -180,7 +177,6 @@ export function FigmaLiveComposer({ initialHistory = null, onHistorySave, onHist
 
   useEffect(() => {
     setSpeechSupported("webkitSpeechRecognition" in window || "SpeechRecognition" in window);
-    setAccessCode(sessionStorage.getItem("collectible-demo-code") ?? "");
   }, []);
 
   useEffect(() => () => {
@@ -215,14 +211,7 @@ export function FigmaLiveComposer({ initialHistory = null, onHistorySave, onHist
     let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = async (): Promise<void> => {
       try {
-        const code = sessionStorage.getItem("collectible-demo-code") ?? "";
-        const response = await fetch(`/api/analysis/${encodeURIComponent(sessionId)}`, { headers: { "X-Demo-Code": code }, cache: "no-store" });
-        if (response.status === 401) {
-          sessionStorage.removeItem("collectible-demo-code");
-          setAccessError("Access Code expired or is invalid.");
-          setAccessOpen(true);
-          return;
-        }
+        const response = await fetch(`/api/analysis/${encodeURIComponent(sessionId)}`, { cache: "no-store" });
         const body = await response.json() as AnalysisSessionView | { error: string };
         if (!response.ok) throw new Error("error" in body ? (body.error ?? "Unable to read analysis status.") : "Unable to read analysis status.");
         if (cancelled) return;
@@ -243,7 +232,7 @@ export function FigmaLiveComposer({ initialHistory = null, onHistorySave, onHist
     };
     void poll();
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [pollRevision, sessionId, session?.status]);
+  }, [sessionId, session?.status]);
 
   useEffect(() => {
     if (!onHistorySave || !status) return;
@@ -292,7 +281,7 @@ export function FigmaLiveComposer({ initialHistory = null, onHistorySave, onHist
     for (const input of [cameraInputRef.current, imageInputRef.current, fileInputRef.current]) if (input) input.value = "";
   }
 
-  async function createAnalysis(input: PendingInput, code: string): Promise<void> {
+  async function createAnalysis(input: PendingInput): Promise<void> {
     setCreating(true);
     setError(null);
     setClarificationRequested(false);
@@ -306,23 +295,14 @@ export function FigmaLiveComposer({ initialHistory = null, onHistorySave, onHist
     if (input.category) data.set("category", input.category);
     data.set("collectorMode", String(input.collectorMode));
     try {
-      const response = await fetch("/api/analysis", { method: "POST", headers: { "X-Demo-Code": code }, body: data });
+      const response = await fetch("/api/analysis", { method: "POST", body: data });
       const body = await response.json() as { sessionId?: string; error?: string; code?: string };
-      if (response.status === 401) {
-        sessionStorage.removeItem("collectible-demo-code");
-        pendingInputRef.current = input;
-        setAccessError("Invalid Access Code.");
-        setAccessOpen(true);
-        setCreating(false);
-        return;
-      }
       if (response.status === 422 && body.code === "needs_clarification") {
         setCreating(false);
         setClarificationRequested(true);
         return;
       }
       if (!response.ok || !body.sessionId) throw new Error(body.error ?? "Unable to create analysis.");
-      sessionStorage.setItem("collectible-demo-code", code);
       if (input.file) await saveRecentImage(body.sessionId, input.file).catch(() => undefined);
       setSessionId(body.sessionId);
     } catch (caught) {
@@ -333,64 +313,25 @@ export function FigmaLiveComposer({ initialHistory = null, onHistorySave, onHist
 
   function submitInput(input: PendingInput): void {
     if (!input.file && !input.text.trim()) return;
-    const code = sessionStorage.getItem("collectible-demo-code") ?? "";
-    if (!code) {
-      pendingInputRef.current = input;
-      setAccessOpen(true);
-      return;
-    }
     if (!input.file && !isSpecificDescription(input.text)) {
       setClarificationRequested(true);
       return;
     }
-    void createAnalysis(input, code);
+    void createAnalysis(input);
   }
 
-  function submitAccessCode(): void {
-    const code = accessCode.trim();
-    if (!code) { setAccessError("Enter the Demo Access Code."); return; }
-    if (pendingResearchRef.current) {
-      pendingResearchRef.current = false;
-      setAccessError(null);
-      setAccessOpen(false);
-      void continueResearch(code);
-      return;
-    }
-    const pending = pendingInputRef.current;
-    if (!pending) {
-      sessionStorage.setItem("collectible-demo-code", code);
-      setAccessError(null);
-      setAccessOpen(false);
-      setPollRevision((current) => current + 1);
-      return;
-    }
-    setAccessError(null);
-    setAccessOpen(false);
-    void createAnalysis(pending, code);
-  }
-
-  async function continueResearch(codeOverride?: string): Promise<void> {
+  async function continueResearch(): Promise<void> {
     if (!sessionId || !recognitionDraft || status !== "identified" || researchStarting) return;
     setResearchStarting(true);
     setError(null);
-    const code = codeOverride ?? sessionStorage.getItem("collectible-demo-code") ?? "";
     try {
       const response = await fetch(`/api/analysis/${encodeURIComponent(sessionId)}/research`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Demo-Code": code },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identification: recognitionDraft }),
       });
       const body = await response.json() as { error?: string; status?: AnalysisStage; queuePosition?: number };
-      if (response.status === 401) {
-        sessionStorage.removeItem("collectible-demo-code");
-        pendingResearchRef.current = true;
-        setResearchStarting(false);
-        setAccessError("Invalid Access Code.");
-        setAccessOpen(true);
-        return;
-      }
       if (!response.ok) throw new Error(body.error ?? "Unable to start research.");
-      sessionStorage.setItem("collectible-demo-code", code);
       onHistoryPromote?.(sessionId);
       setSession((current) => current ? { ...current, status: "queued_research", progress: 36, message: "Research queued", queuePosition: body.queuePosition ?? null, identification: recognitionDraft } : current);
     } catch (caught) {
@@ -434,37 +375,37 @@ export function FigmaLiveComposer({ initialHistory = null, onHistorySave, onHist
 
   return <section className={composerClass} aria-labelledby="collectible-heading">
     {!isConversation ? <div className="figma-home-discovery">
-      <header className="figma-home-heading"><h1 id="collectible-heading">Discover your next collectible in Tokyo</h1><p>Check the price and where to find it.</p></header>
+      <header className="figma-home-heading"><h1 id="collectible-heading">{copy.heading}</h1><p>{copy.subheading}</p></header>
       <div className={`figma-category-grid${selectedCategory ? " is-hidden" : ""}`}>
-        {categories.map((category) => <button className={`figma-category-card figma-category-card--${category.id}`} type="button" key={category.id} onClick={() => setSelectedCategory(category)} disabled={Boolean(selectedCategory)}>
-          <span className="figma-category-visual"><span className="figma-category-image"><img src={category.image} alt="" /></span><span className="figma-category-label">{category.label}</span></span>
+        {categories.map((category, categoryIndex) => <button className={`figma-category-card figma-category-card--${category.id}`} type="button" key={category.id} onClick={() => setSelectedCategory(category)} disabled={Boolean(selectedCategory)}>
+          <span className="figma-category-visual"><span className="figma-category-image"><img src={category.image} alt="" /></span><span className="figma-category-label">{(copy.categories[categoryIndex] ?? "").split("\n").map((line) => <span key={line}>{line}<br /></span>)}</span></span>
         </button>)}
       </div>
     </div> : null}
 
     {!isConversation ? <>
-      {clarificationRequested ? <div className="figma-clarification-bubble" role="status"><p>Please add a brand, character, model number, series, title, or other identifying detail.</p></div> : null}
+      {clarificationRequested ? <div className="figma-clarification-bubble" role="status"><p>{copy.clarification}</p></div> : null}
       <form className={`figma-composer-box${selectedImage ? " has-image" : ""}${selectedCategory ? " has-category" : ""}`} onSubmit={(event) => { event.preventDefault(); submitInput({ file: selectedImage?.file ?? null, text: query.trim(), category: selectedCategory?.title ?? null, collectorMode }); }}>
         <div className="figma-composer-content">
           {selectedImage ? <div className="figma-upload-preview"><img className="figma-upload-preview__image" src={selectedImage.url} alt={selectedImage.name} /><button type="button" aria-label="Remove uploaded image" onClick={clearImage}><img src="/figma/upload-preview-remove.svg" alt="" /></button></div> : null}
           {selectedCategory ? <div className="figma-selected-category"><span>{selectedCategory.title}</span><button type="button" aria-label="Remove category" onClick={() => setSelectedCategory(null)}>×</button></div> : null}
-          <textarea rows={1} aria-label="Describe collectible" value={query} onInput={(event) => updateQuery(event.currentTarget, setQuery)} onChange={(event) => setQuery(event.target.value)} placeholder={selectedCategory ? "" : "Upload a photo or describe what you’re looking for"} />
+          <textarea rows={1} aria-label="Describe collectible" value={query} onInput={(event) => updateQuery(event.currentTarget, setQuery)} onChange={(event) => setQuery(event.target.value)} placeholder={selectedCategory ? "" : copy.placeholder} />
         </div>
         <div className="figma-composer-actions">
           <div className="figma-composer-actions-left">
             <div className="figma-upload-control" ref={uploadMenuRef}>
               <button className="figma-composer-round-button" type="button" aria-label="Add attachment or mode" aria-expanded={uploadMenuOpen} onClick={() => setUploadMenuOpen((open) => !open)}><img src="/figma/composer-add.svg" alt="" /></button>
               {uploadMenuOpen ? <div className="figma-upload-menu" role="menu">
-                <button type="button" onClick={() => { setUploadMenuOpen(false); cameraInputRef.current?.click(); }}><img className="figma-upload-menu__camera" src="/figma/upload-menu-camera.svg" alt="" /><span>Take Photo</span></button>
-                <button type="button" onClick={() => { setUploadMenuOpen(false); imageInputRef.current?.click(); }}><img className="figma-upload-menu__image" src="/figma/upload-menu-image.svg" alt="" /><span>Upload Image</span></button>
-                <button className="figma-upload-menu__file-row" type="button" onClick={() => { setUploadMenuOpen(false); fileInputRef.current?.click(); }}><img className="figma-upload-menu__file" src="/figma/upload-menu-file.svg" alt="" /><span>Upload file</span></button>
-                <button className={`figma-upload-menu__collector${collectorMode ? " is-selected" : ""}`} type="button" role="menuitemcheckbox" aria-checked={collectorMode} onClick={() => { setCollectorMode((enabled) => !enabled); setUploadMenuOpen(false); }}><span className="figma-collector-spark" aria-hidden="true">✧</span><span>Collector Mode</span>{collectorMode ? <span className="figma-upload-menu__check" aria-hidden="true">✓</span> : null}</button>
+                <button type="button" onClick={() => { setUploadMenuOpen(false); cameraInputRef.current?.click(); }}><img className="figma-upload-menu__camera" src="/figma/upload-menu-camera.svg" alt="" /><span>{copy.takePhoto}</span></button>
+                <button type="button" onClick={() => { setUploadMenuOpen(false); imageInputRef.current?.click(); }}><img className="figma-upload-menu__image" src="/figma/upload-menu-image.svg" alt="" /><span>{copy.uploadImage}</span></button>
+                <button className="figma-upload-menu__file-row" type="button" onClick={() => { setUploadMenuOpen(false); fileInputRef.current?.click(); }}><img className="figma-upload-menu__file" src="/figma/upload-menu-file.svg" alt="" /><span>{copy.uploadFile}</span></button>
+                <button className={`figma-upload-menu__collector${collectorMode ? " is-selected" : ""}`} type="button" role="menuitemcheckbox" aria-checked={collectorMode} onClick={() => { setCollectorMode((enabled) => !enabled); setUploadMenuOpen(false); }}><span className="figma-collector-spark" aria-hidden="true">✧</span><span>{copy.collectorMode}</span>{collectorMode ? <span className="figma-upload-menu__check" aria-hidden="true">✓</span> : null}</button>
               </div> : null}
               <input ref={cameraInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => selectImage(event.target.files?.[0] ?? null)} />
               <input ref={imageInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => selectImage(event.target.files?.[0] ?? null)} />
               <input ref={fileInputRef} className="sr-only" type="file" accept=".jpg,.jpeg,.png,.webp" onChange={(event) => selectImage(event.target.files?.[0] ?? null)} />
             </div>
-            {collectorMode ? <button className="figma-collector-chip" type="button" aria-label="Disable Collector Mode" title="Disable Collector Mode" onClick={() => setCollectorMode(false)}><span className="figma-collector-spark" aria-hidden="true">✧</span><b>Collector Mode</b><span className="figma-collector-info" aria-hidden="true">i</span></button> : null}
+            {collectorMode ? <button className="figma-collector-chip" type="button" aria-label="Disable Collector Mode" title="Disable Collector Mode" onClick={() => setCollectorMode(false)}><span className="figma-collector-spark" aria-hidden="true">✧</span><b>{copy.collectorMode}</b><span className="figma-collector-info" aria-hidden="true">i</span></button> : null}
           </div>
           <div className="figma-composer-actions-right">
             {speechSupported ? <button className="figma-composer-microphone" type="button" aria-label="Use microphone" onClick={() => startSpeech(setQuery)}><img src="/figma/composer-microphone.svg" alt="" /></button> : <span />}
@@ -519,11 +460,10 @@ export function FigmaLiveComposer({ initialHistory = null, onHistorySave, onHist
             return <li className={`is-${effectiveStatus}`} key={activity.provider}><span className="figma-run-marker">{effectiveStatus === "skipped" ? "—" : effectiveStatus === "failed" || effectiveStatus === "fallback" ? "!" : "✓"}</span><div><b>{copy.title}</b><p>{copy.description}</p></div><time>{activityDuration(activity.durationMs)}</time></li>;
           })}<li className="is-succeeded is-total"><span className="figma-run-marker">✓</span><div><b>Completed the research run</b><p>Prepared an online asking-price reference from {result.priceReference.sampleCount} comparable samples and generated Tokyo area suggestions.</p></div><time>{activityDuration(result.cost.totalMs)}</time></li></ol></details>
         </section>
-        <form className="figma-followup-composer" onSubmit={(event) => { event.preventDefault(); const text = nextText.trim(); const file = nextFile; resetToNew(); submitInput({ file, text, category: null, collectorMode: false }); }}><textarea rows={1} value={nextText} onChange={(event) => setNextText(event.target.value)} placeholder={nextFile ? nextFile.name : "Upload a photo or describe what you’re looking for"} /><div className="figma-followup-actions"><button className="figma-followup-add" type="button" aria-label="Add image" onClick={() => nextFileInputRef.current?.click()}><img src="/figma/composer-add.svg" alt="" /></button><input ref={nextFileInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setNextFile(event.target.files?.[0] ?? null)} /><div className="figma-followup-actions-right">{speechSupported ? <button className="figma-followup-microphone" type="button" onClick={() => startSpeech(setNextText)}><img src="/figma/composer-microphone.svg" alt="" /></button> : <span />}<button className="figma-followup-submit" type="submit" disabled={!nextText.trim() && !nextFile}><img src="/figma/composer-submit-active.svg" alt="" /></button></div></div></form>
+        <form className="figma-followup-composer" onSubmit={(event) => { event.preventDefault(); const text = nextText.trim(); const file = nextFile; resetToNew(); submitInput({ file, text, category: null, collectorMode: false }); }}><textarea rows={1} value={nextText} onChange={(event) => setNextText(event.target.value)} placeholder={nextFile ? nextFile.name : copy.placeholder} /><div className="figma-followup-actions"><button className="figma-followup-add" type="button" aria-label="Add image" onClick={() => nextFileInputRef.current?.click()}><img src="/figma/composer-add.svg" alt="" /></button><input ref={nextFileInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setNextFile(event.target.files?.[0] ?? null)} /><div className="figma-followup-actions-right">{speechSupported ? <button className="figma-followup-microphone" type="button" onClick={() => startSpeech(setNextText)}><img src="/figma/composer-microphone.svg" alt="" /></button> : <span />}<button className="figma-followup-submit" type="submit" disabled={!nextText.trim() && !nextFile}><img src="/figma/composer-submit-active.svg" alt="" /></button></div></div></form>
       </> : null}
       {error && status !== "failed" ? <div className="figma-inline-error" role="alert">{error}</div> : null}
     </div>}
 
-    {accessOpen ? <div className="figma-access-backdrop" role="presentation"><form className="figma-access-dialog" onSubmit={(event) => { event.preventDefault(); submitAccessCode(); }}><h2>Demo Access</h2><p>Enter the Access Code to start a live Agent run.</p><label htmlFor="demo-access-code">Access Code</label><input id="demo-access-code" type="password" autoFocus value={accessCode} onChange={(event) => setAccessCode(event.target.value)} autoComplete="off" />{accessError ? <p className="figma-access-error">{accessError}</p> : null}<div><button type="button" onClick={() => setAccessOpen(false)}>Cancel</button><button type="submit">Continue</button></div></form></div> : null}
   </section>;
 }
