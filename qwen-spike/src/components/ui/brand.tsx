@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export function Brand(): React.ReactElement {
+function Brand(): React.ReactElement {
   return <Link href="/" className="brand" aria-label="Tokyo Collectible Finder 首页"><span className="brand-mark">C</span><span>COLLECTIBLE<br /><b>TOKYO</b></span></Link>;
 }
 

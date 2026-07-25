@@ -132,7 +132,7 @@ Keys that have appeared in chat, screenshots, logs, or shared documents must be 
 
 Protected requests send the demo code through `X-Demo-Code`. The browser keeps it only in `sessionStorage`; it is never written to a URL or bundled into client JavaScript.
 
-Uploads support JPG, JPEG, PNG, and WEBP up to 10 MB. The server deletes the temporary image after Qwen identification.
+Uploads support JPG, JPEG, PNG, and WEBP up to 10 MB, and text descriptions are limited to 2,000 characters. The server bounds the multipart request before parsing and deletes the temporary image after Qwen identification.
 
 ## Deterministic pricing and Daytona
 
@@ -144,6 +144,7 @@ When enabled, Daytona receives only the normalized calculation input. Its isolat
 - It receives no Qwen, Tavily, Rakuten, or Mercari credentials.
 - It cannot replace or mutate the Node result.
 - A failure or mismatch keeps the Node result and adds a warning.
+- The temporary sandbox is deleted immediately after verification; the configured auto-delete interval remains a cleanup fallback.
 - Daytona verification adds no LLM tokens.
 
 Use a synthetic local input to verify the Daytona connection:

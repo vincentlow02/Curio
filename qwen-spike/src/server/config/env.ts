@@ -22,6 +22,7 @@ export const env = {
   sessionTtlMinutes: integer("SESSION_TTL_MINUTES", 60),
   analysisTimeoutSeconds: integer("ANALYSIS_TIMEOUT_SECONDS", 90),
   maxUploadBytes: integer("MAX_UPLOAD_BYTES", 10 * 1024 * 1024),
+  maxInputTextChars: integer("MAX_INPUT_TEXT_CHARS", 2000),
   maxAnalysesPerIp: integer("MAX_ANALYSES_PER_IP_PER_HOUR", 5),
   maxQueued: integer("MAX_QUEUED_ANALYSES", 3),
 };

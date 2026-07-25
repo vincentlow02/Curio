@@ -7,21 +7,26 @@ import { isSpecificDescription } from "../../../core/profile/input-routing";
 import { runDetection } from "../../../server/analysis/run-pipeline";
 import { env } from "../../../server/config/env";
 import { analysisQueue } from "../../../server/queue/analysis-queue";
+import { enqueueSessionOrRollback } from "../../../server/queue/session-enqueue";
+import { boundedFormData, RequestBodyTooLargeError } from "../../../server/security/bounded-form-data";
 import { hasDemoAccess } from "../../../server/security/demo-access";
 import { clientIp, consumeRateLimit } from "../../../server/security/rate-limit";
 import { publicError } from "../../../server/security/redact-error";
 import { assertImageSignature, validateUpload } from "../../../server/security/upload-validation";
-import { cleanupExpiredSessions, createSession, sessionRoot, updateSession } from "../../../server/sessions/session-store";
+import { cleanupExpiredSessions, createSession, deleteSession, sessionRoot, updateSession } from "../../../server/sessions/session-store";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request): Promise<NextResponse> {
   if (!hasDemoAccess(request)) return NextResponse.json({ error: "Invalid Demo Access Code." }, { status: 401 });
+  if (!consumeRateLimit(clientIp(request))) return NextResponse.json({ error: "Too many analysis requests. Please try again in one hour." }, { status: 429 });
+  let pendingSessionId: string | null = null;
   try {
     await cleanupExpiredSessions();
-    const data = await request.formData();
+    const data = await boundedFormData(request, env.maxUploadBytes);
     const file = data.get("image");
     const text = String(data.get("text") ?? "").trim();
+    if (text.length > env.maxInputTextChars) return NextResponse.json({ error: `The description exceeds ${env.maxInputTextChars} characters.` }, { status: 400 });
     const rawCategory = data.get("category");
     const category = rawCategory === null || rawCategory === "" ? null : rawCategory;
     const rawCollectorMode = String(data.get("collectorMode") ?? "false");
@@ -31,8 +36,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     const hasImage = file instanceof File && file.size > 0;
     if (!hasImage && !text) return NextResponse.json({ error: "Upload an image or enter a collectible description.", code: "empty_input" }, { status: 400 });
     if (!hasImage && !isSpecificDescription(text)) return NextResponse.json({ error: "Add a brand, character, model, series or title.", code: "needs_clarification" }, { status: 422 });
-    if (!consumeRateLimit(clientIp(request))) return NextResponse.json({ error: "Too many analysis requests. Please try again in one hour." }, { status: 429 });
     const id = randomUUID();
+    pendingSessionId = id;
     const directory = sessionRoot(id);
     await mkdir(directory, { recursive: true });
     let imagePath: string | null = null;
@@ -47,11 +52,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       await writeFile(imagePath, bytes);
     }
     await createSession(id, { imagePath, mimeType, inputText: text, selectedCategory: category, collectorMode });
-    const queuePosition = analysisQueue.enqueue({ id, run: () => runDetection(id) });
+    const queuePosition = await enqueueSessionOrRollback(analysisQueue, id, () => runDetection(id));
     await updateSession(id, { queuePosition });
+    pendingSessionId = null;
     return NextResponse.json({ sessionId: id, status: "queued", queuePosition }, { status: 202, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    const message = publicError(error);
+    if (pendingSessionId) await deleteSession(pendingSessionId);
+    if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ error: error.message }, { status: 413 });
+    const message = publicError(error, "The analysis request could not be accepted.");
     const status = /queue is full/i.test(message) ? 503 : 400;
     return NextResponse.json({ error: message }, { status });
   }

@@ -47,6 +47,11 @@ export async function createSession(id: string, input: { imagePath: string | nul
 
 export function internalSession(id: string): InternalSession | null { return sessions.get(id) ?? null; }
 
+export async function deleteSession(id: string): Promise<void> {
+  sessions.delete(id);
+  await rm(resolve(ROOT, id), { recursive: true, force: true });
+}
+
 export async function updateSession(id: string, patch: Partial<Pick<InternalSession, "queuePosition" | "progress" | "message" | "identification" | "collectorEvidence" | "toolActivity" | "result" | "error">> & { status?: AnalysisStage }): Promise<void> {
   const session = sessions.get(id);
   if (!session) return;
@@ -80,8 +85,7 @@ export function replaceToolActivity(activities: ToolActivity[], activity: ToolAc
 export async function cleanupExpiredSessions(now = Date.now()): Promise<void> {
   for (const [id, session] of sessions) {
     if (now - Date.parse(session.createdAt) > env.sessionTtlMinutes * 60_000) {
-      sessions.delete(id);
-      await rm(resolve(ROOT, id), { recursive: true, force: true });
+      await deleteSession(id);
     }
   }
   try {

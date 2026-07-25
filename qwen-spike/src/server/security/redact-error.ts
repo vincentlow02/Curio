@@ -1,9 +1,16 @@
 import "server-only";
 
-export function publicError(error: unknown): string {
+const SAFE_PUBLIC_ERRORS = [
+  /^Unsupported image format\./,
+  /^The uploaded image is empty\./,
+  /^The image exceeds \d+ MB limit\./,
+  /^The file content does not match its image format\./,
+  /^The analysis queue is full\./,
+  /^The request must use multipart\/form-data\./,
+  /^Invalid Content-Length header\./,
+];
+
+export function publicError(error: unknown, fallback = "The request could not be completed."): string {
   const raw = error instanceof Error ? error.message : String(error);
-  return raw
-    .replace(/(?:sk|tvly|dtn)[-_][A-Za-z0-9._-]+/gi, "[redacted]")
-    .replace(/[A-Za-z]:\\[^\s]+/g, "[local path]")
-    .slice(0, 300);
+  return SAFE_PUBLIC_ERRORS.some((pattern) => pattern.test(raw)) ? raw.slice(0, 300) : fallback;
 }

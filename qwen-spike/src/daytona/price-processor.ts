@@ -171,6 +171,7 @@ export async function processPriceResultWithDaytona(result: PriceReferenceResult
   report.remoteStatePath = remoteStatePath;
   const config = {
     apiKey: options.apiKey,
+    otelEnabled: false,
     ...(options.apiUrl ? { apiUrl: options.apiUrl } : {}),
     ...(options.target ? { target: options.target } : {}),
   };
@@ -211,10 +212,9 @@ export async function processPriceResultWithDaytona(result: PriceReferenceResult
   } finally {
     if (sandbox) {
       try {
-        if (report.succeeded) await sandbox.stop(30);
-        else await sandbox.delete(30);
+        await sandbox.delete(30);
       }
-      catch (error) { report.error ??= `Sandbox 停止失败：${error instanceof Error ? error.message : String(error)}`; }
+      catch { report.error ??= "Daytona sandbox cleanup failed."; }
     }
     await daytona[Symbol.asyncDispose]();
   }

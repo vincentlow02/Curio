@@ -81,12 +81,11 @@ export async function runDetection(id: string): Promise<void> {
   } catch (error) {
     await deleteImage(id);
     await setActivity(id, { provider: "Qwen", status: "failed", calls: 1, durationMs: Date.now() - started, model: internalSession(id)?.imagePath ? env.qwenVisionModel : env.qwenTextModel });
-    await updateSession(id, { status: "failed", progress: 100, message: "Identification failed", error: publicError(error) });
+    await updateSession(id, { status: "failed", progress: 100, message: "Identification failed", error: publicError(error, "The identification provider was unavailable.") });
   }
 }
 
 export async function runResearch(id: string, identification: DetectionResult): Promise<void> {
-  const started = Date.now();
   try {
     const session = internalSession(id);
     if (!session) throw new Error("The analysis session does not exist.");
@@ -225,6 +224,6 @@ export async function runResearch(id: string, identification: DetectionResult): 
     await saveCost(id, result.cost);
     await updateSession(id, { status: "completed", progress: 100, message: "Analysis complete", result, error: null });
   } catch (error) {
-    await updateSession(id, { status: "failed", progress: 100, message: "Research failed", error: publicError(error) });
+    await updateSession(id, { status: "failed", progress: 100, message: "Research failed", error: publicError(error, "The research providers were unavailable.") });
   }
 }

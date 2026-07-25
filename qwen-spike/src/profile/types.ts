@@ -1,11 +1,11 @@
-export const ITEM_CATEGORIES = [
+const ITEM_CATEGORIES = [
   "Toys & Character Collectibles",
   "Cards & Game Collectibles",
   "Records & Music Collectibles",
   "unknown",
 ] as const;
 
-export const ITEM_SUBTYPES = [
+const ITEM_SUBTYPES = [
   "toys_character",
   "trading_cards",
   "retro_games",
@@ -14,10 +14,10 @@ export const ITEM_SUBTYPES = [
   "unknown",
 ] as const;
 
-export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
+type ItemCategory = (typeof ITEM_CATEGORIES)[number];
 export type ItemSubtype = (typeof ITEM_SUBTYPES)[number];
 
-export type RecommendedArea = {
+type RecommendedArea = {
   area: string;
   reason: string;
   storeSearchKeywordJa: string;

@@ -84,7 +84,7 @@ export type StoreSnapshot = {
   stores: Array<{ name: string; sourceUrl: string }>;
 };
 
-export type AreaRecommendationResult = {
+type AreaRecommendationResult = {
   area: string;
   reason: string;
   storeSearchKeywordJa: string;

@@ -91,7 +91,6 @@ export function buildPriceResult(args: {
     for (const candidate of sourceSnapshot.candidates.slice(0, args.maxCardsScannedPerSource)) {
       let reason: ExclusionReason | null = null;
       const combined = `${candidate.title} ${candidate.availabilityText}`;
-      const normalizedTitle = normalize(candidate.title);
       if (candidate.displayedPrice === null || candidate.displayedPrice <= 0) reason = "missing_price";
       else if (SOLD_OUT.test(combined)) reason = "sold_out";
       else if (JUNK.test(candidate.title)) reason = "junk_or_broken";

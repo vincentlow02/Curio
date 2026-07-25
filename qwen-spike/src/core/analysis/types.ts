@@ -28,7 +28,7 @@ export type ToolActivity = {
   cacheHit?: boolean;
 };
 
-export type PublicPriceSample = {
+type PublicPriceSample = {
   title: string;
   price: number;
   currency: "JPY";
@@ -42,7 +42,7 @@ export type PublicPriceSample = {
 
 export type AreaRecommendation = { area: string; reason: string; searchKeywordJa: string };
 export type StoreSuggestion = { name: string; reason: string; sourceUrl: string };
-export type CostSummary = {
+type CostSummary = {
   qwenCalls: number;
   inputTokens: number;
   outputTokens: number;
