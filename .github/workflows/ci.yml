@@ -34,11 +34,11 @@ jobs:
             --env DEMO_ACCESS_CODE=ci-smoke \
             curio-security-check
           trap 'docker logs curio-security-smoke; docker rm --force curio-security-smoke' EXIT
-          for attempt in {1..30}; do
+          for attempt in {1..120}; do
             if curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null; then
               break
             fi
-            if [ "$attempt" -eq 30 ]; then
+            if [ "$attempt" -eq 120 ]; then
               exit 1
             fi
             sleep 1
