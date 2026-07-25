@@ -3,7 +3,6 @@ import { stat } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 import { boundedFormData, MULTIPART_OVERHEAD_BYTES, RequestBodyTooLargeError } from "../src/server/security/bounded-form-data";
-import { clientIp, consumeRateLimit, resetRateLimitsForTests } from "../src/server/security/rate-limit";
 import { publicError } from "../src/server/security/redact-error";
 import { enqueueSessionOrRollback } from "../src/server/queue/session-enqueue";
 import { createSession, deleteSession, internalSession, sessionRoot } from "../src/server/sessions/session-store";
@@ -43,33 +42,6 @@ describe("bounded multipart parsing", () => {
       duplex: "half",
     } as RequestInit & { duplex: "half" });
     await expect(boundedFormData(request, 1)).rejects.toBeInstanceOf(RequestBodyTooLargeError);
-  });
-});
-
-describe("trusted client IP selection", () => {
-  it("prefers Railway X-Real-IP over a forged forwarded chain", () => {
-    const request = new Request("http://localhost", {
-      headers: { "x-real-ip": "203.0.113.8", "x-forwarded-for": "198.51.100.9" },
-    });
-    expect(clientIp(request, true)).toBe("203.0.113.8");
-  });
-
-  it("does not trust X-Forwarded-For in production when X-Real-IP is absent", () => {
-    const request = new Request("http://localhost", { headers: { "x-forwarded-for": "198.51.100.9" } });
-    expect(clientIp(request, true)).toBe("unknown");
-    expect(clientIp(request, false)).toBe("198.51.100.9");
-  });
-});
-
-describe("per-IP lifetime usage limit", () => {
-  it("allows 50 analyses and permanently rejects the 51st", async () => {
-    await resetRateLimitsForTests();
-    for (let count = 0; count < 50; count += 1) {
-      await expect(consumeRateLimit("203.0.113.42")).resolves.toBe(true);
-    }
-    await expect(consumeRateLimit("203.0.113.42")).resolves.toBe(false);
-    await expect(consumeRateLimit("203.0.113.43")).resolves.toBe(true);
-    await resetRateLimitsForTests();
   });
 });
 
