@@ -6,6 +6,7 @@ function integer(name: string, fallback: number): number {
 }
 
 export const env = {
+  demoAccessCode: process.env.DEMO_ACCESS_CODE?.trim() ?? "",
   fixtureMode: process.env.WEB_USE_FIXTURE === "true",
   qwenApiKey: process.env.QWEN_API_KEY?.trim() ?? "",
   qwenBaseUrl: process.env.QWEN_BASE_URL?.trim().replace(/\/$/, "") ?? "",
@@ -22,12 +23,12 @@ export const env = {
   analysisTimeoutSeconds: integer("ANALYSIS_TIMEOUT_SECONDS", 90),
   maxUploadBytes: integer("MAX_UPLOAD_BYTES", 10 * 1024 * 1024),
   maxInputTextChars: integer("MAX_INPUT_TEXT_CHARS", 2000),
-  maxAnalysesPerIp: integer("MAX_ANALYSES_PER_IP", 50),
   maxQueued: integer("MAX_QUEUED_ANALYSES", 3),
 };
 
 export function liveReadiness(): Record<string, boolean> {
   return {
+    demoAccessCode: process.env.NODE_ENV !== "production" || Boolean(env.demoAccessCode),
     qwenApiKey: Boolean(env.qwenApiKey),
     qwenBaseUrl: Boolean(env.qwenBaseUrl),
     qwenVisionModel: Boolean(env.qwenVisionModel),

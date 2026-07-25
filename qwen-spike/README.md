@@ -60,12 +60,12 @@ src/server/analysis/         Detect and research orchestration
 src/server/providers/        Qwen, marketplaces, Tavily, auctions, Daytona
 src/server/queue/            Single-worker bounded queue
 src/server/sessions/         In-memory session lifecycle
-src/server/security/         Upload checks and rate limiting
+src/server/security/         Access code and upload checks
 src/price/                   Reusable price-spike implementation
 tests/                       Unit and integration tests
 ```
 
-The production deployment intentionally uses one Railway instance. Sessions live in memory for one hour and may disappear after a restart. Recent history is device-local: up to 12 records are stored in `localStorage`, while image previews are stored in IndexedDB. Per-IP usage totals are stored server-side in `.data/ip-usage.json`; mount `.data` on a Railway persistent volume so totals survive redeploys.
+The production deployment intentionally uses one Railway instance. Sessions live in memory for one hour and may disappear after a restart. Recent history is device-local: up to 12 records are stored in `localStorage`, while image previews are stored in IndexedDB. No database is required for the demo.
 
 ## Local setup
 
@@ -89,6 +89,7 @@ To develop without consuming provider credits:
 
 ```dotenv
 WEB_USE_FIXTURE=true
+DEMO_ACCESS_CODE=your-local-demo-code
 ```
 
 For live mode, set `WEB_USE_FIXTURE=false` and configure the required server-side variables.
@@ -101,6 +102,7 @@ Core live configuration:
 
 ```dotenv
 WEB_USE_FIXTURE=false
+DEMO_ACCESS_CODE=
 
 QWEN_API_KEY=
 QWEN_BASE_URL=https://your-workspace-id.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
@@ -126,7 +128,10 @@ Keys that have appeared in chat, screenshots, logs, or shared documents must be 
 - `POST /api/analysis` — creates the Detect task from multipart `image`, `text`, and optional `category`.
 - `GET /api/analysis/{sessionId}` — returns a safe public session view for polling.
 - `POST /api/analysis/{sessionId}/research` — starts research once using the user-confirmed identification.
+- `POST /api/access` — validates the server-side demo access code.
 - `GET /api/health` — reports safe provider readiness for Railway health checks.
+
+Protected requests send the code through `X-Demo-Code`. The browser keeps it only in `sessionStorage`.
 
 Uploads support JPG, JPEG, PNG, and WEBP up to 10 MB, and text descriptions are limited to 2,000 characters. The server bounds the multipart request before parsing and deletes the temporary image after Qwen identification.
 
@@ -200,12 +205,12 @@ The repository includes a Playwright-based `Dockerfile` and `railway.json`.
 5. Use `/api/health` as the health-check path.
 6. Confirm `WEB_USE_FIXTURE=false` for the public demo.
 
-The deployment does not require Supabase or another database. A Railway persistent volume mounted for `.data` is required if the 50-analysis per-IP totals must survive redeploys.
+The deployment does not require Supabase, another database, or a persistent volume.
 
 ## Security and limitations
 
 - API keys stay server-side and error responses are sanitized.
-- A persistent maximum of 50 analyses per IP, an upload limit, and a bounded queue control public use.
+- A demo access code, upload limit, and bounded queue control public use.
 - Marketplace pages can change or present CAPTCHA; Curio returns partial results rather than bypassing protection.
 - No automatic login, purchasing, bidding, pagination, or inventory claims are implemented.
 - A missing source is shown as uncertainty instead of fabricated data.

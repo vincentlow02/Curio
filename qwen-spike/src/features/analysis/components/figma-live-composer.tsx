@@ -38,6 +38,8 @@ export type RecentAnalysisRecord = {
 
 type Props = {
   locale?: UiLocale;
+  accessCode?: string;
+  onAccessExpired?: () => void;
   initialHistory?: RecentAnalysisRecord | null;
   onHistorySave?: (record: RecentAnalysisRecord) => void;
   onHistoryPromote?: (id: string) => void;
@@ -141,7 +143,7 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
   }
 }
 
-export function FigmaLiveComposer({ locale = "en", initialHistory = null, onHistorySave, onHistoryPromote }: Props): React.ReactElement {
+export function FigmaLiveComposer({ locale = "en", accessCode = "", onAccessExpired, initialHistory = null, onHistorySave, onHistoryPromote }: Props): React.ReactElement {
   const copy = uiCopy[locale];
   const [uploadMenuOpen, setUploadMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -211,7 +213,8 @@ export function FigmaLiveComposer({ locale = "en", initialHistory = null, onHist
     let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = async (): Promise<void> => {
       try {
-        const response = await fetch(`/api/analysis/${encodeURIComponent(sessionId)}`, { cache: "no-store" });
+        const response = await fetch(`/api/analysis/${encodeURIComponent(sessionId)}`, { headers: { "X-Demo-Code": accessCode }, cache: "no-store" });
+        if (response.status === 401) { onAccessExpired?.(); return; }
         const body = await response.json() as AnalysisSessionView | { error: string };
         if (!response.ok) throw new Error("error" in body ? (body.error ?? "Unable to read analysis status.") : "Unable to read analysis status.");
         if (cancelled) return;
@@ -232,7 +235,7 @@ export function FigmaLiveComposer({ locale = "en", initialHistory = null, onHist
     };
     void poll();
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [sessionId, session?.status]);
+  }, [accessCode, onAccessExpired, sessionId, session?.status]);
 
   useEffect(() => {
     if (!onHistorySave || !status) return;
@@ -295,8 +298,9 @@ export function FigmaLiveComposer({ locale = "en", initialHistory = null, onHist
     if (input.category) data.set("category", input.category);
     data.set("collectorMode", String(input.collectorMode));
     try {
-      const response = await fetch("/api/analysis", { method: "POST", body: data });
+      const response = await fetch("/api/analysis", { method: "POST", headers: { "X-Demo-Code": accessCode }, body: data });
       const body = await response.json() as { sessionId?: string; error?: string; code?: string };
+      if (response.status === 401) { onAccessExpired?.(); setCreating(false); return; }
       if (response.status === 422 && body.code === "needs_clarification") {
         setCreating(false);
         setClarificationRequested(true);
@@ -327,10 +331,11 @@ export function FigmaLiveComposer({ locale = "en", initialHistory = null, onHist
     try {
       const response = await fetch(`/api/analysis/${encodeURIComponent(sessionId)}/research`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Demo-Code": accessCode },
         body: JSON.stringify({ identification: recognitionDraft }),
       });
       const body = await response.json() as { error?: string; status?: AnalysisStage; queuePosition?: number };
+      if (response.status === 401) { onAccessExpired?.(); setResearchStarting(false); return; }
       if (!response.ok) throw new Error(body.error ?? "Unable to start research.");
       onHistoryPromote?.(sessionId);
       setSession((current) => current ? { ...current, status: "queued_research", progress: 36, message: "Research queued", queuePosition: body.queuePosition ?? null, identification: recognitionDraft } : current);

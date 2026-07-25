@@ -5,6 +5,5 @@ output/**/*.json
 *.log
 .next/
 .tmp/
-.data/
 coverage/
 *.tsbuildinfo
