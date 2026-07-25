@@ -3,14 +3,12 @@ import { assertDetectionResult } from "../../../../../core/profile/types";
 import { buildPokemonCardSearchKeyword } from "../../../../../core/profile/pokemon-card";
 import { runResearch } from "../../../../../server/analysis/run-pipeline";
 import { analysisQueue } from "../../../../../server/queue/analysis-queue";
-import { hasDemoAccess } from "../../../../../server/security/demo-access";
 import { publicError } from "../../../../../server/security/redact-error";
 import { internalSession, updateSession } from "../../../../../server/sessions/session-store";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request, context: { params: Promise<{ sessionId: string }> }): Promise<NextResponse> {
-  if (!hasDemoAccess(request)) return NextResponse.json({ error: "Invalid Demo Access Code." }, { status: 401 });
   try {
     const { sessionId } = await context.params;
     if (!/^[0-9a-f-]{36}$/i.test(sessionId)) return NextResponse.json({ error: "Invalid analysis session ID." }, { status: 400 });

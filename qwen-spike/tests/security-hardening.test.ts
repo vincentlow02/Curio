@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 import { boundedFormData, MULTIPART_OVERHEAD_BYTES, RequestBodyTooLargeError } from "../src/server/security/bounded-form-data";
-import { clientIp } from "../src/server/security/rate-limit";
+import { clientIp, consumeRateLimit, resetRateLimitsForTests } from "../src/server/security/rate-limit";
 import { publicError } from "../src/server/security/redact-error";
 import { enqueueSessionOrRollback } from "../src/server/queue/session-enqueue";
 import { createSession, deleteSession, internalSession, sessionRoot } from "../src/server/sessions/session-store";
@@ -58,6 +58,18 @@ describe("trusted client IP selection", () => {
     const request = new Request("http://localhost", { headers: { "x-forwarded-for": "198.51.100.9" } });
     expect(clientIp(request, true)).toBe("unknown");
     expect(clientIp(request, false)).toBe("198.51.100.9");
+  });
+});
+
+describe("per-IP lifetime usage limit", () => {
+  it("allows 50 analyses and permanently rejects the 51st", async () => {
+    await resetRateLimitsForTests();
+    for (let count = 0; count < 50; count += 1) {
+      await expect(consumeRateLimit("203.0.113.42")).resolves.toBe(true);
+    }
+    await expect(consumeRateLimit("203.0.113.42")).resolves.toBe(false);
+    await expect(consumeRateLimit("203.0.113.43")).resolves.toBe(true);
+    await resetRateLimitsForTests();
   });
 });
 

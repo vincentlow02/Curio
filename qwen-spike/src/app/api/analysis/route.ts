@@ -9,7 +9,6 @@ import { env } from "../../../server/config/env";
 import { analysisQueue } from "../../../server/queue/analysis-queue";
 import { enqueueSessionOrRollback } from "../../../server/queue/session-enqueue";
 import { boundedFormData, RequestBodyTooLargeError } from "../../../server/security/bounded-form-data";
-import { hasDemoAccess } from "../../../server/security/demo-access";
 import { clientIp, consumeRateLimit } from "../../../server/security/rate-limit";
 import { publicError } from "../../../server/security/redact-error";
 import { assertImageSignature, validateUpload } from "../../../server/security/upload-validation";
@@ -18,8 +17,7 @@ import { cleanupExpiredSessions, createSession, deleteSession, sessionRoot, upda
 export const runtime = "nodejs";
 
 export async function POST(request: Request): Promise<NextResponse> {
-  if (!hasDemoAccess(request)) return NextResponse.json({ error: "Invalid Demo Access Code." }, { status: 401 });
-  if (!consumeRateLimit(clientIp(request))) return NextResponse.json({ error: "Too many analysis requests. Please try again in one hour." }, { status: 429 });
+  if (!await consumeRateLimit(clientIp(request))) return NextResponse.json({ error: "This IP address has reached its 50-analysis limit." }, { status: 429 });
   let pendingSessionId: string | null = null;
   try {
     await cleanupExpiredSessions();
