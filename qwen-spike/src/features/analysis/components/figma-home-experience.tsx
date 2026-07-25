@@ -56,11 +56,11 @@ export function FigmaHomeExperience(): React.ReactElement {
     }
   };
 
-  const expireAccess = (): void => {
+  const expireAccess = useCallback((): void => {
     sessionStorage.removeItem(ACCESS_STORAGE_KEY);
     setAccessCode("");
     setAccessError("Access Code expired or is invalid.");
-  };
+  }, []);
 
   const changeLocale = (nextLocale: UiLocale): void => {
     setLocale(nextLocale);
