@@ -6,6 +6,7 @@ import { LanguageSwitcher } from "../../../components/ui/language-switcher";
 import { FigmaLiveComposer, type RecentAnalysisRecord } from "./figma-live-composer";
 import { deleteRecentImage } from "../storage/recent-image-store";
 import type { UiLocale } from "../locales";
+import { trackSuccessfulLogin } from "../../../lib/analytics";
 
 const HISTORY_STORAGE_KEY = "qwen-collectible-recent-v1";
 const LOCALE_STORAGE_KEY = "curio-ui-locale";
@@ -39,7 +40,7 @@ export function FigmaHomeExperience(): React.ReactElement {
     }
   }, []);
 
-  const verifyAccess = async (code: string): Promise<void> => {
+  const verifyAccess = async (code: string, trackLogin = false): Promise<void> => {
     setAccessChecking(true);
     setAccessError(null);
     try {
@@ -48,6 +49,7 @@ export function FigmaHomeExperience(): React.ReactElement {
       sessionStorage.setItem(ACCESS_STORAGE_KEY, code);
       setAccessCode(code);
       setAccessInput("");
+      if (trackLogin) trackSuccessfulLogin("demo_access_code");
     } catch {
       sessionStorage.removeItem(ACCESS_STORAGE_KEY);
       setAccessCode("");
@@ -134,7 +136,7 @@ export function FigmaHomeExperience(): React.ReactElement {
       <LanguageSwitcher locale={locale} onChange={changeLocale} placement="desktop" disabled={languageDisabled} />
       <FigmaLiveComposer key={composerKey} locale={locale} accessCode={accessCode} onAccessExpired={expireAccess} initialHistory={selectedHistory} onHistorySave={saveHistory} onHistoryPromote={promoteHistory} onBusyChange={setLanguageDisabled} />
       {!accessCode ? <div className="figma-access-backdrop" role="presentation">
-        <form className="figma-access-dialog" onSubmit={(event) => { event.preventDefault(); const code = accessInput.trim(); if (code) void verifyAccess(code); }}>
+        <form className="figma-access-dialog" onSubmit={(event) => { event.preventDefault(); const code = accessInput.trim(); if (code) void verifyAccess(code, true); }}>
           <h2>Demo Access</h2>
           <p>Enter the Access Code to use Curio.</p>
           <label htmlFor="demo-access-code">Access Code</label>

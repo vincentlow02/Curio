@@ -98,6 +98,22 @@ For live mode, set `WEB_USE_FIXTURE=false` and configure the required server-sid
 
 Copy `.env.example` to `.env.local`. Never commit `.env.local`, and never use the `NEXT_PUBLIC_` prefix for secrets.
 
+### Optional website analytics
+
+Set either or both public IDs in `.env.local`, then restart the app:
+
+```dotenv
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
+NEXT_PUBLIC_CLARITY_PROJECT_ID=your-clarity-project-id
+```
+
+GA4 records page visits and approximate visitor country. A successful, manually
+entered demo access code also sends the recommended GA4 `login` event with
+`method=demo_access_code`. Clarity receives a matching `login` custom event for
+filtering recordings. Access codes and other personally identifiable information
+are never sent. Stored access-code revalidation after a page refresh is not counted
+as another login.
+
 Core live configuration:
 
 ```dotenv
