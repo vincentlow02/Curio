@@ -21,14 +21,14 @@
   },
   "dependencies": {
     "@daytona/sdk": "0.200.1",
-    "ajv": "^8.18.0",
+    "ajv": "^8.20.0",
     "dotenv": "17.4.2",
     "geist": "^1.7.2",
-    "next": "16.2.11",
-    "openai": "6.47.0",
-    "playwright": "^1.61.1",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
+    "next": "16.2.12",
+    "openai": "6.49.0",
+    "playwright": "^1.62.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
