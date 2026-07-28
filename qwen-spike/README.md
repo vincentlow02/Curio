@@ -2,7 +2,7 @@
 
 Curio is a web-based collectible research agent for people shopping in Tokyo. Upload a photo or describe an item, confirm the identification, and Curio produces a sourced online asking-price reference plus Tokyo areas worth checking.
 
-**Live demo:** [curio-web-production.up.railway.app](https://curio-web-production.up.railway.app)
+**Live demo:** [curio-web-production-49c7.up.railway.app](https://curio-web-production-49c7.up.railway.app)
 
 > Curio reports public asking-price references, not confirmed transaction prices, appraisals, authenticity guarantees, or real-time store inventory.
 
