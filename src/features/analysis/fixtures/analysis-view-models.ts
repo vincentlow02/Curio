@@ -1,6 +1,9 @@
 import type { AnalysisSessionView } from "../../../core/analysis/types";
 import { fixtureResult } from "../../../server/analysis/fixture-result";
-import type { FixtureState } from "../types";
+
+export type FixtureState =
+  | "queued" | "identifying" | "searching_marketplaces" | "searching_auctions" | "searching_fallback" | "processing_prices"
+  | "success" | "insufficient_price" | "partial_failure" | "needs_review" | "failed" | "expired";
 
 const now = new Date(0).toISOString();
 const stages: Record<FixtureState, Partial<AnalysisSessionView>> = {

@@ -5,12 +5,12 @@ import { fileURLToPath } from "node:url";
 
 import dotenv from "dotenv";
 
-import { processPriceResultWithDaytona } from "./daytona/price-processor.js";
-import { disabledTavilyFallback } from "./price/tavily-price-fallback.js";
-import { buildPriceResult } from "./price/matcher.js";
-import { disabledStoreSnapshot } from "./price/store-verifier.js";
-import type { SearchSnapshot } from "./price/types.js";
-import type { ItemProfile } from "./profile/types.js";
+import { processPriceResultWithDaytona } from "../src/daytona/price-processor.js";
+import { disabledTavilyFallback } from "../src/price/tavily-price-fallback.js";
+import { buildPriceResult } from "../src/price/matcher.js";
+import { disabledStoreSnapshot } from "../src/price/store-verifier.js";
+import type { SearchSnapshot } from "../src/price/types.js";
+import type { ItemProfile } from "../src/price/item-profile.js";
 
 const PROJECT_ROOT = fileURLToPath(new URL("..", import.meta.url));
 

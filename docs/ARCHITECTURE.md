@@ -33,7 +33,7 @@ There is no database, message broker, separate backend service, or separate fron
 
 ### 1. Input and validation
 
-The browser submits an image or text description to `POST /api/analysis`. The API checks the demo access code, bounds the multipart body, validates file type and signature, limits text length, and creates a session.
+The browser submits an image or text description to `POST /api/analysis`. The API checks the demo access code and process-local usage limits, bounds the multipart body, validates file type and signature, limits text length, and creates a session.
 
 ### 2. Identification
 
@@ -95,6 +95,7 @@ The frontend displays the identified item, price range, samples, source URLs, To
 - Tavily runs only after zero valid primary samples.
 - A failed or mismatched Daytona run leaves the Node.js result in place and adds a warning.
 - Full queues reject new work instead of starting unlimited concurrent browser jobs.
+- Per-client hourly and whole-demo daily limits reject excess public requests before paid provider work starts.
 - Expired sessions return a clear error and temporary uploads are cleaned up.
 
 ## Why the current shape fits the demo
@@ -102,4 +103,3 @@ The frontend displays the identified item, price range, samples, source URLs, To
 One deployable application keeps setup and operational cost low. The queue prevents a burst of expensive provider and browser work. Deterministic calculation and source links make the result explainable. The cost of this simplicity is process-local state, a single replica, and limited recovery after restarts.
 
 The first architectural change for a production version should be durable session storage plus an external job queue. That would make multiple replicas and retryable jobs possible without changing the identification and price-calculation contracts.
-

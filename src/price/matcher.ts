@@ -1,4 +1,4 @@
-import type { ItemProfile } from "../profile/types";
+import type { ItemProfile } from "./item-profile";
 import { identityMatches } from "./identity";
 import { matchPokemonCardIdentity } from "../core/profile/pokemon-card";
 import { buildStoreSearchUrl } from "./store-verifier";

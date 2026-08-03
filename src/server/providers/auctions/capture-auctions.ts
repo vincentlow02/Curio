@@ -1,7 +1,7 @@
 import { chromium, type Page } from "playwright";
 import type { AuctionSignal, AuctionSource, AuctionSourceSummary, CollectorEvidence } from "../../../core/analysis/types";
 import type { DetectionResult } from "../../../core/profile/types";
-import { toLegacyItemProfile } from "../../../core/profile/legacy-adapter";
+import { toPriceItemProfile } from "../../../core/profile/to-price-profile";
 import { identityMatches, normalizeIdentity } from "../../../price/identity";
 
 const LIMITS: Record<AuctionSource, number> = { "Yahoo Auctions": 5, "Mandarake Auction": 3 };
@@ -115,7 +115,7 @@ async function captureSource(page: Page, source: AuctionSource, url: string, ide
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 });
     const raw = await cardsFromPage(page, source);
-    const profile = toLegacyItemProfile(identification);
+    const profile = toPriceItemProfile(identification);
     const comparable = raw.filter((card) => identityMatches(profile, `${card.title} ${card.text}`));
     const signals = comparable.slice(0, LIMITS[source]).map((card) => parseAuctionCard(source, card, identification, evidence));
     return { source, status: signals.length ? "succeeded" : "no_results", candidatesSeen: raw.length, comparableSignals: signals.length, signals };

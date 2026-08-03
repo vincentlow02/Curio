@@ -1,4 +1,4 @@
-import { STORE_DISCLAIMER, type ItemProfile, type ItemSubtype } from "../../profile/types";
+import { STORE_DISCLAIMER, type ItemProfile, type ItemSubtype } from "../../price/item-profile";
 import type { DetectionResult } from "./types";
 
 function subtypeFor(result: DetectionResult): ItemSubtype {
@@ -7,7 +7,7 @@ function subtypeFor(result: DetectionResult): ItemSubtype {
   return /カード|card|pokemon|ポケモン|遊戯王|magic/i.test(`${result.itemName} ${result.priceSearchKeywordJa}`) ? "trading_cards" : "retro_games";
 }
 
-export function toLegacyItemProfile(result: DetectionResult): ItemProfile {
+export function toPriceItemProfile(result: DetectionResult): ItemProfile {
   return {
     itemName: result.itemName,
     brandCharacterSeries: "unknown",

@@ -2,7 +2,7 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import type { AnalysisResult, CollectorEvidence, ToolActivity } from "../../core/analysis/types";
 import type { DetectionResult } from "../../core/profile/types";
-import { toLegacyItemProfile } from "../../core/profile/legacy-adapter";
+import { toPriceItemProfile } from "../../core/profile/to-price-profile";
 import { assertSafeRecommendations, recommendAreas, verifiedStoreSuggestions } from "../../core/recommendation/recommend";
 import { processPriceResultWithDaytona } from "../../daytona/price-processor";
 import { buildPriceResult } from "../../price/matcher";
@@ -96,7 +96,7 @@ export async function runResearch(id: string, identification: DetectionResult): 
       return;
     }
 
-    const profile = toLegacyItemProfile(identification);
+    const profile = toPriceItemProfile(identification);
     await updateSession(id, { status: "searching_marketplaces", identification, queuePosition: null, progress: 45, message: "Searching Rakuten and Mercari asking-price listings" });
     const marketStarted = Date.now();
     // Session activity writes are intentionally serialized so neither provider

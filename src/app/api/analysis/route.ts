@@ -10,6 +10,7 @@ import { analysisQueue } from "../../../server/queue/analysis-queue";
 import { enqueueSessionOrRollback } from "../../../server/queue/session-enqueue";
 import { boundedFormData, RequestBodyTooLargeError } from "../../../server/security/bounded-form-data";
 import { hasDemoAccess } from "../../../server/security/demo-access";
+import { checkDemoRateLimit } from "../../../server/security/demo-rate-limit";
 import { publicError } from "../../../server/security/redact-error";
 import { assertImageSignature, validateUpload } from "../../../server/security/upload-validation";
 import { cleanupExpiredSessions, createSession, deleteSession, sessionRoot, updateSession } from "../../../server/sessions/session-store";
@@ -18,6 +19,13 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request): Promise<NextResponse> {
   if (!hasDemoAccess(request)) return NextResponse.json({ error: "Invalid Access Code." }, { status: 401 });
+  const rateLimit = checkDemoRateLimit(request);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "The public demo usage limit has been reached. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds), "Cache-Control": "no-store" } },
+    );
+  }
   let pendingSessionId: string | null = null;
   try {
     await cleanupExpiredSessions();

@@ -5,14 +5,14 @@ import { fileURLToPath } from "node:url";
 
 import dotenv from "dotenv";
 
-import { processPriceResultWithDaytona } from "./daytona/price-processor.js";
-import type { ItemProfile } from "./profile/types.js";
-import { captureTavilyPriceFallback, disabledTavilyFallback } from "./price/tavily-price-fallback.js";
-import { buildPriceResult } from "./price/matcher.js";
-import { captureMarketplaceSearches } from "./price/marketplace-browser.js";
-import { captureVerifiedStores, disabledStoreSnapshot } from "./price/store-verifier.js";
-import type { PriceCost, PriceTrace, RunMode, SearchSnapshot, StoreSnapshot, TavilyFallbackSnapshot } from "./price/types.js";
-import { assertSafeResult, validateSchema } from "./price/validation.js";
+import { processPriceResultWithDaytona } from "../src/daytona/price-processor.js";
+import type { ItemProfile } from "../src/price/item-profile.js";
+import { captureTavilyPriceFallback, disabledTavilyFallback } from "../src/price/tavily-price-fallback.js";
+import { buildPriceResult } from "../src/price/matcher.js";
+import { captureMarketplaceSearches } from "../src/price/marketplace-browser.js";
+import { captureVerifiedStores, disabledStoreSnapshot } from "../src/price/store-verifier.js";
+import type { PriceCost, PriceTrace, RunMode, SearchSnapshot, StoreSnapshot, TavilyFallbackSnapshot } from "../src/price/types.js";
+import { assertSafeResult, validateSchema } from "../src/price/validation.js";
 
 type Cli = { mode: RunMode; inputPath: string | null; sourceRunId: string | null; refresh: boolean; verifyStores: boolean };
 type Limits = {
