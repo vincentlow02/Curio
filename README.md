@@ -199,34 +199,6 @@ The current repository contains 39 passing tests across 8 test files. GitHub Act
 
 The access code is public for portfolio review. The server applies a per-client hourly limit and a whole-demo daily limit before starting metered work. Because the demo still calls paid external services, the code may be rotated or the demo temporarily disabled if usage becomes excessive.
 
-## Challenges and learnings
-
-1. **Separating probabilistic and deterministic work.** Qwen is useful for reading images and normalizing item identity, but price calculation needs repeatable rules. The pipeline therefore stops after identification for user confirmation, then computes the range in TypeScript.
-2. **Comparing noisy marketplace listings.** Search pages contain accessories, bundles, broken items, new stock, duplicates, and similar models. The matcher records explicit exclusion reasons and applies median absolute deviation only after identity and condition filtering.
-3. **Handling unreliable external pages.** Marketplace layouts can change or present CAPTCHA. Each source reports its own status, partial results remain usable, and Tavily is limited to a small fallback path instead of silently replacing the primary sources.
-4. **Managing long-running analysis without a database.** The demo uses polling, an in-memory session store, and a bounded queue. This is simple to deploy, but it requires one server instance and loses sessions after a restart.
-5. **Keeping a public demo safe.** Uploads are size- and signature-checked, temporary images are deleted after identification, provider errors are redacted, secrets remain server-side, and request limits bound repeated and total demo usage. CI smoke-tests the production container as a non-root user.
-
-## Current limitations
-
-- The access code is a shared demo gate, not user authentication.
-- Rate limits are stored in one server process. They reset after a deployment and are not suitable for multiple replicas without an external store.
-- Sessions and the queue are stored in memory, so the deployment must use one replica and active sessions disappear after a restart.
-- Recent history is local to one browser and is not synchronized across devices.
-- Public marketplace scraping may fail when page structure changes, access is blocked, or CAPTCHA appears.
-- Asking prices are not confirmed transaction prices and are not an appraisal.
-- Store suggestions do not claim live inventory; users must verify availability themselves.
-- The project does not yet include a demo GIF, load-test results, or accuracy benchmarks.
-
-## Future improvements
-
-- Move sessions and jobs to a durable store and queue before adding multiple server replicas.
-- Replace the shared access code and process-local limits with user accounts and durable per-user quotas.
-- Add monitored source adapters and saved HTML fixtures for marketplace layout changes.
-- Add structured server-side provider error logging without exposing secrets to clients.
-- Create a small labeled evaluation set for identification accuracy and price-filtering regressions.
-- Add a short demo GIF before using the repository in applications.
-
 ## License
 
 The source code is available under the [MIT License](./LICENSE), allowing reuse, modification, and distribution with attribution. Third-party services, marketplace content, trademarks, and visual assets remain subject to their own terms.
