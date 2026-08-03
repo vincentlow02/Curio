@@ -1,8 +1,12 @@
 # Curio
 
+> This is the detailed developer and deployment guide. Start with the [portfolio overview](../README.md) or the [architecture guide](../docs/ARCHITECTURE.md).
+
 Curio is a web-based collectible research agent for people shopping in Tokyo. Upload a photo or describe an item, confirm the identification, and Curio produces a sourced online asking-price reference plus Tokyo areas worth checking.
 
 **Live demo:** [curio-web-production-49c7.up.railway.app](https://curio-web-production-49c7.up.railway.app)
+
+**Demo access code:** `agentforge`
 
 > Curio reports public asking-price references, not confirmed transaction prices, appraisals, authenticity guarantees, or real-time store inventory.
 
@@ -234,4 +238,4 @@ The deployment does not require Supabase, another database, or a persistent volu
 
 ## License
 
-This repository is currently provided as a hackathon demonstration project. No separate open-source license has been declared.
+The source code is available under the repository's [MIT License](../LICENSE). Third-party services, marketplace content, trademarks, and visual assets remain subject to their own terms.
