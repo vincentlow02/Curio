@@ -106,6 +106,7 @@ Only the main folders are shown here:
 ├── src/price/               Marketplace capture, matching, filtering, and price calculation
 ├── src/server/              Pipeline orchestration, providers, queue, sessions, and security
 ├── src/daytona/             Independent price-calculation verification
+├── scripts/                 Local analysis, replay, and provider smoke-test commands
 ├── tests/                   Unit and integration tests
 └── public/                  Brand and interface assets
 ```
@@ -147,6 +148,9 @@ QWEN_VISION_MODEL=your-vision-model
 QWEN_TEXT_MODEL=your-text-model
 
 DEMO_ACCESS_CODE=replace-with-a-long-demo-code
+DEMO_RATE_LIMIT_WINDOW_MINUTES=60
+DEMO_RATE_LIMIT_MAX_REQUESTS=5
+DEMO_GLOBAL_DAILY_LIMIT=50
 WEB_USE_FIXTURE=true
 
 DAYTONA_API_KEY=your-daytona-api-key
@@ -177,7 +181,7 @@ npm test
 npm run build
 ```
 
-The current repository contains 37 passing tests across 8 test files. GitHub Actions also runs a production container smoke test.
+The current repository contains 39 passing tests across 8 test files. GitHub Actions also runs a production container smoke test.
 
 ## Demo
 
@@ -186,7 +190,7 @@ The current repository contains 37 passing tests across 8 test files. GitHub Act
 - Access code: `agentforge`
 - Portfolio recommendation: add one home-screen screenshot, one completed result screenshot, and a short GIF showing upload → identity review → result. Make sure the recording does not expose provider keys, account details, or private dashboards.
 
-The access code is public for portfolio review. Because the demo calls metered external services, it may be rotated or temporarily disabled if usage becomes excessive.
+The access code is public for portfolio review. The server applies a per-client hourly limit and a whole-demo daily limit before starting metered work. Because the demo still calls paid external services, the code may be rotated or the demo temporarily disabled if usage becomes excessive.
 
 ## Challenges and learnings
 
@@ -194,11 +198,12 @@ The access code is public for portfolio review. Because the demo calls metered e
 2. **Comparing noisy marketplace listings.** Search pages contain accessories, bundles, broken items, new stock, duplicates, and similar models. The matcher records explicit exclusion reasons and applies median absolute deviation only after identity and condition filtering.
 3. **Handling unreliable external pages.** Marketplace layouts can change or present CAPTCHA. Each source reports its own status, partial results remain usable, and Tavily is limited to a small fallback path instead of silently replacing the primary sources.
 4. **Managing long-running analysis without a database.** The demo uses polling, an in-memory session store, and a bounded queue. This is simple to deploy, but it requires one server instance and loses sessions after a restart.
-5. **Keeping a public demo safe.** Uploads are size- and signature-checked, temporary images are deleted after identification, provider errors are redacted, secrets remain server-side, and CI smoke-tests the production container as a non-root user.
+5. **Keeping a public demo safe.** Uploads are size- and signature-checked, temporary images are deleted after identification, provider errors are redacted, secrets remain server-side, and request limits bound repeated and total demo usage. CI smoke-tests the production container as a non-root user.
 
 ## Current limitations
 
 - The access code is a shared demo gate, not user authentication.
+- Rate limits are stored in one server process. They reset after a deployment and are not suitable for multiple replicas without an external store.
 - Sessions and the queue are stored in memory, so the deployment must use one replica and active sessions disappear after a restart.
 - Recent history is local to one browser and is not synchronized across devices.
 - Public marketplace scraping may fail when page structure changes, access is blocked, or CAPTCHA appears.
@@ -209,7 +214,7 @@ The access code is public for portfolio review. Because the demo calls metered e
 ## Future improvements
 
 - Move sessions and jobs to a durable store and queue before adding multiple server replicas.
-- Replace the shared access code with user accounts and per-user usage limits.
+- Replace the shared access code and process-local limits with user accounts and durable per-user quotas.
 - Add monitored source adapters and saved HTML fixtures for marketplace layout changes.
 - Add structured server-side provider error logging without exposing secrets to clients.
 - Create a small labeled evaluation set for identification accuracy and price-filtering regressions.

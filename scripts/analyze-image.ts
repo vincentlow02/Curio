@@ -4,7 +4,7 @@ import { extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import OpenAI from "openai";
-import { assertDetectionResult, type DetectionResult } from "./core/profile/types";
+import { assertDetectionResult, type DetectionResult } from "../src/core/profile/types";
 
 type QwenConfig = { apiKey: string; baseURL: string; model: string };
 const MIME_TYPES: Readonly<Record<string, string>> = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { boundedFormData, MULTIPART_OVERHEAD_BYTES, RequestBodyTooLargeError } from "../src/server/security/bounded-form-data";
 import { publicError } from "../src/server/security/redact-error";
+import { checkDemoRateLimit, resetDemoRateLimitForTests } from "../src/server/security/demo-rate-limit";
 import { enqueueSessionOrRollback } from "../src/server/queue/session-enqueue";
 import { createSession, deleteSession, internalSession, sessionRoot } from "../src/server/sessions/session-store";
 
@@ -73,5 +74,26 @@ describe("queue rollback", () => {
     expect(internalSession(id)).toBeNull();
     await expect(stat(sessionRoot(id))).rejects.toMatchObject({ code: "ENOENT" });
     await deleteSession(id);
+  });
+});
+
+describe("public demo rate limiting", () => {
+  it("limits repeated requests without retaining the raw client address", () => {
+    resetDemoRateLimitForTests();
+    const request = new Request("http://localhost/api/analysis", { headers: { "x-forwarded-for": "203.0.113.10" } });
+    const now = 1_000_000;
+
+    for (let index = 0; index < 5; index += 1) {
+      expect(checkDemoRateLimit(request, now)).toMatchObject({ allowed: true });
+    }
+    expect(checkDemoRateLimit(request, now)).toMatchObject({ allowed: false, retryAfterSeconds: 3600 });
+  });
+
+  it("starts a new client window after it expires", () => {
+    resetDemoRateLimitForTests();
+    const request = new Request("http://localhost/api/analysis", { headers: { "x-real-ip": "198.51.100.4" } });
+    for (let index = 0; index < 5; index += 1) checkDemoRateLimit(request, 0);
+
+    expect(checkDemoRateLimit(request, 60 * 60_000)).toMatchObject({ allowed: true });
   });
 });

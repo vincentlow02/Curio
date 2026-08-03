@@ -191,7 +191,7 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
   }
 }
 
-export function FigmaLiveComposer({ locale = "en", accessCode = "", onAccessExpired, initialHistory = null, onHistorySave, onHistoryPromote, onBusyChange }: Props): React.ReactElement {
+export function AnalysisComposer({ locale = "en", accessCode = "", onAccessExpired, initialHistory = null, onHistorySave, onHistoryPromote, onBusyChange }: Props): React.ReactElement {
   const copy = uiCopy[locale];
   const [uploadMenuOpen, setUploadMenuOpen] = useState(false);
   const [query, setQuery] = useState("");

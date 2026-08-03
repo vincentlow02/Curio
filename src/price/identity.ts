@@ -1,4 +1,4 @@
-import type { ItemProfile } from "../profile/types";
+import type { ItemProfile } from "./item-profile";
 import { matchPokemonCardIdentity } from "../core/profile/pokemon-card";
 
 const GENERIC = new Set([

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildPokemonCardSearchKeyword, matchPokemonCardIdentity } from "../src/core/profile/pokemon-card";
 import { assertDetectionResult, detectionReviewReason, type DetectionResult, type PokemonCardIdentity } from "../src/core/profile/types";
-import { toLegacyItemProfile } from "../src/core/profile/legacy-adapter";
+import { toPriceItemProfile } from "../src/core/profile/to-price-profile";
 import { identityMatches } from "../src/price/identity";
 import { buildPriceResult } from "../src/price/matcher";
 import type { SearchSnapshot } from "../src/price/types";
@@ -48,7 +48,7 @@ describe("Pokémon Card detection contract", () => {
       priceSearchKeywordJa: "ピカチュウ ぬいぐるみ 中古",
       category: "Toys & Character Collectibles",
     };
-    expect(toLegacyItemProfile(toy).pokemonCard).toBeUndefined();
+    expect(toPriceItemProfile(toy).pokemonCard).toBeUndefined();
   });
 });
 
@@ -70,7 +70,7 @@ describe("Pokémon Card exact listing matching", () => {
   });
 
   it("routes the legacy matcher through the strict Pokémon branch", () => {
-    const profile = toLegacyItemProfile(detection);
+    const profile = toPriceItemProfile(detection);
     expect(identityMatches(profile, "リザードンex SV2a 201/165 SAR")).toBe(true);
     expect(identityMatches(profile, "リザードンex SV2a 006/165 RR")).toBe(false);
   });
@@ -95,7 +95,7 @@ describe("Pokémon Card exact listing matching", () => {
       ],
     };
     const built = buildPriceResult({
-      profile: toLegacyItemProfile(detection),
+      profile: toPriceItemProfile(detection),
       snapshot,
       tavilyFallback: { version: 1, provider: "Tavily", triggered: false, query: "", searchUrl: "", capturedAt: new Date(0).toISOString(), searchError: null, results: [], candidates: [], usage: null },
       storeSnapshot: { version: 1, enabled: false, query: "", searchUrl: "", capturedAt: new Date(0).toISOString(), error: null, stores: [] },

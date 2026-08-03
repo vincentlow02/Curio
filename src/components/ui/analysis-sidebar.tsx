@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type { RecentAnalysisRecord } from "../../features/analysis/components/figma-live-composer";
+import type { RecentAnalysisRecord } from "../../features/analysis/components/analysis-composer";
 import { uiCopy, type UiLocale } from "../../features/analysis/locales";
 import { LanguageSwitcher } from "./language-switcher";
 
-type FigmaLeftToolbarProps = {
+type AnalysisSidebarProps = {
   expanded: boolean;
   locale: UiLocale;
   history: RecentAnalysisRecord[];
@@ -19,7 +19,7 @@ type FigmaLeftToolbarProps = {
   languageDisabled?: boolean;
 };
 
-export function FigmaLeftToolbar({ expanded, locale, history, activeHistoryId, onToggle, onNewChat, onOpenHistory, onDeleteHistory, onLocaleChange, languageDisabled = false }: FigmaLeftToolbarProps): React.ReactElement {
+export function AnalysisSidebar({ expanded, locale, history, activeHistoryId, onToggle, onNewChat, onOpenHistory, onDeleteHistory, onLocaleChange, languageDisabled = false }: AnalysisSidebarProps): React.ReactElement {
   const copy = uiCopy[locale];
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ left: number; top: number } | null>(null);

@@ -4,7 +4,7 @@ import { assertSafeRecommendations, FORBIDDEN_INVENTORY, recommendAreas, verifie
 import { identityMatches } from "../src/price/identity";
 import { buildMarketplaceKeyword, buildMercariKeyword } from "../src/price/marketplace-browser";
 import { buildTavilyPriceQuery } from "../src/price/tavily-price-fallback";
-import { STORE_DISCLAIMER, type ItemProfile } from "../src/profile/types";
+import { STORE_DISCLAIMER, type ItemProfile } from "../src/price/item-profile";
 
 describe("public detection contract", () => {
   it("accepts every supported category", () => {

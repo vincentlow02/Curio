@@ -2,7 +2,7 @@ import { isIP } from "node:net";
 
 import { chromium, type BrowserContext, type Page } from "playwright";
 
-import type { ItemProfile } from "../profile/types";
+import type { ItemProfile } from "./item-profile";
 import { buildMarketplaceKeyword } from "./marketplace-browser";
 import { identityMatches } from "./identity";
 import type { TavilyFallbackSnapshot } from "./types";

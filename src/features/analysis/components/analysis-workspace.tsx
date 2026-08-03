@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FigmaLeftToolbar } from "../../../components/ui/figma-left-toolbar";
+import { AnalysisSidebar } from "../../../components/ui/analysis-sidebar";
 import { LanguageSwitcher } from "../../../components/ui/language-switcher";
-import { FigmaLiveComposer, type RecentAnalysisRecord } from "./figma-live-composer";
+import { AnalysisComposer, type RecentAnalysisRecord } from "./analysis-composer";
 import { deleteRecentImage } from "../storage/recent-image-store";
 import type { UiLocale } from "../locales";
 import { trackSuccessfulLogin } from "../../../lib/analytics";
@@ -12,7 +12,7 @@ const HISTORY_STORAGE_KEY = "qwen-collectible-recent-v1";
 const LOCALE_STORAGE_KEY = "curio-ui-locale";
 const ACCESS_STORAGE_KEY = "collectible-demo-code";
 
-export function FigmaHomeExperience(): React.ReactElement {
+export function AnalysisWorkspace(): React.ReactElement {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [history, setHistory] = useState<RecentAnalysisRecord[]>([]);
   const [selectedHistory, setSelectedHistory] = useState<RecentAnalysisRecord | null>(null);
@@ -121,7 +121,7 @@ export function FigmaHomeExperience(): React.ReactElement {
 
   return (
     <div className={`figma-home-experience ${sidebarExpanded ? "is-sidebar-expanded" : ""}`}>
-      <FigmaLeftToolbar
+      <AnalysisSidebar
         expanded={sidebarExpanded}
         locale={locale}
         history={history}
@@ -134,7 +134,7 @@ export function FigmaHomeExperience(): React.ReactElement {
         languageDisabled={languageDisabled}
       />
       <LanguageSwitcher locale={locale} onChange={changeLocale} placement="desktop" disabled={languageDisabled} />
-      <FigmaLiveComposer key={composerKey} locale={locale} accessCode={accessCode} onAccessExpired={expireAccess} initialHistory={selectedHistory} onHistorySave={saveHistory} onHistoryPromote={promoteHistory} onBusyChange={setLanguageDisabled} />
+      <AnalysisComposer key={composerKey} locale={locale} accessCode={accessCode} onAccessExpired={expireAccess} initialHistory={selectedHistory} onHistorySave={saveHistory} onHistoryPromote={promoteHistory} onBusyChange={setLanguageDisabled} />
       {!accessCode ? <div className="figma-access-backdrop" role="presentation">
         <form className="figma-access-dialog" onSubmit={(event) => { event.preventDefault(); const code = accessInput.trim(); if (code) void verifyAccess(code, true); }}>
           <h2>Demo Access</h2>

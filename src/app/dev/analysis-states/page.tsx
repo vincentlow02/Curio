@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { AnalysisView } from "../../../features/analysis/components/analysis-view";
 import { fixtureSession } from "../../../features/analysis/fixtures/analysis-view-models";
-import type { FixtureState } from "../../../features/analysis/types";
+import type { FixtureState } from "../../../features/analysis/fixtures/analysis-view-models";
 
 const states: FixtureState[] = ["queued", "identifying", "searching_marketplaces", "searching_fallback", "processing_prices", "success", "insufficient_price", "partial_failure", "needs_review", "failed", "expired"];
 

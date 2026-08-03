@@ -24,6 +24,9 @@ export const env = {
   maxUploadBytes: integer("MAX_UPLOAD_BYTES", 10 * 1024 * 1024),
   maxInputTextChars: integer("MAX_INPUT_TEXT_CHARS", 2000),
   maxQueued: integer("MAX_QUEUED_ANALYSES", 3),
+  demoRateLimitWindowMinutes: integer("DEMO_RATE_LIMIT_WINDOW_MINUTES", 60),
+  demoRateLimitMaxRequests: integer("DEMO_RATE_LIMIT_MAX_REQUESTS", 5),
+  demoGlobalDailyLimit: integer("DEMO_GLOBAL_DAILY_LIMIT", 50),
 };
 
 export function liveReadiness(): Record<string, boolean> {
