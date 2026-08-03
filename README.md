@@ -1,12 +1,12 @@
 # Curio — Tokyo Collectible Research Agent
 
 <p align="center">
-  <img src="./qwen-spike/public/brands/curio-logo.png" width="96" alt="Curio logo">
+  <img src="./public/brands/curio-logo.png" width="96" alt="Curio logo">
 </p>
 
 Curio is a full-stack web application that identifies a collectible from an image or text, checks public Japanese marketplace listings, calculates an explainable asking-price reference, and suggests Tokyo shopping areas.
 
-[Live demo](https://curio-web-production-49c7.up.railway.app) · [Architecture](./docs/ARCHITECTURE.md) · [Developer guide](./qwen-spike/README.md)
+[Live demo](https://curio-web-production-49c7.up.railway.app) · [Architecture](./docs/ARCHITECTURE.md) · [Developer guide](./docs/DEVELOPMENT.md)
 
 [![CI](https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent/actions/workflows/ci.yml)
 
@@ -100,18 +100,15 @@ Only the main folders are shown here:
 .
 ├── .github/workflows/       CI checks for tests, types, build, audit, and container smoke test
 ├── docs/                    Architecture and project documentation
-└── qwen-spike/              Deployable Next.js application
-    ├── src/app/             Pages and API routes
-    ├── src/features/        Analysis UI, polling, localization, and browser-side history
-    ├── src/core/            Identification contracts and recommendation rules
-    ├── src/price/           Marketplace capture, matching, filtering, and price calculation
-    ├── src/server/          Pipeline orchestration, providers, queue, sessions, and security
-    ├── src/daytona/         Independent price-calculation verification
-    ├── tests/               Unit and integration tests
-    └── public/              Brand and interface assets
+├── src/app/                 Pages and API routes
+├── src/features/            Analysis UI, polling, localization, and browser-side history
+├── src/core/                Identification contracts and recommendation rules
+├── src/price/               Marketplace capture, matching, filtering, and price calculation
+├── src/server/              Pipeline orchestration, providers, queue, sessions, and security
+├── src/daytona/             Independent price-calculation verification
+├── tests/                   Unit and integration tests
+└── public/                  Brand and interface assets
 ```
-
-The folder name `qwen-spike` is historical; it now contains the complete application rather than only an experiment.
 
 ## Getting started
 
@@ -126,7 +123,7 @@ The folder name `qwen-spike` is historical; it now contains the complete applica
 
 ```bash
 git clone https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent.git
-cd Tokyo-Collectible-Research-Agent/qwen-spike
+cd Tokyo-Collectible-Research-Agent
 npm install
 npx playwright install chromium
 ```
@@ -162,7 +159,7 @@ NEXT_PUBLIC_GA_MEASUREMENT_ID=
 NEXT_PUBLIC_CLARITY_PROJECT_ID=
 ```
 
-Use `WEB_USE_FIXTURE=true` to explore the interface and deterministic pipeline without consuming provider credits. The complete variable list and safe placeholders are in [`qwen-spike/.env.example`](./qwen-spike/.env.example).
+Use `WEB_USE_FIXTURE=true` to explore the interface and deterministic pipeline without consuming provider credits. The complete variable list and safe placeholders are in [`.env.example`](./.env.example).
 
 ### Local development
 
@@ -208,7 +205,6 @@ The access code is public for portfolio review. Because the demo calls metered e
 - Asking prices are not confirmed transaction prices and are not an appraisal.
 - Store suggestions do not claim live inventory; users must verify availability themselves.
 - The project does not yet include public screenshots, a demo GIF, load-test results, or accuracy benchmarks.
-- `qwen-spike` is a legacy directory name that no longer describes the full scope of the application.
 
 ## Future improvements
 

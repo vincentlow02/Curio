@@ -181,7 +181,7 @@ export async function processPriceResultWithDaytona(result: PriceReferenceResult
     sandbox = await daytona.create({
       language: "typescript",
       name: `collectible-${options.sessionId.slice(-17)}`,
-      labels: { project: "qwen-spike", session: options.sessionId },
+      labels: { project: "curio", session: options.sessionId },
       networkBlockAll: true,
       autoStopInterval: 1,
       autoDeleteInterval: options.stateTtlHours * 60,
