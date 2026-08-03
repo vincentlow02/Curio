@@ -80,7 +80,7 @@ Requirements:
 - Chromium installed through Playwright
 
 ```powershell
-cd qwen-spike
+cd Tokyo-Collectible-Research-Agent
 npm install
 npx playwright install chromium
 Copy-Item .env.example .env.local
@@ -219,7 +219,7 @@ Fixture tests do not call Qwen, Tavily, Daytona, marketplaces, or other network 
 The repository includes a Playwright-based `Dockerfile` and `railway.json`.
 
 1. Create a Railway service from the GitHub repository.
-2. Set the service root directory to `/qwen-spike`.
+2. Keep the service root directory at the repository root (`/`).
 3. Add all secrets using Railway Variables.
 4. Keep a single replica because the queue and sessions are in memory.
 5. Use `/api/health` as the health-check path.

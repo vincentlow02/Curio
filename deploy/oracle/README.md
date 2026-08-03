@@ -17,7 +17,7 @@ After the VM is running:
 ```bash
 ssh ubuntu@PUBLIC_IP
 git clone https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent.git /opt/curio/repo
-cd /opt/curio/repo/qwen-spike/deploy/oracle
+cd /opt/curio/repo/deploy/oracle
 cp .env.example .env
 nano .env
 sudo docker compose -f compose.yml up -d --build

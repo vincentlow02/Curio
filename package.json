@@ -1,8 +1,8 @@
 {
-  "name": "qwen-vision-spike",
+  "name": "curio",
   "version": "1.0.0",
   "private": true,
-  "description": "TypeScript spikes for Qwen collectible identification and Rakuten asking-price references",
+  "description": "A Tokyo collectible research agent with structured AI identification and deterministic price references",
   "type": "module",
   "scripts": {
     "dev": "next dev",
