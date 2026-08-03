@@ -12,6 +12,14 @@ Curio is a full-stack web application that identifies a collectible from an imag
 
 > Curio reports public asking prices. It does not claim confirmed sale prices, authenticity, appraised value, or live store inventory.
 
+## Demo preview
+
+| Start an analysis | Review an explainable result |
+| --- | --- |
+| ![Curio home screen](./docs/screenshots/curio-home.png) | ![Curio result screen](./docs/screenshots/curio-result.png) |
+
+The result screenshot uses deterministic fixture data so the interface can be reproduced without consuming provider credits.
+
 ## My contribution
 
 Curio was designed and implemented independently by the repository owner from the initial product idea through the deployed demo. The work includes:
@@ -188,7 +196,6 @@ The current repository contains 39 passing tests across 8 test files. GitHub Act
 - Live application: [curio-web-production-49c7.up.railway.app](https://curio-web-production-49c7.up.railway.app)
 - GitHub: [vincentlow02/Tokyo-Collectible-Research-Agent](https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent)
 - Access code: `agentforge`
-- Portfolio recommendation: add one home-screen screenshot, one completed result screenshot, and a short GIF showing upload → identity review → result. Make sure the recording does not expose provider keys, account details, or private dashboards.
 
 The access code is public for portfolio review. The server applies a per-client hourly limit and a whole-demo daily limit before starting metered work. Because the demo still calls paid external services, the code may be rotated or the demo temporarily disabled if usage becomes excessive.
 
@@ -209,7 +216,7 @@ The access code is public for portfolio review. The server applies a per-client 
 - Public marketplace scraping may fail when page structure changes, access is blocked, or CAPTCHA appears.
 - Asking prices are not confirmed transaction prices and are not an appraisal.
 - Store suggestions do not claim live inventory; users must verify availability themselves.
-- The project does not yet include public screenshots, a demo GIF, load-test results, or accuracy benchmarks.
+- The project does not yet include a demo GIF, load-test results, or accuracy benchmarks.
 
 ## Future improvements
 
@@ -218,7 +225,7 @@ The access code is public for portfolio review. The server applies a per-client 
 - Add monitored source adapters and saved HTML fixtures for marketplace layout changes.
 - Add structured server-side provider error logging without exposing secrets to clients.
 - Create a small labeled evaluation set for identification accuracy and price-filtering regressions.
-- Add the recommended screenshots and demo GIF before using the repository in applications.
+- Add a short demo GIF before using the repository in applications.
 
 ## License
 
