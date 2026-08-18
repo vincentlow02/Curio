@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { AnalysisResult, AnalysisSessionView, AnalysisStage, ToolActivity } from "../../../core/analysis/types";
+import type { AnalysisResult, AnalysisSessionView, AnalysisStage, CollectorEvidence, ResearchStreamEvent, ToolActivity } from "../../../core/analysis/types";
 import { isSpecificDescription } from "../../../core/profile/input-routing";
 import { buildPokemonCardSearchKeyword } from "../../../core/profile/pokemon-card";
 import { COLLECTIBLE_CATEGORIES, type CollectibleCategory, type DetectionResult, type PokemonCardIdentity } from "../../../core/profile/types";
 import { uiCopy, type UiLocale } from "../locales";
 import { loadRecentImage, saveRecentImage } from "../storage/recent-image-store";
+import { compressUpload } from "../lib/compress-upload";
 
 const categories = [
   { id: "toys", title: "Toys & Character Collectibles" as CollectibleCategory, label: <>Toys &amp; Character<br />Collectibles</>, image: "/figma/category-toys.png" },
@@ -263,36 +264,6 @@ export function AnalysisComposer({ locale = "en", accessCode = "", onAccessExpir
   }, [uploadMenuOpen]);
 
   useEffect(() => {
-    if (!sessionId) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const poll = async (): Promise<void> => {
-      try {
-        const response = await fetch(`/api/analysis/${encodeURIComponent(sessionId)}`, { headers: { "X-Demo-Code": accessCode }, cache: "no-store" });
-        if (response.status === 401) { onAccessExpired?.(); return; }
-        const body = await response.json() as AnalysisSessionView | { error: string };
-        if (!response.ok) throw new Error("error" in body ? (body.error ?? "Unable to read analysis status.") : "Unable to read analysis status.");
-        if (cancelled) return;
-        const next = body as AnalysisSessionView;
-        setSession(next);
-        setCreating(false);
-        if (next.status === "completed") setError(null);
-        if (next.status !== "identified") setResearchStarting(false);
-        if (next.identification && !["queued_research", "searching_marketplaces", "searching_auctions", "searching_fallback", "processing_prices", "completed"].includes(next.status)) {
-          setRecognitionDraft(next.identification);
-        }
-        if (!["identified", "completed", "failed", "needs_review"].includes(next.status)) timer = setTimeout(poll, 1500);
-      } catch (caught) {
-        if (cancelled) return;
-        setError(caught instanceof Error ? caught.message : String(caught));
-        timer = setTimeout(poll, 2500);
-      }
-    };
-    void poll();
-    return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [accessCode, onAccessExpired, sessionId, session?.status]);
-
-  useEffect(() => {
     if (!onHistorySave || !status) return;
     const id = sessionId ?? historyView?.id;
     if (!id) return;
@@ -324,7 +295,7 @@ export function AnalysisComposer({ locale = "en", accessCode = "", onAccessExpir
     setError(null);
     if (!file) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { setError("Only JPG, PNG and WEBP images are supported."); return; }
-    if (file.size > 10 * 1024 * 1024) { setError("The image is larger than 10 MB."); return; }
+    if (file.size > 25 * 1024 * 1024) { setError("The image is larger than 25 MB."); return; }
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     const url = URL.createObjectURL(file);
     previewUrlRef.current = url;
@@ -348,23 +319,33 @@ export function AnalysisComposer({ locale = "en", accessCode = "", onAccessExpir
     setSessionId(null);
     setSubmittedText(input.text);
     const data = new FormData();
-    if (input.file) data.set("image", input.file);
+    let uploadFile = input.file;
     if (input.text) data.set("text", input.text);
     if (input.category) data.set("category", input.category);
     data.set("collectorMode", String(input.collectorMode));
     data.set("locale", locale);
     try {
+      if (uploadFile) {
+        uploadFile = await compressUpload(uploadFile);
+        data.set("image", uploadFile);
+      }
       const response = await fetch("/api/analysis", { method: "POST", headers: { "X-Demo-Code": accessCode }, body: data });
-      const body = await response.json() as { sessionId?: string; error?: string; code?: string };
+      const body = await response.json() as { runId?: string; sessionId?: string; status?: "identified" | "needs_review" | "failed"; identification?: DetectionResult | null; collectorEvidence?: CollectorEvidence | null; toolActivity?: ToolActivity[]; createdAt?: string; error?: string; code?: string; collectorMode?: boolean };
       if (response.status === 401) { onAccessExpired?.(); setCreating(false); return; }
       if (response.status === 422 && body.code === "needs_clarification") {
         setCreating(false);
         setClarificationRequested(true);
         return;
       }
-      if (!response.ok || !body.sessionId) throw new Error(body.error ?? "Unable to create analysis.");
-      if (input.file) await saveRecentImage(body.sessionId, input.file).catch(() => undefined);
-      setSessionId(body.sessionId);
+      const runId = body.runId ?? body.sessionId;
+      if (!response.ok || !runId || !body.status) throw new Error(body.error ?? "Unable to create analysis.");
+      if (uploadFile) await saveRecentImage(runId, uploadFile).catch(() => undefined);
+      const now = body.createdAt ?? new Date().toISOString();
+      const next: AnalysisSessionView = { id: runId, status: body.status, queuePosition: null, progress: body.status === "identified" ? 32 : 100, message: body.status === "identified" ? "Identification complete. Review the fields before continuing." : body.status === "needs_review" ? "More identification details are needed" : "Identification failed", identification: body.identification ?? null, collectorMode: body.collectorMode ?? input.collectorMode, collectorEvidence: body.collectorEvidence ?? null, toolActivity: body.toolActivity ?? [], createdAt: now, updatedAt: now, result: null, error: body.error ?? null };
+      setSessionId(runId);
+      setSession(next);
+      setRecognitionDraft(next.identification);
+      setCreating(false);
     } catch (caught) {
       setCreating(false);
       setError(caught instanceof Error ? caught.message : String(caught));
@@ -388,13 +369,34 @@ export function AnalysisComposer({ locale = "en", accessCode = "", onAccessExpir
       const response = await fetch(`/api/analysis/${encodeURIComponent(sessionId)}/research`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Demo-Code": accessCode },
-        body: JSON.stringify({ identification: recognitionDraft }),
+        body: JSON.stringify({ identification: recognitionDraft, collectorMode, collectorEvidence: session?.collectorEvidence ?? null, qwenActivity: activities.find((entry) => entry.provider === "Qwen") ?? null, locale }),
       });
-      const body = await response.json() as { error?: string; status?: AnalysisStage; queuePosition?: number };
       if (response.status === 401) { onAccessExpired?.(); setResearchStarting(false); return; }
-      if (!response.ok) throw new Error(body.error ?? "Unable to start research.");
+      if (!response.ok) {
+        const body = await response.json() as { error?: string };
+        throw new Error(body.error ?? "Unable to start research.");
+      }
       onHistoryPromote?.(sessionId);
-      setSession((current) => current ? { ...current, status: "queued_research", progress: 36, message: "Research queued", queuePosition: body.queuePosition ?? null, identification: recognitionDraft } : current);
+      setSession((current) => current ? { ...current, status: "queued_research", progress: 36, message: "Research started", queuePosition: null, identification: recognitionDraft } : current);
+      if (!response.body) throw new Error("The research stream was unavailable.");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      const progress: Partial<Record<AnalysisStage, number>> = { searching_marketplaces: 45, searching_auctions: 58, searching_fallback: 62, processing_prices: 80, completed: 100, failed: 100 };
+      for (;;) {
+        const chunk = await reader.read();
+        buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines.filter(Boolean)) {
+          const event = JSON.parse(line) as ResearchStreamEvent;
+          if (event.type === "stage") setSession((current) => current ? { ...current, status: event.status, progress: progress[event.status] ?? current.progress, message: event.message, toolActivity: event.toolActivity, updatedAt: new Date().toISOString() } : current);
+          if (event.type === "completed") setSession((current) => current ? { ...current, status: "completed", progress: 100, message: "Analysis complete", result: event.result, toolActivity: event.toolActivity, updatedAt: new Date().toISOString(), error: null } : current);
+          if (event.type === "error") throw new Error(event.error);
+        }
+        if (chunk.done) break;
+      }
+      setResearchStarting(false);
     } catch (caught) {
       setResearchStarting(false);
       setError(caught instanceof Error ? caught.message : String(caught));

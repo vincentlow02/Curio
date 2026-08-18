@@ -6,7 +6,7 @@
 
 Curio is a full-stack web application that identifies a collectible from an image or text, checks public Japanese marketplace listings, calculates an explainable asking-price reference, and suggests Tokyo shopping areas.
 
-[Live demo](https://curio-web-production-49c7.up.railway.app) · [Architecture](./docs/ARCHITECTURE.md) · [Developer guide](./docs/DEVELOPMENT.md)
+[Architecture](./docs/ARCHITECTURE.md) · [Developer guide](./docs/DEVELOPMENT.md)
 
 [![CI](https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent/actions/workflows/ci.yml)
 
@@ -28,8 +28,8 @@ Curio was designed and implemented independently by the repository owner from th
 - integrating Qwen image and text identification with structured output validation;
 - designing and implementing the deterministic listing filters and price-reference algorithm;
 - building the responsive, localized user interface and analysis workflow;
-- implementing provider orchestration, session handling, queue limits, upload validation, and error redaction;
-- containerizing and deploying the application on Railway;
+- implementing provider orchestration, stateless streamed research, upload validation, and error redaction;
+- supporting Vercel with remote Browserless Chromium plus optional Docker deployment;
 - adding automated tests, strict type checks, GitHub Actions, production smoke tests, GA4, and Microsoft Clarity.
 
 AI services are used at runtime for item identification and controlled fallback research. The application logic, pricing rules, interface, deployment configuration, and test suite are implemented in this repository.
@@ -61,9 +61,11 @@ Next.js frontend
   ↓
 Next.js API routes
   ↓
-In-memory session queue
+Qwen identification + streamed research request
   ↓
-Qwen identification + Playwright marketplace collection
+Shared browser provider
+  ↓
+Local Chromium or Browserless remote Chromium
   ↓
 Deterministic Node.js price calculation
   ↓
@@ -72,7 +74,7 @@ Optional Tavily fallback + Daytona verification
 Result returned to the frontend
 ```
 
-There is no database in the current demo. Analysis sessions are kept in server memory for a limited time. Recent history and image previews stay in the user's browser through `localStorage` and IndexedDB.
+There is no database or server-side session store. Each identification and research request is self-contained. Recent history and image previews stay in the user's browser through `localStorage` and IndexedDB.
 
 See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for component responsibilities, trust boundaries, and design tradeoffs.
 
@@ -84,7 +86,7 @@ See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for component responsibilitie
 | Calculate prices in TypeScript | Makes filtering and aggregation repeatable and unit-testable. |
 | Keep source URLs with every sample | Lets users inspect the evidence behind the range. |
 | Use median absolute deviation for outliers | Prevents a small number of extreme listings from dominating the range. |
-| Use a bounded single-worker queue | Limits concurrent browser and model work in the single-instance demo. |
+| Use one shared Browserless connection per research | Keeps free browser usage bounded while allowing independent marketplace pages. |
 | Run optional Daytona verification | Recalculates normalized price data independently without sharing provider keys. |
 | Treat Tavily as a limited fallback | It runs only when primary marketplaces provide no valid samples. |
 
@@ -95,10 +97,10 @@ See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for component responsibilitie
 | Frontend | Next.js 16, React 19, TypeScript, Geist |
 | Backend | Next.js Route Handlers, Node.js |
 | AI identification | Qwen through an OpenAI-compatible API |
-| Data collection | Playwright, Rakuten, Mercari, optional Yahoo! Auctions and Mandarake Auction |
+| Data collection | playwright-core, Browserless, Rakuten, Mercari, optional Yahoo! Auctions and Mandarake Auction |
 | Fallback and verification | Tavily, Daytona |
 | Testing | Vitest, TypeScript strict checks, container smoke test |
-| Deployment and analytics | Docker, Railway, GitHub Actions, GA4, Microsoft Clarity |
+| Deployment and analytics | Vercel, Browserless, optional Docker, GitHub Actions, GA4, Microsoft Clarity |
 
 ## Project structure
 
@@ -109,10 +111,10 @@ Only the main folders are shown here:
 ├── .github/workflows/       CI checks for tests, types, build, audit, and container smoke test
 ├── docs/                    Architecture and project documentation
 ├── src/app/                 Pages and API routes
-├── src/features/            Analysis UI, polling, localization, and browser-side history
+├── src/features/            Analysis UI, stream handling, localization, and browser-side history
 ├── src/core/                Identification contracts and recommendation rules
 ├── src/price/               Marketplace capture, matching, filtering, and price calculation
-├── src/server/              Pipeline orchestration, providers, queue, sessions, and security
+├── src/server/              Stateless pipeline, browser/provider adapters, and security
 ├── src/daytona/             Independent price-calculation verification
 ├── scripts/                 Local analysis, replay, and provider smoke-test commands
 ├── tests/                   Unit and integration tests
@@ -127,6 +129,7 @@ Only the main folders are shown here:
 - npm
 - Chromium installed through Playwright
 - Optional provider accounts for live mode: Qwen, Daytona, and Tavily
+- A Browserless account for live Vercel marketplace research
 
 ### Installation
 
@@ -167,6 +170,12 @@ ENABLE_DAYTONA_PROCESSING=false
 TAVILY_API_KEY=your-tavily-api-key
 ENABLE_TAVILY_PRICE_FALLBACK=false
 
+BROWSER_PROVIDER=browserless
+BROWSERLESS_WS_ENDPOINT=wss://production-sfo.browserless.io
+BROWSERLESS_API_TOKEN=your-browserless-token
+BROWSER_SESSION_TIMEOUT_SECONDS=55
+RESEARCH_TIME_BUDGET_SECONDS=240
+
 NEXT_PUBLIC_GA_MEASUREMENT_ID=
 NEXT_PUBLIC_CLARITY_PROJECT_ID=
 ```
@@ -189,15 +198,15 @@ npm test
 npm run build
 ```
 
-The current repository contains 39 passing tests across 8 test files. GitHub Actions also runs a production container smoke test.
+The current repository contains 42 passing tests across 11 test files. GitHub Actions also runs a production container smoke test.
 
 ## Demo
 
-- Live application: [curio-web-production-49c7.up.railway.app](https://curio-web-production-49c7.up.railway.app)
+- Live application: add the verified Vercel URL after the first production deployment
 - GitHub: [vincentlow02/Tokyo-Collectible-Research-Agent](https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent)
-- Access code: `agentforge`
+- Access code: shared privately with reviewers
 
-The access code is public for portfolio review. The server applies a per-client hourly limit and a whole-demo daily limit before starting metered work. Because the demo still calls paid external services, the code may be rotated or the demo temporarily disabled if usage becomes excessive.
+The access code is intentionally not committed. Process-local request limits are best-effort on Vercel, while provider dashboards supply the hard usage controls. Browserless Free currently provides 1,000 units per month; a normal Curio research uses one connection for all primary pages and is expected to consume one or two units. This is a planning estimate, not a measured capacity claim.
 
 ## License
 

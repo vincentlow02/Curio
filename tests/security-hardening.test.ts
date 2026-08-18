@@ -1,12 +1,8 @@
-import { randomUUID } from "node:crypto";
-import { stat } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 import { boundedFormData, MULTIPART_OVERHEAD_BYTES, RequestBodyTooLargeError } from "../src/server/security/bounded-form-data";
 import { publicError } from "../src/server/security/redact-error";
 import { checkDemoRateLimit, resetDemoRateLimitForTests } from "../src/server/security/demo-rate-limit";
-import { enqueueSessionOrRollback } from "../src/server/queue/session-enqueue";
-import { createSession, deleteSession, internalSession, sessionRoot } from "../src/server/sessions/session-store";
 
 describe("bounded multipart parsing", () => {
   it("parses a normal multipart request", async () => {
@@ -48,32 +44,13 @@ describe("bounded multipart parsing", () => {
 
 describe("public error safety", () => {
   it("keeps allowlisted validation messages", () => {
-    expect(publicError(new Error("The analysis queue is full. Please try again shortly."))).toMatch(/queue is full/i);
+    expect(publicError(new Error("Unsupported image format."))).toMatch(/Unsupported image format/);
   });
 
   it("does not expose provider secrets, URLs, paths, or stacks", () => {
     const sensitive = new Error("Bearer dtn-secret-value failed at C:\\private\\file via https://example.com?q=secret");
     sensitive.stack = `${sensitive.message}\n at private-file.ts:1`;
     expect(publicError(sensitive, "Provider unavailable.")).toBe("Provider unavailable.");
-  });
-});
-
-describe("queue rollback", () => {
-  it("removes the session and temporary directory when enqueue fails", async () => {
-    const id = randomUUID();
-    await createSession(id, {
-      imagePath: null,
-      mimeType: null,
-      inputText: "Sony PSP-3000",
-      selectedCategory: null,
-      collectorMode: false,
-    });
-    const fullQueue = { enqueue: () => { throw new Error("The analysis queue is full. Please try again shortly."); } };
-
-    await expect(enqueueSessionOrRollback(fullQueue, id, async () => {})).rejects.toThrow(/queue is full/i);
-    expect(internalSession(id)).toBeNull();
-    await expect(stat(sessionRoot(id))).rejects.toMatchObject({ code: "ENOENT" });
-    await deleteSession(id);
   });
 });
 

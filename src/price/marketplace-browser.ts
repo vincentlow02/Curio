@@ -1,4 +1,4 @@
-import { chromium, type Page } from "playwright";
+import type { BrowserContext, Page } from "playwright-core";
 
 import type { MarketplaceSource, RakutenListingCandidate, SearchSnapshot } from "./types";
 
@@ -105,30 +105,36 @@ async function captureSource(args: {
   maxCards: number;
 }): Promise<SearchSnapshot["sources"][number]> {
   try {
-    await args.page.goto(args.searchUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await args.page.goto(args.searchUrl, { waitUntil: "domcontentloaded", timeout: 40_000 });
     const candidates = args.source === "Rakuten"
       ? await captureRakuten(args.page, args.maxCards)
       : await captureMercari(args.page, args.maxCards);
     return { source: args.source, keyword: args.keyword, searchUrl: args.searchUrl, error: null, candidates };
   } catch (error) {
     return { source: args.source, keyword: args.keyword, searchUrl: args.searchUrl, error: error instanceof Error ? error.message : String(error), candidates: [] };
+  } finally {
+    await args.page.close().catch(() => undefined);
   }
 }
 
-export async function captureMarketplaceSearches(args: { keyword: string; maxCardsPerSource: number; headless: boolean }): Promise<SearchSnapshot> {
+export async function captureMarketplaceSearches(args: { context: BrowserContext; keyword: string; maxCardsPerSource: number }): Promise<SearchSnapshot> {
   const rakutenKeyword = buildMarketplaceKeyword(args.keyword);
   const mercariKeyword = buildMercariKeyword(args.keyword);
-  const browser = await chromium.launch({ headless: args.headless });
-  try {
-    const context = await browser.newContext({ locale: "ja-JP" });
-    const rakutenPage = await context.newPage();
-    const mercariPage = await context.newPage();
-    const sources = await Promise.all([
-      captureSource({ page: rakutenPage, source: "Rakuten", keyword: rakutenKeyword, searchUrl: buildRakutenSearchUrl(args.keyword), maxCards: args.maxCardsPerSource }),
-      captureSource({ page: mercariPage, source: "Mercari", keyword: mercariKeyword, searchUrl: buildMercariSearchUrl(args.keyword), maxCards: args.maxCardsPerSource }),
-    ]);
-    return { version: 2, capturedAt: new Date().toISOString(), sources };
-  } finally {
-    await browser.close();
-  }
+  const rakutenPage = await args.context.newPage();
+  const mercariPage = await args.context.newPage();
+  const tasks = [
+    captureSource({ page: rakutenPage, source: "Rakuten", keyword: rakutenKeyword, searchUrl: buildRakutenSearchUrl(args.keyword), maxCards: args.maxCardsPerSource }),
+    captureSource({ page: mercariPage, source: "Mercari", keyword: mercariKeyword, searchUrl: buildMercariSearchUrl(args.keyword), maxCards: args.maxCardsPerSource }),
+  ] as const;
+  const settled = await Promise.allSettled(tasks);
+  const sources: SearchSnapshot["sources"] = settled.map((entry, index) => entry.status === "fulfilled"
+    ? entry.value
+    : {
+        source: index === 0 ? "Rakuten" : "Mercari",
+        keyword: index === 0 ? rakutenKeyword : mercariKeyword,
+        searchUrl: index === 0 ? buildRakutenSearchUrl(args.keyword) : buildMercariSearchUrl(args.keyword),
+        error: entry.reason instanceof Error ? entry.reason.message : String(entry.reason),
+        candidates: [],
+      });
+  return { version: 2, capturedAt: new Date().toISOString(), sources };
 }

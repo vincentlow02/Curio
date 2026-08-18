@@ -5,7 +5,6 @@ const SAFE_PUBLIC_ERRORS = [
   /^The uploaded image is empty\./,
   /^The image exceeds \d+ MB limit\./,
   /^The file content does not match its image format\./,
-  /^The analysis queue is full\./,
   /^The request must use multipart\/form-data\./,
   /^Invalid Content-Length header\./,
 ];

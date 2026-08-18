@@ -8,3 +8,4 @@ output/**/*.json
 .tmp/
 coverage/
 *.tsbuildinfo
+.vercel

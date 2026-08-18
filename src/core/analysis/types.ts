@@ -28,6 +28,11 @@ export type ToolActivity = {
   cacheHit?: boolean;
 };
 
+export type ResearchStreamEvent =
+  | { type: "stage"; status: AnalysisStage; message: string; toolActivity: ToolActivity[] }
+  | { type: "completed"; status: "completed"; result: AnalysisResult; toolActivity: ToolActivity[] }
+  | { type: "error"; status: "failed"; error: string };
+
 type PublicPriceSample = {
   title: string;
   price: number;

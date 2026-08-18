@@ -16,7 +16,6 @@ ENV HOSTNAME=0.0.0.0
 COPY --from=builder --chown=pwuser:pwuser /app/public ./public
 COPY --from=builder --chown=pwuser:pwuser /app/.next/standalone ./
 COPY --from=builder --chown=pwuser:pwuser /app/.next/static ./.next/static
-COPY --from=builder --chown=pwuser:pwuser /app/node_modules/playwright ./node_modules/playwright
 COPY --from=builder --chown=pwuser:pwuser /app/node_modules/playwright-core ./node_modules/playwright-core
 RUN mkdir -p /app/.tmp && chown -R pwuser:pwuser /app/.tmp
 USER pwuser

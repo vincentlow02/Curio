@@ -1,7 +1,7 @@
 import "server-only";
-import { readFile } from "node:fs/promises";
-import type { AnalysisResult, CollectorEvidence, ToolActivity } from "../../core/analysis/types";
-import type { DetectionResult } from "../../core/profile/types";
+
+import type { AnalysisResult, AnalysisStage, CollectorEvidence, ToolActivity } from "../../core/analysis/types";
+import type { CollectibleCategory, DetectionResult } from "../../core/profile/types";
 import { toPriceItemProfile } from "../../core/profile/to-price-profile";
 import { assertSafeRecommendations, recommendAreas, verifiedStoreSuggestions } from "../../core/recommendation/recommend";
 import { processPriceResultWithDaytona } from "../../daytona/price-processor";
@@ -9,221 +9,136 @@ import { buildPriceResult } from "../../price/matcher";
 import { captureMarketplaceSearches } from "../../price/marketplace-browser";
 import { disabledStoreSnapshot } from "../../price/store-verifier";
 import { captureTavilyPriceFallback, disabledTavilyFallback } from "../../price/tavily-price-fallback";
+import type { SearchSnapshot } from "../../price/types";
+import { browserProvider } from "../browser/browser-provider";
 import { env } from "../config/env";
-import { detectCollectible, detectTextCollectible } from "../providers/qwen/detect";
 import { captureAuctionSearches, skippedAuctionSources } from "../providers/auctions/capture-auctions";
-import { deleteImage, internalSession, replaceToolActivity, saveCost, updateSession } from "../sessions/session-store";
+import { detectCollectible, detectTextCollectible } from "../providers/qwen/detect";
 import { publicError } from "../security/redact-error";
 import { fixtureResult } from "./fixture-result";
+import { createResearchDeadline } from "./research-deadline";
 
-async function setActivity(id: string, activity: ToolActivity): Promise<void> {
-  const session = internalSession(id);
-  if (!session) return;
-  await updateSession(id, { toolActivity: replaceToolActivity(session.toolActivity, activity) });
+export type IdentificationWorkflowInput = { imageDataUrl: string | null; inputText: string; selectedCategory: CollectibleCategory | null; collectorMode: boolean; locale: "en" | "zh" | "ja" };
+export type IdentificationWorkflowResult = { status: "identified" | "needs_review" | "failed"; identification: DetectionResult | null; collectorEvidence: CollectorEvidence | null; toolActivity: ToolActivity[]; error: string | null };
+export type ResearchWorkflowInput = { runId: string; identification: DetectionResult; collectorMode: boolean; collectorEvidence: CollectorEvidence | null; qwenActivity?: ToolActivity | null; onStage?: (event: { status: AnalysisStage; message: string; toolActivity: ToolActivity[] }) => void | Promise<void> };
+export type ResearchWorkflowResult = { result: AnalysisResult; toolActivity: ToolActivity[] };
+
+function upsert(activities: ToolActivity[], activity: ToolActivity): ToolActivity[] { return [...activities.filter((entry) => entry.provider !== activity.provider), activity]; }
+function emptySnapshot(keyword: string, error: string): SearchSnapshot {
+  return { version: 2, capturedAt: new Date().toISOString(), sources: (["Rakuten", "Mercari"] as const).map((source) => ({ source, keyword, searchUrl: "", error, candidates: [] })) };
 }
 
-async function patchActivity(id: string, provider: ToolActivity["provider"], patch: Partial<ToolActivity>): Promise<void> {
-  const current = internalSession(id)?.toolActivity.find((entry) => entry.provider === provider);
-  if (!current) return;
-  await setActivity(id, { ...current, ...patch, provider });
-}
-
-function qwenCost(activities: ToolActivity[]): { inputTokens: number; outputTokens: number } {
-  const qwen = activities.find((entry) => entry.provider === "Qwen");
-  return { inputTokens: qwen?.inputTokens ?? 0, outputTokens: qwen?.outputTokens ?? 0 };
-}
-
-export async function runDetection(id: string): Promise<void> {
+export async function identifyCollectible(input: IdentificationWorkflowInput): Promise<IdentificationWorkflowResult> {
   const started = Date.now();
+  const model = input.imageDataUrl ? env.qwenVisionModel : env.qwenTextModel;
   try {
-    const session = internalSession(id);
-    if (!session) throw new Error("The analysis session does not exist.");
-    await updateSession(id, { status: "identifying", queuePosition: null, progress: 18, message: session.imagePath ? "Identifying the collectible from the image" : "Identifying the collectible from the description" });
-    const model = session.imagePath ? env.qwenVisionModel : env.qwenTextModel;
-    await setActivity(id, { provider: "Qwen", status: "running", calls: 1, durationMs: null, model });
-
-    let identification: DetectionResult;
-    let collectorEvidence: CollectorEvidence | null = null;
-    let usage = { inputTokens: 0, outputTokens: 0 };
     if (env.fixtureMode) {
-      identification = fixtureResult().identification;
-      collectorEvidence = session.collectorMode ? fixtureResult({ collectorMode: true }).collectorEvidence : null;
-      await deleteImage(id);
-    } else if (session.imagePath && session.mimeType) {
-      try {
-        const bytes = await readFile(session.imagePath);
-        const detected = await detectCollectible(`data:${session.mimeType};base64,${bytes.toString("base64")}`, session.selectedCategory, session.inputText, session.collectorMode, session.locale);
-        usage = detected.usage;
-        collectorEvidence = detected.collectorEvidence;
-        if (detected.outcome.status === "needs_review") {
-          await setActivity(id, { provider: "Qwen", status: "failed", calls: 1, durationMs: Date.now() - started, model, ...usage });
-          await updateSession(id, { status: "needs_review", progress: 100, message: "More identification details are needed", error: detected.outcome.reason });
-          return;
-        }
-        identification = detected.outcome.result;
-      } finally {
-        await deleteImage(id);
-      }
-    } else {
-      const detected = await detectTextCollectible(session.inputText, session.selectedCategory, session.collectorMode, session.locale);
-      usage = detected.usage;
-      collectorEvidence = detected.collectorEvidence;
-      if (detected.outcome.status === "needs_review") {
-        await setActivity(id, { provider: "Qwen", status: "failed", calls: 1, durationMs: Date.now() - started, model, ...usage });
-        await updateSession(id, { status: "needs_review", progress: 100, message: "More identification details are needed", error: detected.outcome.reason });
-        return;
-      }
-      identification = detected.outcome.result;
+      const fixture = fixtureResult({ collectorMode: input.collectorMode });
+      return { status: "identified", identification: fixture.identification, collectorEvidence: input.collectorMode ? fixture.collectorEvidence : null, toolActivity: [{ provider: "Qwen", status: "succeeded", calls: 0, durationMs: Date.now() - started, model, inputTokens: 0, outputTokens: 0 }], error: null };
     }
-
-    await setActivity(id, { provider: "Qwen", status: "succeeded", calls: env.fixtureMode ? 0 : 1, durationMs: Date.now() - started, model, ...usage });
-    await updateSession(id, { status: "identified", identification, collectorEvidence, progress: 32, message: "Identification complete. Review the fields before continuing.", error: null });
+    const detected = input.imageDataUrl
+      ? await detectCollectible(input.imageDataUrl, input.selectedCategory, input.inputText, input.collectorMode, input.locale)
+      : await detectTextCollectible(input.inputText, input.selectedCategory, input.collectorMode, input.locale);
+    const activity: ToolActivity = { provider: "Qwen", status: detected.outcome.status === "needs_review" ? "failed" : "succeeded", calls: 1, durationMs: Date.now() - started, model, ...detected.usage };
+    if (detected.outcome.status === "needs_review") return { status: "needs_review", identification: null, collectorEvidence: detected.collectorEvidence, toolActivity: [activity], error: detected.outcome.reason };
+    return { status: "identified", identification: detected.outcome.result, collectorEvidence: detected.collectorEvidence, toolActivity: [activity], error: null };
   } catch (error) {
-    await deleteImage(id);
-    await setActivity(id, { provider: "Qwen", status: "failed", calls: 1, durationMs: Date.now() - started, model: internalSession(id)?.imagePath ? env.qwenVisionModel : env.qwenTextModel });
-    await updateSession(id, { status: "failed", progress: 100, message: "Identification failed", error: publicError(error, "The identification provider was unavailable.") });
+    return { status: "failed", identification: null, collectorEvidence: null, toolActivity: [{ provider: "Qwen", status: "failed", calls: 1, durationMs: Date.now() - started, model }], error: publicError(error, "The identification provider was unavailable.") };
   }
 }
 
-export async function runResearch(id: string, identification: DetectionResult): Promise<void> {
+export async function researchCollectible(input: ResearchWorkflowInput): Promise<ResearchWorkflowResult> {
+  const startedAt = Date.now();
+  const deadline = createResearchDeadline();
+  let activities: ToolActivity[] = input.qwenActivity?.provider === "Qwen" ? [input.qwenActivity] : [];
+  const setActivity = (activity: ToolActivity): void => { activities = upsert(activities, activity); };
+  const emit = async (status: AnalysisStage, message: string): Promise<void> => { await input.onStage?.({ status, message, toolActivity: activities }); };
   try {
-    const session = internalSession(id);
-    if (!session) throw new Error("The analysis session does not exist.");
-    if (env.fixtureMode) {
-      const result = { ...fixtureResult({ collectorMode: session.collectorMode }), identification };
-      await saveCost(id, result.cost);
-      await updateSession(id, { status: "completed", identification, progress: 100, message: "Analysis complete", result, error: null });
-      return;
-    }
+    if (env.fixtureMode) return { result: { ...fixtureResult({ collectorMode: input.collectorMode }), identification: input.identification }, toolActivity: activities };
 
-    const profile = toPriceItemProfile(identification);
-    await updateSession(id, { status: "searching_marketplaces", identification, queuePosition: null, progress: 45, message: "Searching Rakuten and Mercari asking-price listings" });
-    const marketStarted = Date.now();
-    // Session activity writes are intentionally serialized so neither provider
-    // can overwrite the other provider's status in the in-memory session.
-    await setActivity(id, { provider: "Rakuten", status: "running", calls: 1, durationMs: null });
-    await setActivity(id, { provider: "Mercari", status: "running", calls: 1, durationMs: null });
-    const snapshot = await captureMarketplaceSearches({ keyword: identification.priceSearchKeywordJa, maxCardsPerSource: 30, headless: env.headless });
-    for (const source of snapshot.sources) {
-      await setActivity(id, {
-        provider: source.source,
-        status: source.error ? "failed" : "succeeded",
-        calls: 1,
-        durationMs: Date.now() - marketStarted,
-        resultCount: source.candidates.length,
-        cacheHit: false,
-      });
-    }
-
-    let auctionSources = skippedAuctionSources();
-    if (session.collectorMode) {
-      await updateSession(id, { status: "searching_auctions", progress: 58, message: "Searching Yahoo! Auctions and Mandarake Auction" });
-      const auctionStarted = Date.now();
-      await setActivity(id, { provider: "Yahoo Auctions", status: "running", calls: 1, durationMs: null });
-      await setActivity(id, { provider: "Mandarake Auction", status: "running", calls: 1, durationMs: null });
-      auctionSources = await captureAuctionSearches({ identification, collectorEvidence: session.collectorEvidence, headless: env.headless });
-      for (const source of auctionSources) {
-        await setActivity(id, {
-          provider: source.source,
-          status: source.status === "failed" ? "failed" : "succeeded",
-          calls: 1,
-          durationMs: Date.now() - auctionStarted,
-          resultCount: source.candidatesSeen,
-          validResultCount: source.comparableSignals,
-          cacheHit: false,
-        });
-      }
+    const profile = toPriceItemProfile(input.identification);
+    setActivity({ provider: "Rakuten", status: "running", calls: 1, durationMs: null });
+    setActivity({ provider: "Mercari", status: "running", calls: 1, durationMs: null });
+    if (input.collectorMode) {
+      setActivity({ provider: "Yahoo Auctions", status: "running", calls: 1, durationMs: null });
+      setActivity({ provider: "Mandarake Auction", status: "running", calls: 1, durationMs: null });
     } else {
-      await setActivity(id, { provider: "Yahoo Auctions", status: "skipped", calls: 0, durationMs: 0, resultCount: 0, validResultCount: 0 });
-      await setActivity(id, { provider: "Mandarake Auction", status: "skipped", calls: 0, durationMs: 0, resultCount: 0, validResultCount: 0 });
+      setActivity({ provider: "Yahoo Auctions", status: "skipped", calls: 0, durationMs: 0, resultCount: 0, validResultCount: 0 });
+      setActivity({ provider: "Mandarake Auction", status: "skipped", calls: 0, durationMs: 0, resultCount: 0, validResultCount: 0 });
     }
+    await emit("searching_marketplaces", input.collectorMode ? "Searching marketplaces and public auctions" : "Searching Rakuten and Mercari asking-price listings");
+
+    const browserStarted = Date.now();
+    let snapshot: SearchSnapshot;
+    let auctionSources = skippedAuctionSources();
+    try {
+      const lease = await browserProvider.open({ locale: "ja-JP" });
+      try {
+        const settled = await Promise.allSettled([
+          captureMarketplaceSearches({ context: lease.context, keyword: input.identification.priceSearchKeywordJa, maxCardsPerSource: 30 }),
+          ...(input.collectorMode ? [captureAuctionSearches({ context: lease.context, identification: input.identification, collectorEvidence: input.collectorEvidence })] : []),
+        ]);
+        const market = settled[0];
+        snapshot = market?.status === "fulfilled" ? market.value as SearchSnapshot : emptySnapshot(input.identification.priceSearchKeywordJa, market?.status === "rejected" ? publicError(market.reason) : "Marketplace search failed.");
+        const auctions = settled[1];
+        if (input.collectorMode && auctions) auctionSources = auctions.status === "fulfilled" ? auctions.value as typeof auctionSources : (["Yahoo Auctions", "Mandarake Auction"] as const).map((source) => ({ source, status: "failed" as const, candidatesSeen: 0, comparableSignals: 0, signals: [] }));
+      } finally { await lease.close(); }
+    } catch (error) {
+      snapshot = emptySnapshot(input.identification.priceSearchKeywordJa, publicError(error, "The browser provider was unavailable."));
+      if (input.collectorMode) auctionSources = (["Yahoo Auctions", "Mandarake Auction"] as const).map((source) => ({ source, status: "failed" as const, candidatesSeen: 0, comparableSignals: 0, signals: [] }));
+    }
+    for (const source of snapshot.sources) setActivity({ provider: source.source, status: source.error ? "failed" : "succeeded", calls: 1, durationMs: Date.now() - browserStarted, resultCount: source.candidates.length, cacheHit: false });
+    for (const source of auctionSources) setActivity({ provider: source.source, status: source.status === "failed" ? "failed" : source.status === "skipped" ? "skipped" : "succeeded", calls: source.status === "skipped" ? 0 : 1, durationMs: source.status === "skipped" ? 0 : Date.now() - browserStarted, resultCount: source.candidatesSeen, validResultCount: source.comparableSignals, cacheHit: false });
 
     let fallback = disabledTavilyFallback(profile);
-    let nodeCalculationStarted = Date.now();
+    let nodeStarted = Date.now();
     let built = buildPriceResult({ profile, snapshot, tavilyFallback: fallback, storeSnapshot: disabledStoreSnapshot(), maxCardsScannedPerSource: 30, maxSamplesPerSource: 5 });
-    let nodeCalculationMs = Date.now() - nodeCalculationStarted;
-    if (built.result.samples.length === 0 && env.enableTavily) {
-      await updateSession(id, { status: "searching_fallback", progress: 62, message: "No comparable primary samples found. Running one controlled fallback search." });
+    let nodeCalculationMs = Date.now() - nodeStarted;
+    if (built.result.samples.length === 0 && env.enableTavily && deadline.has(80_000)) {
+      await emit("searching_fallback", "No comparable primary samples found. Running one controlled fallback search.");
       const tavilyStarted = Date.now();
-      await setActivity(id, { provider: "Tavily", status: "running", calls: 1, durationMs: null });
-      fallback = await captureTavilyPriceFallback({ profile, apiKey: env.tavilyApiKey, maxResultsToOpen: 2, headless: env.headless });
-      await setActivity(id, { provider: "Tavily", status: fallback.searchError ? "failed" : "fallback", calls: 1, durationMs: Date.now() - tavilyStarted, resultCount: fallback.candidates.length, cacheHit: false });
-      nodeCalculationStarted = Date.now();
+      setActivity({ provider: "Tavily", status: "running", calls: 1, durationMs: null });
+      fallback = await captureTavilyPriceFallback({ profile, apiKey: env.tavilyApiKey, maxResultsToOpen: 2 });
+      setActivity({ provider: "Tavily", status: fallback.searchError ? "failed" : "fallback", calls: 1, durationMs: Date.now() - tavilyStarted, resultCount: fallback.candidates.length, cacheHit: false });
+      nodeStarted = Date.now();
       built = buildPriceResult({ profile, snapshot, tavilyFallback: fallback, storeSnapshot: disabledStoreSnapshot(), maxCardsScannedPerSource: 30, maxSamplesPerSource: 5 });
-      nodeCalculationMs += Date.now() - nodeCalculationStarted;
-    } else {
-      await setActivity(id, { provider: "Tavily", status: "skipped", calls: 0, durationMs: 0, resultCount: 0 });
+      nodeCalculationMs += Date.now() - nodeStarted;
+    } else setActivity({ provider: "Tavily", status: "skipped", calls: 0, durationMs: 0, resultCount: 0 });
+
+    for (const provider of ["Rakuten", "Mercari", "Tavily"] as const) {
+      const current = activities.find((entry) => entry.provider === provider);
+      if (current) setActivity({ ...current, validResultCount: built.result.samples.filter((sample) => sample.source === (provider === "Tavily" ? "Web fallback" : provider)).length });
     }
+    setActivity({ provider: "Node", status: "succeeded", calls: 0, durationMs: nodeCalculationMs, resultCount: built.result.samples.length, validResultCount: built.result.referenceRange.sampleCount });
+    await emit("processing_prices", "Calculating the reference range in Node.js and verifying it in Daytona");
 
-    await patchActivity(id, "Rakuten", { validResultCount: built.result.samples.filter((sample) => sample.source === "Rakuten").length });
-    await patchActivity(id, "Mercari", { validResultCount: built.result.samples.filter((sample) => sample.source === "Mercari").length });
-    await patchActivity(id, "Tavily", { validResultCount: built.result.samples.filter((sample) => sample.source === "Web fallback").length });
+    const runDaytona = env.enableDaytona && deadline.has(75_000);
+    setActivity({ provider: "Daytona", status: runDaytona ? "running" : "skipped", calls: runDaytona ? 1 : 0, durationMs: null });
+    const daytona = await processPriceResultWithDaytona(built.result, { enabled: runDaytona, sessionId: input.runId, apiKey: env.daytonaApiKey, apiUrl: env.daytonaApiUrl, target: env.daytonaTarget, createTimeoutSeconds: 45, executionTimeoutSeconds: 25, stateTtlHours: 168 });
+    setActivity({ provider: "Daytona", status: daytona.report.succeeded ? "succeeded" : daytona.report.attempted ? "failed" : "skipped", calls: daytona.report.attempted ? 1 : 0, durationMs: daytona.report.durationMs, fallbackUsed: daytona.report.fallbackUsed, verificationStatus: daytona.report.verificationStatus });
 
-    await updateSession(id, { status: "processing_prices", progress: 80, message: "Calculating the reference range in Node.js and verifying it in Daytona" });
-    await setActivity(id, { provider: "Node", status: "succeeded", calls: 0, durationMs: nodeCalculationMs, resultCount: built.result.samples.length, validResultCount: built.result.referenceRange.sampleCount });
-    await setActivity(id, { provider: "Daytona", status: env.enableDaytona ? "running" : "skipped", calls: env.enableDaytona ? 1 : 0, durationMs: null });
-    const daytona = await processPriceResultWithDaytona(built.result, {
-      enabled: env.enableDaytona,
-      sessionId: id,
-      apiKey: env.daytonaApiKey,
-      apiUrl: env.daytonaApiUrl,
-      target: env.daytonaTarget,
-      createTimeoutSeconds: 60,
-      executionTimeoutSeconds: 30,
-      stateTtlHours: 168,
-    });
-    await setActivity(id, {
-      provider: "Daytona",
-      status: daytona.report.succeeded ? "succeeded" : daytona.report.attempted ? "failed" : "skipped",
-      calls: daytona.report.attempted ? 1 : 0,
-      durationMs: daytona.report.durationMs,
-      fallbackUsed: daytona.report.fallbackUsed,
-      verificationStatus: daytona.report.verificationStatus,
-    });
-
-    const areas = recommendAreas(identification.category);
+    const areas = recommendAreas(input.identification.category);
     const stores = verifiedStoreSuggestions([]);
     assertSafeRecommendations(areas, stores);
     const reference = built.result.referenceRange;
     const warnings = [...built.result.warnings];
-    if (session.collectorMode && auctionSources.every((source) => source.comparableSignals === 0)) warnings.push("No comparable public active-auction signals were found. No additional auction search was attempted.");
+    if (input.collectorMode && auctionSources.every((source) => source.comparableSignals === 0)) warnings.push("No comparable public active-auction signals were found. No additional auction search was attempted.");
     for (const source of auctionSources.filter((entry) => entry.status === "failed")) warnings.push(`${source.source} could not be read; the other sources and marketplace range are unaffected.`);
     if (!stores.length) warnings.push("No Tokyo physical store with verified source evidence is available yet. Use the area map search and confirm before visiting.");
     if (daytona.report.verificationStatus === "mismatch") warnings.push("Daytona sandbox verification did not match the Node.js calculation. The deterministic Node.js result was retained.");
     if (daytona.report.verificationStatus === "unavailable") warnings.push("Daytona sandbox verification was unavailable. The deterministic Node.js result was retained.");
-    const current = internalSession(id);
-    const tokens = qwenCost(current?.toolActivity ?? []);
+    const qwen = activities.find((entry) => entry.provider === "Qwen");
     const result: AnalysisResult = {
-      identification,
-      collectorMode: session.collectorMode,
-      collectorEvidence: session.collectorMode ? session.collectorEvidence : null,
+      identification: input.identification,
+      collectorMode: input.collectorMode,
+      collectorEvidence: input.collectorMode ? input.collectorEvidence : null,
       auctionSources,
-      priceReference: {
-        currency: "JPY",
-        low: reference.low,
-        median: reference.median,
-        high: reference.high,
-        sampleCount: reference.sampleCount,
-        samples: built.result.samples.map(({ title, price, currency, source, url, condition, versionMatch, packageStatus, includedInReferenceRange }) => ({ title, price, currency, source, url, condition, versionMatch, packageStatus, includedInReferenceRange })),
-        disclaimer: "Online asking-price reference",
-      },
+      priceReference: { currency: "JPY", low: reference.low, median: reference.median, high: reference.high, sampleCount: reference.sampleCount, samples: built.result.samples.map(({ title, price, currency, source, url, condition, versionMatch, packageStatus, includedInReferenceRange }) => ({ title, price, currency, source, url, condition, versionMatch, packageStatus, includedInReferenceRange })), disclaimer: "Online asking-price reference" },
       recommendedAreas: areas,
       storeSuggestions: stores,
       warnings,
-      cost: {
-        qwenCalls: 1,
-        inputTokens: tokens.inputTokens,
-        outputTokens: tokens.outputTokens,
-        marketplacePages: 2,
-        auctionPages: session.collectorMode ? 2 : 0,
-        tavilyCalls: fallback.triggered ? 1 : 0,
-        daytonaCalls: daytona.report.attempted ? 1 : 0,
-        totalMs: Date.now() - Date.parse(session.createdAt),
-      },
+      cost: { qwenCalls: qwen?.calls ?? 1, inputTokens: qwen?.inputTokens ?? 0, outputTokens: qwen?.outputTokens ?? 0, marketplacePages: 2, auctionPages: input.collectorMode ? 2 : 0, tavilyCalls: fallback.triggered ? 1 : 0, daytonaCalls: daytona.report.attempted ? 1 : 0, totalMs: Date.now() - startedAt },
     };
-    await saveCost(id, result.cost);
-    await updateSession(id, { status: "completed", progress: 100, message: "Analysis complete", result, error: null });
-  } catch (error) {
-    await updateSession(id, { status: "failed", progress: 100, message: "Research failed", error: publicError(error, "The research providers were unavailable.") });
-  }
+    return { result, toolActivity: activities };
+  } finally { deadline.close(); }
 }
