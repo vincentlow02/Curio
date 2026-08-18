@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node scripts/copy-playwright-resources.cjs",
     "start": "next start",
     "analyze": "tsx scripts/analyze-image.ts",
     "price-reference": "tsx scripts/price-reference.ts",

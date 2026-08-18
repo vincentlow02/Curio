@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   serverExternalPackages: ["playwright-core", "@daytona/sdk"],
+  outputFileTracingIncludes: {
+    "/api/**/*": ["./node_modules/playwright-core/browsers.json"],
+  },
+  turbopack: {},
 };
 
 export default nextConfig;
