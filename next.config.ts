@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
   output: "standalone",
   poweredByHeader: false,
-  serverExternalPackages: ["playwright", "@daytona/sdk"],
+  serverExternalPackages: ["playwright-core", "@daytona/sdk"],
 };
 
 export default nextConfig;

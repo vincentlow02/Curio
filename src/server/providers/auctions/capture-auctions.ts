@@ -1,4 +1,4 @@
-import { chromium, type Page } from "playwright";
+import type { BrowserContext, Page } from "playwright-core";
 import type { AuctionSignal, AuctionSource, AuctionSourceSummary, CollectorEvidence } from "../../../core/analysis/types";
 import type { DetectionResult } from "../../../core/profile/types";
 import { toPriceItemProfile } from "../../../core/profile/to-price-profile";
@@ -113,7 +113,7 @@ async function cardsFromPage(page: Page, source: AuctionSource): Promise<RawAuct
 
 async function captureSource(page: Page, source: AuctionSource, url: string, identification: DetectionResult, evidence: CollectorEvidence | null): Promise<AuctionSourceSummary> {
   try {
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 40_000 });
     const raw = await cardsFromPage(page, source);
     const profile = toPriceItemProfile(identification);
     const comparable = raw.filter((card) => identityMatches(profile, `${card.title} ${card.text}`));
@@ -121,6 +121,8 @@ async function captureSource(page: Page, source: AuctionSource, url: string, ide
     return { source, status: signals.length ? "succeeded" : "no_results", candidatesSeen: raw.length, comparableSignals: signals.length, signals };
   } catch {
     return { source, status: "failed", candidatesSeen: 0, comparableSignals: 0, signals: [] };
+  } finally {
+    await page.close().catch(() => undefined);
   }
 }
 
@@ -128,18 +130,16 @@ export function skippedAuctionSources(): AuctionSourceSummary[] {
   return (["Yahoo Auctions", "Mandarake Auction"] as const).map((source) => ({ source, status: "skipped", candidatesSeen: 0, comparableSignals: 0, signals: [] }));
 }
 
-export async function captureAuctionSearches(args: { identification: DetectionResult; collectorEvidence: CollectorEvidence | null; headless: boolean }): Promise<AuctionSourceSummary[]> {
+export async function captureAuctionSearches(args: { context: BrowserContext; identification: DetectionResult; collectorEvidence: CollectorEvidence | null }): Promise<AuctionSourceSummary[]> {
   const keyword = buildAuctionKeyword(args.identification);
-  const browser = await chromium.launch({ headless: args.headless });
-  try {
-    const context = await browser.newContext({ locale: "ja-JP" });
-    const yahoo = await context.newPage();
-    const mandarake = await context.newPage();
-    return await Promise.all([
-      captureSource(yahoo, "Yahoo Auctions", buildYahooAuctionUrl(keyword), args.identification, args.collectorEvidence),
-      captureSource(mandarake, "Mandarake Auction", buildMandarakeAuctionUrl(keyword), args.identification, args.collectorEvidence),
-    ]);
-  } finally {
-    await browser.close();
-  }
+  const yahoo = await args.context.newPage();
+  const mandarake = await args.context.newPage();
+  const sources = ["Yahoo Auctions", "Mandarake Auction"] as const;
+  const settled = await Promise.allSettled([
+    captureSource(yahoo, sources[0], buildYahooAuctionUrl(keyword), args.identification, args.collectorEvidence),
+    captureSource(mandarake, sources[1], buildMandarakeAuctionUrl(keyword), args.identification, args.collectorEvidence),
+  ]);
+  return settled.map((entry, index) => entry.status === "fulfilled"
+    ? entry.value
+    : { source: sources[index]!, status: "failed", candidatesSeen: 0, comparableSignals: 0, signals: [] });
 }

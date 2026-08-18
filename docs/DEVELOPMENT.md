@@ -4,7 +4,7 @@
 
 Curio is a web-based collectible research agent for people shopping in Tokyo. Upload a photo or describe an item, confirm the identification, and Curio produces a sourced online asking-price reference plus Tokyo areas worth checking.
 
-**Live demo:** [curio-web-production-49c7.up.railway.app](https://curio-web-production-49c7.up.railway.app)
+**Live demo:** add the verified Vercel URL after the first production deployment.
 
 **Demo access code:** `agentforge`
 
@@ -26,7 +26,7 @@ General-purpose chatbots can provide plausible answers, but collectible research
 - **Cards & Game Collectibles** — trading cards, retro games, handhelds, consoles, and limited gaming hardware.
 - **Records & Music Collectibles** — vinyl, CDs, cassettes, posters, and music memorabilia.
 
-If the category cannot be identified reliably, the session enters `needs_review` instead of inventing a classification.
+If the category cannot be identified reliably, the identification response returns `needs_review` instead of inventing a classification.
 
 ## Runtime flow
 
@@ -56,20 +56,19 @@ Collector Mode adds visible edition and condition evidence without making a seco
 
 ```text
 src/app/                     Next.js pages and API routes
-src/features/analysis/       Responsive UI, session polling, Recent history
+src/features/analysis/       Responsive UI, stream handling, recent history
 src/core/profile/            Detection types and validation
 src/core/price/              Deterministic calculation and matching
 src/core/recommendation/     Tokyo area recommendations
 src/server/analysis/         Detect and research orchestration
 src/server/providers/        Qwen, marketplaces, Tavily, auctions, Daytona
-src/server/queue/            Single-worker bounded queue
-src/server/sessions/         In-memory session lifecycle
+src/server/browser/          Local and Browserless browser provider
 src/server/security/         Access code and upload checks
 src/price/                   Reusable price-spike implementation
 tests/                       Unit and integration tests
 ```
 
-The production deployment intentionally uses one Railway instance. Sessions live in memory for one hour and may disappear after a restart. Recent history is device-local: up to 12 records are stored in `localStorage`, while image previews are stored in IndexedDB. No database is required for the demo.
+Production requests are stateless. Recent history is device-local: up to 12 records are stored in `localStorage`, while image previews are stored in IndexedDB. No database is required for the demo.
 
 ## Local setup
 
@@ -130,6 +129,11 @@ QWEN_VISION_MODEL=qwen3-vl-plus
 QWEN_TEXT_MODEL=
 
 PLAYWRIGHT_HEADLESS=true
+BROWSER_PROVIDER=browserless
+BROWSERLESS_WS_ENDPOINT=wss://production-sfo.browserless.io
+BROWSERLESS_API_TOKEN=
+BROWSER_SESSION_TIMEOUT_SECONDS=55
+RESEARCH_TIME_BUDGET_SECONDS=240
 
 ENABLE_DAYTONA_PROCESSING=true
 DAYTONA_API_KEY=
@@ -143,17 +147,16 @@ All remaining limits and timeouts are documented in `.env.example`.
 
 Keys that have appeared in chat, screenshots, logs, or shared documents must be revoked before deployment.
 
-## API and session model
+## Stateless API model
 
-- `POST /api/analysis` — creates the Detect task from multipart `image`, `text`, and optional `category`.
-- `GET /api/analysis/{sessionId}` — returns a safe public session view for polling.
-- `POST /api/analysis/{sessionId}/research` — starts research once using the user-confirmed identification.
+- `POST /api/analysis` — validates multipart `image`, `text`, and optional `category`, then returns Qwen identification synchronously.
+- `POST /api/analysis/{runId}/research` — streams NDJSON stages and the final result using the user-confirmed identification.
 - `POST /api/access` — validates the server-side demo access code.
-- `GET /api/health` — reports safe provider readiness for Railway health checks.
+- `GET /api/health` — reports safe provider and Browserless readiness.
 
 Protected requests send the code through `X-Demo-Code`. The browser keeps it only in `sessionStorage`.
 
-Uploads support JPG, JPEG, PNG, and WEBP up to 10 MB, and text descriptions are limited to 2,000 characters. The server bounds the multipart request before parsing and deletes the temporary image after Qwen identification.
+Uploads support JPG, JPEG, PNG, and WEBP. The browser reduces large images below 4 MB before upload, and text descriptions are limited to 2,000 characters. The server still bounds the multipart request and validates the image signature.
 
 ## Deterministic pricing and Daytona
 
@@ -214,23 +217,22 @@ npm run build
 
 Fixture tests do not call Qwen, Tavily, Daytona, marketplaces, or other network services.
 
-## Railway deployment
+## Vercel deployment
 
-The repository includes a Playwright-based `Dockerfile` and `railway.json`.
+The primary portfolio deployment uses Vercel Hobby and Browserless. The Docker and Railway files remain available for optional self-hosting.
 
-1. Create a Railway service from the GitHub repository.
-2. Keep the service root directory at the repository root (`/`).
-3. Add all secrets using Railway Variables.
-4. Keep a single replica because the queue and sessions are in memory.
-5. Use `/api/health` as the health-check path.
-6. Confirm `WEB_USE_FIXTURE=false` for the public demo.
+1. Import the GitHub repository into a personal Vercel Hobby project and enable Fluid Compute.
+2. Add all secrets through Vercel Environment Variables and set `BROWSER_PROVIDER=browserless`.
+3. Confirm the research Function shows the current 300-second maximum before publishing; the application uses a 240-second internal budget.
+4. Confirm `WEB_USE_FIXTURE=false` and run the complete image, confirmation, and research workflow.
+5. Check the Browserless dashboard after the first ten runs and record the measured unit usage.
 
 The deployment does not require Supabase, another database, or a persistent volume.
 
 ## Security and limitations
 
 - API keys stay server-side and error responses are sanitized.
-- A demo access code, upload limit, and bounded queue control public use.
+- A demo access code and upload limit control casual public use; provider dashboard limits provide the hard cost boundary.
 - Marketplace pages can change or present CAPTCHA; Curio returns partial results rather than bypassing protection.
 - No automatic login, purchasing, bidding, pagination, or inventory claims are implemented.
 - A missing source is shown as uncertainty instead of fabricated data.

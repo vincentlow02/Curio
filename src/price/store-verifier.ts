@@ -1,6 +1,5 @@
-import { chromium } from "playwright";
-
 import type { StoreSnapshot } from "./types";
+import { browserProvider } from "../server/browser/browser-provider";
 
 export function buildStoreSearchUrl(query: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query.trim())}`;
@@ -9,12 +8,12 @@ export function buildStoreSearchUrl(query: string): string {
 export async function captureVerifiedStores(args: {
   query: string;
   maxStores: number;
-  headless: boolean;
+  headless?: boolean;
 }): Promise<StoreSnapshot> {
   const searchUrl = buildStoreSearchUrl(args.query);
-  const browser = await chromium.launch({ headless: args.headless });
+  const lease = await browserProvider.open({ locale: "ja-JP" });
   try {
-    const page = await browser.newPage({ locale: "ja-JP" });
+    const page = await lease.context.newPage();
     try {
       await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
       await page.waitForSelector("a[href*='/maps/place/']", { timeout: 10_000 });
@@ -36,7 +35,7 @@ export async function captureVerifiedStores(args: {
       return { version: 1, enabled: true, query: args.query, searchUrl, capturedAt: new Date().toISOString(), error: error instanceof Error ? error.message : String(error), stores: [] };
     }
   } finally {
-    await browser.close();
+    await lease.close();
   }
 }
 

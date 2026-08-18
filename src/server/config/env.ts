@@ -19,11 +19,13 @@ export const env = {
   enableTavily: process.env.ENABLE_TAVILY_PRICE_FALLBACK !== "false",
   enableDaytona: process.env.ENABLE_DAYTONA_PROCESSING === "true",
   headless: process.env.PLAYWRIGHT_HEADLESS !== "false",
-  sessionTtlMinutes: integer("SESSION_TTL_MINUTES", 60),
-  analysisTimeoutSeconds: integer("ANALYSIS_TIMEOUT_SECONDS", 90),
-  maxUploadBytes: integer("MAX_UPLOAD_BYTES", 10 * 1024 * 1024),
+  browserProvider: process.env.BROWSER_PROVIDER === "browserless" ? "browserless" as const : "local" as const,
+  browserlessWsEndpoint: process.env.BROWSERLESS_WS_ENDPOINT?.trim(),
+  browserlessApiToken: process.env.BROWSERLESS_API_TOKEN?.trim(),
+  browserSessionTimeoutSeconds: integer("BROWSER_SESSION_TIMEOUT_SECONDS", 55),
+  researchTimeBudgetSeconds: Math.min(integer("RESEARCH_TIME_BUDGET_SECONDS", 240), 240),
+  maxUploadBytes: integer("MAX_UPLOAD_BYTES", 4 * 1024 * 1024),
   maxInputTextChars: integer("MAX_INPUT_TEXT_CHARS", 2000),
-  maxQueued: integer("MAX_QUEUED_ANALYSES", 3),
   demoRateLimitWindowMinutes: integer("DEMO_RATE_LIMIT_WINDOW_MINUTES", 60),
   demoRateLimitMaxRequests: integer("DEMO_RATE_LIMIT_MAX_REQUESTS", 5),
   demoGlobalDailyLimit: integer("DEMO_GLOBAL_DAILY_LIMIT", 50),
@@ -38,6 +40,7 @@ export function liveReadiness(): Record<string, boolean> {
     qwenTextModel: Boolean(env.qwenTextModel),
     daytona: !env.enableDaytona || Boolean(env.daytonaApiKey),
     tavily: !env.enableTavily || Boolean(env.tavilyApiKey),
+    browser: env.browserProvider === "local" ? process.env.VERCEL !== "1" : Boolean(env.browserlessWsEndpoint && env.browserlessApiToken),
   };
 }
 

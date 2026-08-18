@@ -13,6 +13,7 @@ import { captureMarketplaceSearches } from "../src/price/marketplace-browser.js"
 import { captureVerifiedStores, disabledStoreSnapshot } from "../src/price/store-verifier.js";
 import type { PriceCost, PriceTrace, RunMode, SearchSnapshot, StoreSnapshot, TavilyFallbackSnapshot } from "../src/price/types.js";
 import { assertSafeResult, validateSchema } from "../src/price/validation.js";
+import { browserProvider } from "../src/server/browser/browser-provider.js";
 
 type Cli = { mode: RunMode; inputPath: string | null; sourceRunId: string | null; refresh: boolean; verifyStores: boolean };
 type Limits = {
@@ -181,7 +182,12 @@ async function main(): Promise<void> {
       snapshot = cached;
       priceCacheHit = true;
     } else {
-      snapshot = await captureMarketplaceSearches({ keyword: profile.priceSearchKeywordJa, maxCardsPerSource: limits.maxCardsScannedPerSource, headless: process.env.PLAYWRIGHT_HEADLESS?.toLowerCase() === "true" });
+      const lease = await browserProvider.open({ locale: "ja-JP" });
+      try {
+        snapshot = await captureMarketplaceSearches({ context: lease.context, keyword: profile.priceSearchKeywordJa, maxCardsPerSource: limits.maxCardsScannedPerSource });
+      } finally {
+        await lease.close();
+      }
       browserSearchPagesOpened = 2;
       await writeJson(priceCachePath, snapshot);
     }
@@ -233,7 +239,7 @@ async function main(): Promise<void> {
       tavilyFallback = cached;
       tavilyFallbackCacheHit = true;
     } else {
-      tavilyFallback = await captureTavilyPriceFallback({ profile, apiKey: process.env.TAVILY_API_KEY?.trim(), maxResultsToOpen: limits.maxFallbackResultsToOpen, headless: process.env.PLAYWRIGHT_HEADLESS?.toLowerCase() === "true" });
+      tavilyFallback = await captureTavilyPriceFallback({ profile, apiKey: process.env.TAVILY_API_KEY?.trim(), maxResultsToOpen: limits.maxFallbackResultsToOpen });
       tavilySearchCalls = 1;
       fallbackDetailPagesOpened = tavilyFallback.results.filter((result) => result.opened).length;
       await writeJson(tavilyFallbackCachePath, tavilyFallback);

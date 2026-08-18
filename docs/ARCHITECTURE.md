@@ -1,105 +1,81 @@
 # Curio architecture
 
-This document explains the running system without assuming prior knowledge of the codebase.
-
-## System overview
-
-Curio is one Next.js application. The browser renders the interface and calls API routes in the same deployment. The server coordinates identification, marketplace collection, deterministic price calculation, and optional verification.
+Curio is a stateless Next.js application. Vercel runs the interface and API routes; Browserless runs production Chromium. Local development uses the same browser-provider interface with local Chromium.
 
 ```text
 User browser
-  │
   ├─ Next.js interface
   │    ├─ upload or text input
   │    ├─ identity review
-  │    ├─ progress polling
-  │    └─ result and source links
+  │    ├─ streamed research stages
+  │    └─ result and local history
   │
-  └─ Next.js API routes
-       ├─ access-code validation
-       ├─ bounded analysis queue
-       ├─ in-memory session store
-       └─ analysis pipeline
-            ├─ Qwen identification
-            ├─ Playwright marketplace collection
-            ├─ Node.js matching and price calculation
+  └─ Next.js API routes on Vercel
+       ├─ access-code and upload validation
+       ├─ Qwen identification
+       └─ stateless research workflow
+            ├─ Browser provider
+            │    ├─ local: Chromium
+            │    └─ Vercel: Browserless over CDP
+            ├─ deterministic Node.js price calculation
             ├─ optional Tavily fallback
             └─ optional Daytona verification
 ```
 
-There is no database, message broker, separate backend service, or separate frontend deployment.
+There is no database, message broker, server-side session store, or production browser binary in Vercel.
 
 ## Request flow
 
-### 1. Input and validation
+1. `POST /api/analysis` validates the access code, text and optional image. Images are bounded to 4 MB after client-side compression. Qwen returns a structured identity and optional Collector Mode evidence in the same request.
+2. The user reviews and can edit the identity.
+3. `POST /api/analysis/{runId}/research` receives the confirmed identity and emits NDJSON stage events until it returns the result.
+4. One browser lease creates one context. Rakuten and Mercari use separate pages; Collector Mode adds separate Yahoo! Auctions and Mandarake pages. All requested primary pages run concurrently through `Promise.allSettled()`.
+5. A source failure becomes a source-specific status. Other completed sources remain usable.
+6. The TypeScript matcher applies identity, condition, duplicate and outlier rules. Qwen never calculates the price.
+7. Tavily runs only when the primary sources produce no valid sample. Its result pages use a second short browser lease only when required.
+8. Daytona can independently verify the normalized calculation. Failure or mismatch never replaces the Node.js result.
 
-The browser submits an image or text description to `POST /api/analysis`. The API checks the demo access code and process-local usage limits, bounds the multipart body, validates file type and signature, limits text length, and creates a session.
+## Browser lifecycle
 
-### 2. Identification
+`src/server/browser/browser-provider.ts` is the only infrastructure-aware browser module.
 
-The bounded queue starts `runDetection`. Qwen receives either the image or the text and must return a structured identity. If the result is incomplete or uncertain, the session becomes `needs_review` instead of inventing details. Uploaded images are deleted after this stage.
+- Local mode calls `chromium.launch()`.
+- Browserless mode calls `chromium.connectOverCDP()`.
+- Vercel refuses to fall back to local Chromium.
+- A lease is limited to 55 seconds and its idempotent `close()` closes the context and connection.
+- Marketplace parsers receive a `BrowserContext`; they do not choose or launch browser infrastructure.
 
-### 3. User confirmation
+Browserless Free currently bills one unit for each block of up to 30 seconds per browser connection. A primary research uses one connection regardless of whether it opens two or four pages. The expected one-to-two-unit cost is a planning estimate that must be checked against the first ten live runs.
 
-The frontend polls `GET /api/analysis/{sessionId}`. When identification succeeds, it shows editable identity fields. Research starts only after the user confirms them through `POST /api/analysis/{sessionId}/research`.
+## Time budget
 
-### 4. Marketplace research
+The research route declares a 300-second Vercel maximum, matching the current Hobby Fluid Compute limit. The application uses a separate 240-second internal deadline so cleanup and error serialization do not run at the platform boundary. Before publishing a deployment, the effective Function duration must be verified in Vercel because plan limits can change.
 
-Playwright reads public Rakuten and Mercari search pages using the Japanese keyword. Collector Mode can also inspect limited Yahoo! Auctions and Mandarake Auction results. Auction signals remain separate from the reference range.
+Optional work is skipped safely when the remaining budget is insufficient:
 
-### 5. Deterministic calculation
+- primary browser lease: at most 55 seconds;
+- Tavily fallback: only when at least 80 seconds remain;
+- Daytona: only when at least 75 seconds remain;
+- final calculation and response retain their own margin.
 
-`src/price/matcher.ts` rejects non-comparable listings with recorded reasons. Examples include sold-out listings, broken items, accessories, bundles, duplicates, wrong models, and unconfirmed Pokémon Card identities. It then calculates the reference range from accepted samples and removes extreme prices using median absolute deviation.
+## State and trust boundaries
 
-### 6. Fallback and verification
-
-Tavily is called only when the primary marketplaces return no valid price sample. Daytona can independently recalculate the normalized result. A Daytona failure does not replace the Node.js result; it adds a warning.
-
-### 7. Result
-
-The frontend displays the identified item, price range, samples, source URLs, Tokyo areas, warnings, provider activity, token use, and total duration.
-
-## Component responsibilities
-
-| Component | Responsibility | Does not do |
-| --- | --- | --- |
-| `src/features/analysis` | UI state, polling, localization, and device-local recent history | Provider calls or price calculation |
-| `src/app/api` | HTTP validation and safe public responses | Marketplace parsing rules |
-| `src/server/analysis` | Coordinates stages and records provider activity | Decide listing comparability directly |
-| `src/server/providers/qwen` | Image/text identification into a strict contract | Generate prices or store inventory |
-| `src/price` | Marketplace capture, matching, exclusions, and range calculation | User-interface rendering |
-| `src/daytona` | Independent calculation consistency check | Override the authoritative Node.js result |
-| `src/server/sessions` | Temporary session state and uploaded-file lifecycle | Durable storage |
-| `src/server/queue` | Bounds concurrent analysis work | Distributed job processing |
-| `src/server/security` | Access gate, upload checks, request limits, and error redaction | Full user authentication |
-
-## State and persistence
-
-- **Server:** sessions are stored in a global in-memory map and persisted temporarily under `.tmp/sessions` for the running instance.
-- **Browser:** recent result metadata uses `localStorage`; recent images use IndexedDB; the demo access code stays in `sessionStorage`.
-- **Production:** one Railway replica is intentional because the queue and session map are process-local.
-
-## Trust boundaries
-
-- Provider keys and the demo access code are server-side environment variables.
-- The browser receives sanitized errors rather than raw provider responses.
-- Qwen output is parsed and validated before entering the pricing pipeline.
-- Marketplace content is treated as untrusted input and filtered before aggregation.
-- Daytona receives normalized calculation data, not Qwen, Tavily, Rakuten, or Mercari credentials.
-- Client-visible source links use the marketplace URLs collected by the server.
+- Recent metadata uses `localStorage`; recent images use IndexedDB; the access code uses `sessionStorage`.
+- Provider keys remain in server-side environment variables.
+- Qwen output and user-edited identification are validated before research.
+- Marketplace content is untrusted and filtered before aggregation.
+- Raw provider errors are redacted from public responses.
+- Process-local request limiting is best-effort on Vercel. Hard cost protection belongs in provider dashboards.
 
 ## Failure behavior
 
-- Uncertain identification becomes `needs_review`.
-- A failed marketplace can coexist with results from another source.
-- Tavily runs only after zero valid primary samples.
-- A failed or mismatched Daytona run leaves the Node.js result in place and adds a warning.
-- Full queues reject new work instead of starting unlimited concurrent browser jobs.
-- Per-client hourly and whole-demo daily limits reject excess public requests before paid provider work starts.
-- Expired sessions return a clear error and temporary uploads are cleaned up.
+- Uncertain identification returns `needs_review`.
+- Each marketplace reports its own failure without rejecting the whole primary research phase.
+- A dropped research stream can be retried with the already confirmed identity.
+- Tavily and Daytona failures preserve deterministic Node.js output.
+- Browserless configuration errors are reported explicitly; Vercel never attempts a local browser launch.
+- Browserless quota exhaustion makes live collection unavailable until the quota resets, but fixture mode remains usable.
 
-## Why the current shape fits the demo
+## Why this shape fits the demo
 
-One deployable application keeps setup and operational cost low. The queue prevents a burst of expensive provider and browser work. Deterministic calculation and source links make the result explainable. The cost of this simplicity is process-local state, a single replica, and limited recovery after restarts.
-
-The first architectural change for a production version should be durable session storage plus an external job queue. That would make multiple replicas and retryable jobs possible without changing the identification and price-calculation contracts.
+The application is intended for occasional portfolio review, not high concurrency. Stateless requests work with Vercel Hobby, while one remote browser connection keeps Browserless usage small. This preserves the real parsers and pricing logic without operating a VM, database, Redis instance, or browser container.
