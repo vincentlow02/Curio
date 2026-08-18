@@ -19,7 +19,8 @@ export const env = {
   enableTavily: process.env.ENABLE_TAVILY_PRICE_FALLBACK !== "false",
   enableDaytona: process.env.ENABLE_DAYTONA_PROCESSING === "true",
   headless: process.env.PLAYWRIGHT_HEADLESS !== "false",
-  browserProvider: process.env.BROWSER_PROVIDER === "browserless" ? "browserless" as const : "local" as const,
+  // In Vercel production, always use browserless. Local dev can override with BROWSER_PROVIDER=local
+  browserProvider: (process.env.VERCEL === "1" || process.env.BROWSER_PROVIDER?.trim() === "browserless") ? "browserless" as const : "local" as const,
   browserlessWsEndpoint: process.env.BROWSERLESS_WS_ENDPOINT?.trim(),
   browserlessApiToken: process.env.BROWSERLESS_API_TOKEN?.trim(),
   browserSessionTimeoutSeconds: integer("BROWSER_SESSION_TIMEOUT_SECONDS", 55),
