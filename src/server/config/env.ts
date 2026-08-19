@@ -6,30 +6,33 @@ function integer(name: string, fallback: number): number {
 }
 
 export const env = {
-  demoAccessCode: process.env.DEMO_ACCESS_CODE?.trim() ?? "",
-  fixtureMode: process.env.WEB_USE_FIXTURE === "true",
-  qwenApiKey: process.env.QWEN_API_KEY?.trim() ?? "",
-  qwenBaseUrl: process.env.QWEN_BASE_URL?.trim().replace(/\/$/, "") ?? "",
-  qwenVisionModel: process.env.QWEN_VISION_MODEL?.trim() ?? "",
-  qwenTextModel: process.env.QWEN_TEXT_MODEL?.trim() ?? "",
-  tavilyApiKey: process.env.TAVILY_API_KEY?.trim(),
-  daytonaApiKey: process.env.DAYTONA_API_KEY?.trim(),
-  daytonaApiUrl: process.env.DAYTONA_API_URL?.trim(),
-  daytonaTarget: process.env.DAYTONA_TARGET?.trim(),
-  enableTavily: process.env.ENABLE_TAVILY_PRICE_FALLBACK !== "false",
-  enableDaytona: process.env.ENABLE_DAYTONA_PROCESSING === "true",
-  headless: process.env.PLAYWRIGHT_HEADLESS !== "false",
-  // In Vercel production, always use browserless. Local dev can override with BROWSER_PROVIDER=local
-  browserProvider: (process.env.VERCEL === "1" || process.env.BROWSER_PROVIDER?.trim() === "browserless") ? "browserless" as const : "local" as const,
-  browserlessWsEndpoint: process.env.BROWSERLESS_WS_ENDPOINT?.trim(),
-  browserlessApiToken: process.env.BROWSERLESS_API_TOKEN?.trim(),
-  browserSessionTimeoutSeconds: integer("BROWSER_SESSION_TIMEOUT_SECONDS", 55),
-  researchTimeBudgetSeconds: Math.min(integer("RESEARCH_TIME_BUDGET_SECONDS", 240), 240),
-  maxUploadBytes: integer("MAX_UPLOAD_BYTES", 4 * 1024 * 1024),
-  maxInputTextChars: integer("MAX_INPUT_TEXT_CHARS", 2000),
-  demoRateLimitWindowMinutes: integer("DEMO_RATE_LIMIT_WINDOW_MINUTES", 60),
-  demoRateLimitMaxRequests: integer("DEMO_RATE_LIMIT_MAX_REQUESTS", 5),
-  demoGlobalDailyLimit: integer("DEMO_GLOBAL_DAILY_LIMIT", 50),
+  get demoAccessCode() { return process.env.DEMO_ACCESS_CODE?.trim() ?? ""; },
+  get fixtureMode() { return process.env.WEB_USE_FIXTURE === "true"; },
+  get qwenApiKey() { return process.env.QWEN_API_KEY?.trim() ?? ""; },
+  get qwenBaseUrl() { return process.env.QWEN_BASE_URL?.trim().replace(/\/$/, "") ?? ""; },
+  get qwenVisionModel() { return process.env.QWEN_VISION_MODEL?.trim() ?? ""; },
+  get qwenTextModel() { return process.env.QWEN_TEXT_MODEL?.trim() ?? ""; },
+  get tavilyApiKey() { return process.env.TAVILY_API_KEY?.trim(); },
+  get daytonaApiKey() { return process.env.DAYTONA_API_KEY?.trim(); },
+  get daytonaApiUrl() { return process.env.DAYTONA_API_URL?.trim(); },
+  get daytonaTarget() { return process.env.DAYTONA_TARGET?.trim(); },
+  get enableTavily() { return process.env.ENABLE_TAVILY_PRICE_FALLBACK !== "false"; },
+  get enableDaytona() { return process.env.ENABLE_DAYTONA_PROCESSING === "true"; },
+  get headless() { return process.env.PLAYWRIGHT_HEADLESS !== "false"; },
+  get browserProvider() {
+    if (process.env.BROWSER_PROVIDER?.trim() === "browserless") return "browserless" as const;
+    if (process.env.BROWSER_PROVIDER?.trim() === "local") return "local" as const;
+    return process.env.VERCEL === "1" ? ("browserless" as const) : ("local" as const);
+  },
+  get browserlessWsEndpoint() { return process.env.BROWSERLESS_WS_ENDPOINT?.trim(); },
+  get browserlessApiToken() { return process.env.BROWSERLESS_API_TOKEN?.trim(); },
+  get browserSessionTimeoutSeconds() { return integer("BROWSER_SESSION_TIMEOUT_SECONDS", 55); },
+  get researchTimeBudgetSeconds() { return Math.min(integer("RESEARCH_TIME_BUDGET_SECONDS", 240), 240); },
+  get maxUploadBytes() { return integer("MAX_UPLOAD_BYTES", 4 * 1024 * 1024); },
+  get maxInputTextChars() { return integer("MAX_INPUT_TEXT_CHARS", 2000); },
+  get demoRateLimitWindowMinutes() { return integer("DEMO_RATE_LIMIT_WINDOW_MINUTES", 60); },
+  get demoRateLimitMaxRequests() { return integer("DEMO_RATE_LIMIT_MAX_REQUESTS", 5); },
+  get demoGlobalDailyLimit() { return integer("DEMO_GLOBAL_DAILY_LIMIT", 50); },
 };
 
 export function liveReadiness(): Record<string, boolean> {
