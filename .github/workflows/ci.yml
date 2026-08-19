@@ -29,6 +29,7 @@ jobs:
           docker run --detach --name curio-security-smoke \
             --publish 3000:3000 \
             --env DEMO_ACCESS_CODE=ci-smoke \
+            --env WEB_USE_FIXTURE=true \
             curio-security-check
           trap 'docker logs curio-security-smoke; docker rm --force curio-security-smoke' EXIT
           for attempt in {1..300}; do
@@ -46,4 +47,4 @@ jobs:
             --header 'x-demo-code: ci-smoke' \
             --form 'text=Sony PSP-3000 handheld console' \
             http://127.0.0.1:3000/api/analysis)"
-          test "$status" = "202"
+          test "$status" = "200"
