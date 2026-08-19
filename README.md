@@ -9,6 +9,9 @@ AI research agent for identifying Japanese collectibles, comparing marketplace p
 
 Curio is a full-stack web application that identifies a collectible from an image or text, checks public Japanese marketplace listings, calculates an explainable asking-price reference, and suggests Tokyo shopping areas.
 
+demolink : https://foragent-testing.vercel.app/
+Acesscode：agent-forge-demo
+
 [Architecture](./docs/ARCHITECTURE.md) · [Developer guide](./docs/DEVELOPMENT.md)
 
 [![CI](https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent/actions/workflows/ci.yml)
