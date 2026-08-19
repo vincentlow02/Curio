@@ -4,6 +4,9 @@
   <img src="./public/brands/curio-logo.png" width="96" alt="Curio logo">
 </p>
 
+Curio
+AI research agent for identifying Japanese collectibles, comparing marketplace prices, and discovering where to find them in Tokyo.
+
 Curio is a full-stack web application that identifies a collectible from an image or text, checks public Japanese marketplace listings, calculates an explainable asking-price reference, and suggests Tokyo shopping areas.
 
 [Architecture](./docs/ARCHITECTURE.md) · [Developer guide](./docs/DEVELOPMENT.md)
