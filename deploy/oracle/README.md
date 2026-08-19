@@ -16,7 +16,7 @@ After the VM is running:
 
 ```bash
 ssh ubuntu@PUBLIC_IP
-git clone https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent.git /opt/curio/repo
+git clone https://github.com/vincentlow02/Curio.git /opt/curio/repo
 cd /opt/curio/repo/deploy/oracle
 cp .env.example .env
 nano .env

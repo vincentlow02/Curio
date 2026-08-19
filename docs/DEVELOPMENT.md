@@ -4,9 +4,9 @@
 
 Curio is a web-based collectible research agent for people shopping in Tokyo. Upload a photo or describe an item, confirm the identification, and Curio produces a sourced online asking-price reference plus Tokyo areas worth checking.
 
-**Live demo:** add the verified Vercel URL after the first production deployment.
+**Live demo:** [https://foragent-testing.vercel.app/](https://foragent-testing.vercel.app/)
 
-**Demo access code:** `agentforge`
+**Demo access code:** `agent-forge-demo`
 
 > Curio reports public asking-price references, not confirmed transaction prices, appraisals, authenticity guarantees, or real-time store inventory.
 
@@ -79,7 +79,7 @@ Requirements:
 - Chromium installed through Playwright
 
 ```powershell
-cd Tokyo-Collectible-Research-Agent
+cd Curio
 npm install
 npx playwright install chromium
 Copy-Item .env.example .env.local
