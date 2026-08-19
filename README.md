@@ -9,12 +9,11 @@ AI research agent for identifying Japanese collectibles, comparing marketplace p
 
 Curio is a full-stack web application that identifies a collectible from an image or text, checks public Japanese marketplace listings, calculates an explainable asking-price reference, and suggests Tokyo shopping areas.
 
-demolink : https://foragent-testing.vercel.app/
-Acesscode：agent-forge-demo
+[Live Demo](https://foragent-testing.vercel.app/) · [Architecture](./docs/ARCHITECTURE.md) · [Developer Guide](./docs/DEVELOPMENT.md)
 
-[Architecture](./docs/ARCHITECTURE.md) · [Developer guide](./docs/DEVELOPMENT.md)
+Demo access code: `agent-forge-demo`
 
-[![CI](https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent/actions/workflows/ci.yml)
+[![CI](https://github.com/vincentlow02/Curio/actions/workflows/ci.yml/badge.svg)](https://github.com/vincentlow02/Curio/actions/workflows/ci.yml)
 
 > Curio reports public asking prices. It does not claim confirmed sale prices, authenticity, appraised value, or live store inventory.
 
@@ -140,8 +139,8 @@ Only the main folders are shown here:
 ### Installation
 
 ```bash
-git clone https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent.git
-cd Tokyo-Collectible-Research-Agent
+git clone https://github.com/vincentlow02/Curio.git
+cd Curio
 npm install
 npx playwright install chromium
 ```
@@ -208,9 +207,9 @@ The current repository contains 42 passing tests across 11 test files. GitHub Ac
 
 ## Demo
 
-- Live application: add the verified Vercel URL after the first production deployment
-- GitHub: [vincentlow02/Tokyo-Collectible-Research-Agent](https://github.com/vincentlow02/Tokyo-Collectible-Research-Agent)
-- Access code: shared privately with reviewers
+- Live application: [https://foragent-testing.vercel.app/](https://foragent-testing.vercel.app/)
+- GitHub: [vincentlow02/Curio](https://github.com/vincentlow02/Curio)
+- Demo access code: `agent-forge-demo`
 
 The access code is intentionally not committed. Process-local request limits are best-effort on Vercel, while provider dashboards supply the hard usage controls. Browserless Free currently provides 1,000 units per month; a normal Curio research uses one connection for all primary pages and is expected to consume one or two units. This is a planning estimate, not a measured capacity claim.
 
