@@ -2,7 +2,6 @@ import type { CollectorEvidence, ResearchStreamEvent, ToolActivity } from "../..
 import { buildPokemonCardSearchKeyword } from "../../../../../core/profile/pokemon-card";
 import { assertDetectionResult, type DetectionResult } from "../../../../../core/profile/types";
 import { researchCollectible } from "../../../../../server/analysis/run-pipeline";
-import { hasDemoAccess } from "../../../../../server/security/demo-access";
 import { publicError } from "../../../../../server/security/redact-error";
 
 export const runtime = "nodejs";
@@ -17,7 +16,6 @@ type RequestBody = {
 };
 
 export async function POST(request: Request, context: { params: Promise<{ sessionId: string }> }): Promise<Response> {
-  if (!hasDemoAccess(request)) return Response.json({ error: "Invalid Access Code." }, { status: 401 });
   const { sessionId: runId } = await context.params;
   if (!/^[0-9a-f-]{36}$/i.test(runId)) return Response.json({ error: "Invalid analysis run ID." }, { status: 400 });
   let body: RequestBody;

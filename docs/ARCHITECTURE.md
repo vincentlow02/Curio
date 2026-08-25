@@ -11,7 +11,7 @@ User browser
   │    └─ result and local history
   │
   └─ Next.js API routes on Vercel
-       ├─ access-code and upload validation
+       ├─ request limits and upload validation
        ├─ Qwen identification
        └─ stateless research workflow
             ├─ Browser provider
@@ -26,7 +26,7 @@ There is no database, message broker, server-side session store, or production b
 
 ## Request flow
 
-1. `POST /api/analysis` validates the access code, text and optional image. Images are bounded to 4 MB after client-side compression. Qwen returns a structured identity and optional Collector Mode evidence in the same request.
+1. `POST /api/analysis` validates the text and optional image. Images are bounded to 4 MB after client-side compression. Qwen returns a structured identity and optional Collector Mode evidence in the same request.
 2. The user reviews and can edit the identity.
 3. `POST /api/analysis/{runId}/research` receives the confirmed identity and emits NDJSON stage events until it returns the result.
 4. One browser lease creates one context. Rakuten and Mercari use separate pages; Collector Mode adds separate Yahoo! Auctions and Mandarake pages. All requested primary pages run concurrently through `Promise.allSettled()`.
@@ -60,7 +60,7 @@ Optional work is skipped safely when the remaining budget is insufficient:
 
 ## State and trust boundaries
 
-- Recent metadata uses `localStorage`; recent images use IndexedDB; the access code uses `sessionStorage`.
+- Recent metadata uses `localStorage`; recent images use IndexedDB.
 - Provider keys remain in server-side environment variables.
 - Qwen output and user-edited identification are validated before research.
 - Marketplace content is untrusted and filtered before aggregation.

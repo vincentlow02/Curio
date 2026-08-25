@@ -6,11 +6,9 @@ import { LanguageSwitcher } from "../../../components/ui/language-switcher";
 import { AnalysisComposer, type RecentAnalysisRecord } from "./analysis-composer";
 import { deleteRecentImage } from "../storage/recent-image-store";
 import type { UiLocale } from "../locales";
-import { trackSuccessfulLogin } from "../../../lib/analytics";
 
 const HISTORY_STORAGE_KEY = "qwen-collectible-recent-v1";
 const LOCALE_STORAGE_KEY = "curio-ui-locale";
-const ACCESS_STORAGE_KEY = "collectible-demo-code";
 
 export function AnalysisWorkspace(): React.ReactElement {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
@@ -19,10 +17,6 @@ export function AnalysisWorkspace(): React.ReactElement {
   const [composerKey, setComposerKey] = useState(0);
   const [locale, setLocale] = useState<UiLocale>("en");
   const [languageDisabled, setLanguageDisabled] = useState(false);
-  const [accessCode, setAccessCode] = useState("");
-  const [accessInput, setAccessInput] = useState("");
-  const [accessChecking, setAccessChecking] = useState(false);
-  const [accessError, setAccessError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -33,36 +27,9 @@ export function AnalysisWorkspace(): React.ReactElement {
         setLocale(storedLocale);
         document.documentElement.lang = storedLocale === "zh" ? "zh-CN" : storedLocale;
       }
-      const storedCode = sessionStorage.getItem(ACCESS_STORAGE_KEY) ?? "";
-      if (storedCode) void verifyAccess(storedCode);
     } catch {
       localStorage.removeItem(HISTORY_STORAGE_KEY);
     }
-  }, []);
-
-  const verifyAccess = async (code: string, trackLogin = false): Promise<void> => {
-    setAccessChecking(true);
-    setAccessError(null);
-    try {
-      const response = await fetch("/api/access", { method: "POST", headers: { "X-Demo-Code": code } });
-      if (!response.ok) throw new Error("Invalid Access Code.");
-      sessionStorage.setItem(ACCESS_STORAGE_KEY, code);
-      setAccessCode(code);
-      setAccessInput("");
-      if (trackLogin) trackSuccessfulLogin("demo_access_code");
-    } catch {
-      sessionStorage.removeItem(ACCESS_STORAGE_KEY);
-      setAccessCode("");
-      setAccessError("Invalid Access Code.");
-    } finally {
-      setAccessChecking(false);
-    }
-  };
-
-  const expireAccess = useCallback((): void => {
-    sessionStorage.removeItem(ACCESS_STORAGE_KEY);
-    setAccessCode("");
-    setAccessError("Access Code expired or is invalid.");
   }, []);
 
   const changeLocale = (nextLocale: UiLocale): void => {
@@ -134,17 +101,7 @@ export function AnalysisWorkspace(): React.ReactElement {
         languageDisabled={languageDisabled}
       />
       <LanguageSwitcher locale={locale} onChange={changeLocale} placement="desktop" disabled={languageDisabled} />
-      <AnalysisComposer key={composerKey} locale={locale} accessCode={accessCode} onAccessExpired={expireAccess} initialHistory={selectedHistory} onHistorySave={saveHistory} onHistoryPromote={promoteHistory} onBusyChange={setLanguageDisabled} />
-      {!accessCode ? <div className="figma-access-backdrop" role="presentation">
-        <form className="figma-access-dialog" onSubmit={(event) => { event.preventDefault(); const code = accessInput.trim(); if (code) void verifyAccess(code, true); }}>
-          <h2>Demo Access</h2>
-          <p>Enter the Access Code to use Curio.</p>
-          <label htmlFor="demo-access-code">Access Code</label>
-          <input id="demo-access-code" type="password" autoFocus value={accessInput} onChange={(event) => setAccessInput(event.target.value)} autoComplete="off" />
-          {accessError ? <p className="figma-access-error">{accessError}</p> : null}
-          <div><button type="submit" disabled={!accessInput.trim() || accessChecking}>{accessChecking ? "Checking…" : "Continue"}</button></div>
-        </form>
-      </div> : null}
+      <AnalysisComposer key={composerKey} locale={locale} initialHistory={selectedHistory} onHistorySave={saveHistory} onHistoryPromote={promoteHistory} onBusyChange={setLanguageDisabled} />
     </div>
   );
 }

@@ -11,8 +11,6 @@ Curio is a full-stack web application that identifies a collectible from an imag
 
 [Live Demo](https://foragent-testing.vercel.app/) · [Architecture](./docs/ARCHITECTURE.md) · [Developer Guide](./docs/DEVELOPMENT.md)
 
-Demo access code: `agent-forge-demo`
-
 [![CI](https://github.com/vincentlow02/Curio/actions/workflows/ci.yml/badge.svg)](https://github.com/vincentlow02/Curio/actions/workflows/ci.yml)
 
 > Curio reports public asking prices. It does not claim confirmed sale prices, authenticity, appraised value, or live store inventory.
@@ -163,7 +161,6 @@ QWEN_BASE_URL=https://your-workspace-id.example.com/compatible-mode/v1
 QWEN_VISION_MODEL=your-vision-model
 QWEN_TEXT_MODEL=your-text-model
 
-DEMO_ACCESS_CODE=replace-with-a-long-demo-code
 DEMO_RATE_LIMIT_WINDOW_MINUTES=60
 DEMO_RATE_LIMIT_MAX_REQUESTS=5
 DEMO_GLOBAL_DAILY_LIMIT=50
@@ -209,9 +206,7 @@ The current repository contains 42 passing tests across 11 test files. GitHub Ac
 
 - Live application: [https://foragent-testing.vercel.app/](https://foragent-testing.vercel.app/)
 - GitHub: [vincentlow02/Curio](https://github.com/vincentlow02/Curio)
-- Demo access code: `agent-forge-demo`
-
-The access code is intentionally not committed. Process-local request limits are best-effort on Vercel, while provider dashboards supply the hard usage controls. Browserless Free currently provides 1,000 units per month; a normal Curio research uses one connection for all primary pages and is expected to consume one or two units. This is a planning estimate, not a measured capacity claim.
+The analysis API is public. Process-local request limits are best-effort on Vercel, while provider dashboards supply the hard usage controls. Browserless Free currently provides 1,000 units per month; a normal Curio research uses one connection for all primary pages and is expected to consume one or two units. This is a planning estimate, not a measured capacity claim.
 
 ## License
 

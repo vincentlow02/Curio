@@ -6,7 +6,6 @@ function integer(name: string, fallback: number): number {
 }
 
 export const env = {
-  get demoAccessCode() { return process.env.DEMO_ACCESS_CODE?.trim() ?? ""; },
   get fixtureMode() { return process.env.WEB_USE_FIXTURE === "true"; },
   get qwenApiKey() { return process.env.QWEN_API_KEY?.trim() ?? ""; },
   get qwenBaseUrl() { return process.env.QWEN_BASE_URL?.trim().replace(/\/$/, "") ?? ""; },
@@ -37,7 +36,6 @@ export const env = {
 
 export function liveReadiness(): Record<string, boolean> {
   return {
-    demoAccessCode: process.env.NODE_ENV !== "production" || Boolean(env.demoAccessCode),
     qwenApiKey: Boolean(env.qwenApiKey),
     qwenBaseUrl: Boolean(env.qwenBaseUrl),
     qwenVisionModel: Boolean(env.qwenVisionModel),
