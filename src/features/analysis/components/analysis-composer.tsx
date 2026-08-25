@@ -34,8 +34,6 @@ export type RecentAnalysisRecord = {
 
 type Props = {
   locale?: UiLocale;
-  accessCode?: string;
-  onAccessExpired?: () => void;
   initialHistory?: RecentAnalysisRecord | null;
   onHistorySave?: (record: RecentAnalysisRecord) => void;
   onHistoryPromote?: (id: string) => void;
@@ -192,7 +190,7 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
   }
 }
 
-export function AnalysisComposer({ locale = "en", accessCode = "", onAccessExpired, initialHistory = null, onHistorySave, onHistoryPromote, onBusyChange }: Props): React.ReactElement {
+export function AnalysisComposer({ locale = "en", initialHistory = null, onHistorySave, onHistoryPromote, onBusyChange }: Props): React.ReactElement {
   const copy = uiCopy[locale];
   const [uploadMenuOpen, setUploadMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -329,9 +327,8 @@ export function AnalysisComposer({ locale = "en", accessCode = "", onAccessExpir
         uploadFile = await compressUpload(uploadFile);
         data.set("image", uploadFile);
       }
-      const response = await fetch("/api/analysis", { method: "POST", headers: { "X-Demo-Code": accessCode }, body: data });
+      const response = await fetch("/api/analysis", { method: "POST", body: data });
       const body = await response.json() as { runId?: string; sessionId?: string; status?: "identified" | "needs_review" | "failed"; identification?: DetectionResult | null; collectorEvidence?: CollectorEvidence | null; toolActivity?: ToolActivity[]; createdAt?: string; error?: string; code?: string; collectorMode?: boolean };
-      if (response.status === 401) { onAccessExpired?.(); setCreating(false); return; }
       if (response.status === 422 && body.code === "needs_clarification") {
         setCreating(false);
         setClarificationRequested(true);
@@ -368,10 +365,9 @@ export function AnalysisComposer({ locale = "en", accessCode = "", onAccessExpir
     try {
       const response = await fetch(`/api/analysis/${encodeURIComponent(sessionId)}/research`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Demo-Code": accessCode },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identification: recognitionDraft, collectorMode, collectorEvidence: session?.collectorEvidence ?? null, qwenActivity: activities.find((entry) => entry.provider === "Qwen") ?? null, locale }),
       });
-      if (response.status === 401) { onAccessExpired?.(); setResearchStarting(false); return; }
       if (!response.ok) {
         const body = await response.json() as { error?: string };
         throw new Error(body.error ?? "Unable to start research.");

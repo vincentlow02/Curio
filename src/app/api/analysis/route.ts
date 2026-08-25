@@ -6,7 +6,6 @@ import { isCollectibleCategory } from "../../../core/profile/types";
 import { identifyCollectible } from "../../../server/analysis/run-pipeline";
 import { env } from "../../../server/config/env";
 import { boundedFormData, RequestBodyTooLargeError } from "../../../server/security/bounded-form-data";
-import { hasDemoAccess } from "../../../server/security/demo-access";
 import { checkDemoRateLimit } from "../../../server/security/demo-rate-limit";
 import { publicError } from "../../../server/security/redact-error";
 import { assertImageSignature, validateUpload } from "../../../server/security/upload-validation";
@@ -15,7 +14,6 @@ export const runtime = "nodejs";
 export const maxDuration = 90;
 
 export async function POST(request: Request): Promise<NextResponse> {
-  if (!hasDemoAccess(request)) return NextResponse.json({ error: "Invalid Access Code." }, { status: 401 });
   const rateLimit = checkDemoRateLimit(request);
   if (!rateLimit.allowed) return NextResponse.json({ error: "The public demo usage limit has been reached. Please try again later." }, { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds), "Cache-Control": "no-store" } });
   try {
