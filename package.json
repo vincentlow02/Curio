@@ -24,7 +24,7 @@
     "ajv": "^8.18.0",
     "dotenv": "17.4.2",
     "geist": "^1.7.2",
-    "next": "16.2.11",
+    "next": "16.3.6",
     "openai": "6.47.0",
     "playwright-core": "^1.61.1",
     "react": "^19.2.7",
@@ -44,9 +44,9 @@
   },
   "overrides": {
     "@opentelemetry/propagator-jaeger": "2.10.0",
-    "fast-uri": "3.1.5",
+    "fast-uri": "3.1.6",
     "postcss": "8.5.23",
-    "sharp": "0.35.3",
+    "sharp": "0.35.4",
     "tar": "7.5.22"
   }
 }
