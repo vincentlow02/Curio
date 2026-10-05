@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AnalysisSidebar } from "../../../components/ui/analysis-sidebar";
-import { LanguageSwitcher } from "../../../components/ui/language-switcher";
 import { AnalysisComposer, type RecentAnalysisRecord } from "./analysis-composer";
 import { deleteRecentImage } from "../storage/recent-image-store";
 import type { UiLocale } from "../locales";
@@ -100,7 +99,6 @@ export function AnalysisWorkspace(): React.ReactElement {
         onLocaleChange={changeLocale}
         languageDisabled={languageDisabled}
       />
-      <LanguageSwitcher locale={locale} onChange={changeLocale} placement="desktop" disabled={languageDisabled} />
       <AnalysisComposer key={composerKey} locale={locale} initialHistory={selectedHistory} onHistorySave={saveHistory} onHistoryPromote={promoteHistory} onBusyChange={setLanguageDisabled} />
     </div>
   );

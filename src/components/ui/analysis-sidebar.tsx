@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { useState } from "react";
 import type { RecentAnalysisRecord } from "../../features/analysis/components/analysis-composer";
 import { uiCopy, type UiLocale } from "../../features/analysis/locales";
-import { LanguageSwitcher } from "./language-switcher";
+import { AccountSettings } from "./account-settings";
 
 type AnalysisSidebarProps = {
   expanded: boolean;
@@ -21,34 +21,11 @@ type AnalysisSidebarProps = {
 
 export function AnalysisSidebar({ expanded, locale, history, activeHistoryId, onToggle, onNewChat, onOpenHistory, onDeleteHistory, onLocaleChange, languageDisabled = false }: AnalysisSidebarProps): React.ReactElement {
   const copy = uiCopy[locale];
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ left: number; top: number } | null>(null);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const visibleHistory = query.trim()
     ? history.filter((record) => record.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
     : history;
-
-  useEffect(() => {
-    if (!openMenuId) return;
-    const closeMenu = (): void => {
-      setOpenMenuId(null);
-      setMenuPosition(null);
-    };
-    document.addEventListener("click", closeMenu);
-    window.addEventListener("resize", closeMenu);
-    window.addEventListener("scroll", closeMenu, true);
-    return () => {
-      document.removeEventListener("click", closeMenu);
-      window.removeEventListener("resize", closeMenu);
-      window.removeEventListener("scroll", closeMenu, true);
-    };
-  }, [openMenuId]);
-
-  const closeHistoryMenu = (): void => {
-    setOpenMenuId(null);
-    setMenuPosition(null);
-  };
 
   const isMobileViewport = (): boolean => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
 
@@ -93,54 +70,45 @@ export function AnalysisSidebar({ expanded, locale, history, activeHistoryId, on
                     className="figma-toolbar-history-item__open"
                     type="button"
                     title={record.title}
-                    onClick={() => { closeHistoryMenu(); onOpenHistory(record); if (isMobileViewport() && expanded) onToggle(); }}
+                    onClick={() => { onOpenHistory(record); if (isMobileViewport() && expanded) onToggle(); }}
                     tabIndex={expanded ? 0 : -1}
                   >
                     <span>{record.title}</span>
                   </button>
                   {record.status && !["identified", "completed", "needs_review", "failed"].includes(record.status) ? <span className="figma-toolbar-history-running" aria-label="Analysis running" title="Analysis running" /> : null}
-                  <button
-                    className="figma-toolbar-history-item__more"
-                    type="button"
-                    aria-label={`More options for ${record.title}`}
-                    aria-expanded={openMenuId === record.id}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (openMenuId === record.id) {
-                        closeHistoryMenu();
-                        return;
-                      }
-                      const anchor = event.currentTarget.getBoundingClientRect();
-                      setMenuPosition({ left: Math.min(anchor.right + 9, window.innerWidth - 101), top: anchor.top - 2 });
-                      setOpenMenuId(record.id);
-                    }}
-                    tabIndex={expanded ? 0 : -1}
-                  >⋯</button>
-                  {openMenuId === record.id && menuPosition && typeof document !== "undefined" ? createPortal(
-                    <div
-                      className="figma-toolbar-history-menu figma-toolbar-history-menu--floating"
-                      role="menu"
-                      style={{ left: menuPosition.left, top: menuPosition.top }}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <button type="button" role="menuitem" onClick={() => { closeHistoryMenu(); onDeleteHistory(record.id); }}>{copy.delete}</button>
-                    </div>,
-                    document.body,
-                  ) : null}
+                  <DropdownMenu.Root>
+                    <DropdownMenu.Trigger asChild>
+                      <button
+                        className="figma-toolbar-history-item__more"
+                        type="button"
+                        aria-label={`More options for ${record.title}`}
+                        tabIndex={expanded ? 0 : -1}
+                      >⋯</button>
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Portal>
+                      <DropdownMenu.Content
+                        className="figma-toolbar-history-menu z-[100] w-[92px] rounded-[9px] border border-[#e2e2e2] bg-white p-[4px] shadow-[0_7px_20px_rgba(0,0,0,0.12)]"
+                        side="right"
+                        align="start"
+                        sideOffset={9}
+                        collisionPadding={8}
+                      >
+                        <DropdownMenu.Item
+                          className="figma-toolbar-history-menu__item flex h-[31px] w-full cursor-pointer items-center rounded-[6px] border-0 bg-transparent px-[9px] text-left text-[#c22] outline-none hover:bg-[#fff0f0] data-[highlighted]:bg-[#fff0f0] [font-family:-apple-system,BlinkMacSystemFont,'Segoe_UI',Arial,sans-serif] [font-size:12px] [font-weight:400] [line-height:31px]"
+                          onSelect={() => onDeleteHistory(record.id)}
+                        >
+                          {copy.delete}
+                        </DropdownMenu.Item>
+                      </DropdownMenu.Content>
+                    </DropdownMenu.Portal>
+                  </DropdownMenu.Root>
                 </div>
               )) : <p>{history.length ? copy.noMatches : copy.noAnalyses}</p>}
             </nav>
           </div>
         </div>
         <div className="figma-toolbar-footer">
-          <LanguageSwitcher locale={locale} onChange={onLocaleChange} placement="mobile" disabled={languageDisabled} />
-          <div className="figma-toolbar-location" title="Tokyo, Japan" aria-label="Recommendation area: Tokyo, Japan">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 21s6-5.14 6-11a6 6 0 1 0-12 0c0 5.86 6 11 6 11Z" />
-              <circle cx="12" cy="10" r="2.25" />
-            </svg>
-            <span><b>Tokyo</b><small>Japan</small></span>
-          </div>
+          <AccountSettings locale={locale} onLocaleChange={onLocaleChange} languageDisabled={languageDisabled} />
         </div>
       </div>
       </aside>
