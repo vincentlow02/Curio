@@ -1,5 +1,6 @@
 "use client";
 
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useEffect, useRef, useState } from "react";
 import type { AnalysisResult, AnalysisSessionView, AnalysisStage, CollectorEvidence, ResearchStreamEvent, ToolActivity } from "../../../core/analysis/types";
 import { isSpecificDescription } from "../../../core/profile/input-routing";
@@ -192,7 +193,6 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
 
 export function AnalysisComposer({ locale = "en", initialHistory = null, onHistorySave, onHistoryPromote, onBusyChange }: Props): React.ReactElement {
   const copy = uiCopy[locale];
-  const [uploadMenuOpen, setUploadMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<(typeof categories)[number] | null>(null);
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
@@ -210,7 +210,6 @@ export function AnalysisComposer({ locale = "en", initialHistory = null, onHisto
   const [speechSupported, setSpeechSupported] = useState(false);
   const [researchStarting, setResearchStarting] = useState(false);
   const previewUrlRef = useRef<string | null>(null);
-  const uploadMenuRef = useRef<HTMLDivElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -251,15 +250,6 @@ export function AnalysisComposer({ locale = "en", initialHistory = null, onHisto
     }).catch(() => undefined);
     return () => { cancelled = true; };
   }, [initialHistory?.id, initialHistory?.imageName]);
-
-  useEffect(() => {
-    if (!uploadMenuOpen) return;
-    const close = (event: PointerEvent): void => {
-      if (!uploadMenuRef.current?.contains(event.target as Node)) setUploadMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, [uploadMenuOpen]);
 
   useEffect(() => {
     if (!onHistorySave || !status) return;
@@ -443,28 +433,66 @@ export function AnalysisComposer({ locale = "en", initialHistory = null, onHisto
     </div> : null}
 
     {!isConversation ? <>
-      {clarificationRequested ? <div className="figma-clarification-bubble" role="status"><p>{copy.clarification}</p></div> : null}
+      {clarificationRequested ? <div className="figma-clarification-bubble absolute top-[340px] left-1/2 flex min-h-[50px] w-[520px] items-start rounded-[14px] bg-[#f1f1f1] px-[13px] py-[10px] text-[#333] text-[12px] font-normal leading-[1.45] [transform:translateX(-50%)] [font-family:var(--font-geist-sans),_Geist,_Arial,sans-serif] animate-[figma-chat-enter_220ms_cubic-bezier(0.22,1,0.36,1)_both] max-[767px]:relative max-[767px]:inset-auto max-[767px]:w-full max-[767px]:min-h-0 max-[767px]:[transform:none]" role="status"><p className="m-0">{copy.clarification}</p></div> : null}
       <form className={`figma-composer-box${selectedImage ? " has-image" : ""}${selectedCategory ? " has-category" : ""}`} onSubmit={(event) => { event.preventDefault(); submitInput({ file: selectedImage?.file ?? null, text: query.trim(), category: selectedCategory?.title ?? null, collectorMode }); }}>
         <div className="figma-composer-content">
-          {selectedImage ? <div className="figma-upload-preview"><img className="figma-upload-preview__image" src={selectedImage.url} alt={selectedImage.name} /><button type="button" aria-label="Remove uploaded image" onClick={clearImage}><img src="/figma/upload-preview-remove.svg" alt="" /></button></div> : null}
-          {selectedCategory ? <div className="figma-selected-category"><span>{selectedCategory.title}</span><button type="button" aria-label="Remove category" onClick={() => setSelectedCategory(null)}>×</button></div> : null}
+          {selectedImage ? <div className="figma-upload-preview relative h-[57px] w-[58px] flex-none overflow-hidden rounded-[11px] border-[0.7px] border-solid border-[#ededed] bg-white"><img className="figma-upload-preview__image block h-full w-full object-cover" src={selectedImage.url} alt={selectedImage.name} /><button className="absolute top-[5px] right-[7px] h-[13px] w-[13px] !cursor-pointer !border-0 !bg-transparent !p-0" type="button" aria-label="Remove uploaded image" onClick={clearImage}><img className="block h-[13px] w-[13px]" src="/figma/upload-preview-remove.svg" alt="" /></button></div> : null}
+          {selectedCategory ? <div className="figma-selected-category !flex !w-full !min-h-[15px] !items-center !justify-between !text-black !text-[13px] !font-medium !leading-[15px] !tracking-[-0.26px] ![font-family:var(--font-geist-sans),_Geist,_Arial,sans-serif] !animate-[figma-category-enter_220ms_cubic-bezier(0.22,1,0.36,1)_both]"><span>{selectedCategory.title}</span><button className="!grid !h-[18px] !w-[18px] !place-items-center !p-0 !border-0 !rounded-full !bg-transparent !text-[#8a8a8a] !text-[17px] !font-normal !leading-[18px] ![font-family:Arial,sans-serif] !cursor-pointer !transition-[background-color,color] !duration-[140ms] hover:!bg-[#f0f0f0] hover:!text-black focus-visible:!outline-2 focus-visible:!outline-solid focus-visible:!outline-[#111] focus-visible:!outline-offset-[2px]" type="button" aria-label="Remove category" onClick={() => setSelectedCategory(null)}>×</button></div> : null}
           <textarea rows={1} aria-label="Describe collectible" value={query} onInput={(event) => updateQuery(event.currentTarget, setQuery)} onChange={(event) => setQuery(event.target.value)} placeholder={selectedCategory ? "" : copy.placeholder} />
         </div>
         <div className="figma-composer-actions">
           <div className="figma-composer-actions-left">
-            <div className="figma-upload-control" ref={uploadMenuRef}>
-              <button className="figma-composer-round-button" type="button" aria-label="Add attachment or mode" aria-expanded={uploadMenuOpen} onClick={() => setUploadMenuOpen((open) => !open)}><img src="/figma/composer-add.svg" alt="" /></button>
-              {uploadMenuOpen ? <div className="figma-upload-menu" role="menu">
-                <button type="button" onClick={() => { setUploadMenuOpen(false); cameraInputRef.current?.click(); }}><img className="figma-upload-menu__camera" src="/figma/upload-menu-camera.svg" alt="" /><span>{copy.takePhoto}</span></button>
-                <button type="button" onClick={() => { setUploadMenuOpen(false); imageInputRef.current?.click(); }}><img className="figma-upload-menu__image" src="/figma/upload-menu-image.svg" alt="" /><span>{copy.uploadImage}</span></button>
-                <button className="figma-upload-menu__file-row" type="button" onClick={() => { setUploadMenuOpen(false); fileInputRef.current?.click(); }}><img className="figma-upload-menu__file" src="/figma/upload-menu-file.svg" alt="" /><span>{copy.uploadFile}</span></button>
-                <button className={`figma-upload-menu__collector${collectorMode ? " is-selected" : ""}`} type="button" role="menuitemcheckbox" aria-checked={collectorMode} onClick={() => { setCollectorMode((enabled) => !enabled); setUploadMenuOpen(false); }}><span className="figma-collector-spark" aria-hidden="true">✧</span><span>{copy.collectorMode}</span>{collectorMode ? <span className="figma-upload-menu__check" aria-hidden="true">✓</span> : null}</button>
-              </div> : null}
+            <div className="figma-upload-control">
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <button className="figma-composer-round-button" type="button" aria-label="Add attachment or mode"><img src="/figma/composer-add.svg" alt="" /></button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                    className="z-[80] box-border flex min-h-[166px] w-[174px] flex-col items-start justify-between gap-[13px] overflow-hidden rounded-[13px] border border-solid border-[#eeeef1] bg-white px-[13px] py-[12px] shadow-[0_4px_12px_3px_rgba(0,0,0,0.08)] max-[767px]:ml-[-12px] max-[767px]:w-[min(240px,_calc(100vw_-_28px))]"
+                    side="top"
+                    align="start"
+                    sideOffset={10}
+                    collisionPadding={8}
+                  >
+                    <DropdownMenu.Item
+                      className="flex h-[13px] w-full flex-none cursor-pointer items-center gap-[12px] rounded-[2px] border-0 bg-transparent p-0 text-left text-[11px] font-medium leading-[normal] text-black outline-none [font-family:Inter,Arial,sans-serif] data-[highlighted]:outline-2 data-[highlighted]:outline-solid data-[highlighted]:outline-[#111] data-[highlighted]:outline-offset-[4px] hover:[&_span]:opacity-[0.58] whitespace-nowrap"
+                      onSelect={() => cameraInputRef.current?.click()}
+                    >
+                      <img className="block h-[13px] w-[14px] flex-none" src="/figma/upload-menu-camera.svg" alt="" />
+                      <span>{copy.takePhoto}</span>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      className="flex h-[13px] w-full flex-none cursor-pointer items-center gap-[12px] rounded-[2px] border-0 bg-transparent p-0 text-left text-[11px] font-medium leading-[normal] text-black outline-none [font-family:Inter,Arial,sans-serif] data-[highlighted]:outline-2 data-[highlighted]:outline-solid data-[highlighted]:outline-[#111] data-[highlighted]:outline-offset-[4px] hover:[&_span]:opacity-[0.58] whitespace-nowrap"
+                      onSelect={() => imageInputRef.current?.click()}
+                    >
+                      <img className="mr-[1px] block h-[11px] w-[13px] flex-none" src="/figma/upload-menu-image.svg" alt="" />
+                      <span>{copy.uploadImage}</span>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      className="flex h-[13px] w-full flex-none cursor-pointer items-center gap-[18px] rounded-[2px] border-0 bg-transparent p-0 text-left text-[11px] font-medium leading-[normal] tracking-[-0.266px] text-black outline-none [font-family:Inter,Arial,sans-serif] data-[highlighted]:outline-2 data-[highlighted]:outline-solid data-[highlighted]:outline-[#111] data-[highlighted]:outline-offset-[4px] hover:[&_span]:opacity-[0.58] whitespace-nowrap"
+                      onSelect={() => fileInputRef.current?.click()}
+                    >
+                      <img className="block h-[12.291px] w-[7.125px] flex-none" src="/figma/upload-menu-file.svg" alt="" />
+                      <span>{copy.uploadFile}</span>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.CheckboxItem
+                      className="relative flex h-[24px] w-full flex-none cursor-pointer items-center gap-[12px] rounded-[6px] border-0 bg-transparent p-0 text-left text-[11px] font-medium leading-[normal] text-black outline-none [font-family:Inter,Arial,sans-serif] data-[highlighted]:outline-2 data-[highlighted]:outline-solid data-[highlighted]:outline-[#111] data-[highlighted]:outline-offset-[4px] hover:[&_span]:opacity-[0.58] hover:bg-[#f3f3f3] data-[state=checked]:bg-[#f3f3f3] data-[highlighted]:bg-[#f3f3f3] whitespace-nowrap"
+                      checked={collectorMode}
+                      onCheckedChange={(checked) => setCollectorMode(checked === true)}
+                    >
+                      <span className="w-[14px] flex-none text-center text-[18px] font-semibold leading-[14px] text-[#111] [font-family:Georgia,serif]" aria-hidden="true">✧</span>
+                      <span>{copy.collectorMode}</span>
+                      <DropdownMenu.ItemIndicator className="absolute right-[5px] text-[11px] text-[#111]" aria-hidden="true">✓</DropdownMenu.ItemIndicator>
+                    </DropdownMenu.CheckboxItem>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
               <input ref={cameraInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => selectImage(event.target.files?.[0] ?? null)} />
               <input ref={imageInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => selectImage(event.target.files?.[0] ?? null)} />
               <input ref={fileInputRef} className="sr-only" type="file" accept=".jpg,.jpeg,.png,.webp" onChange={(event) => selectImage(event.target.files?.[0] ?? null)} />
             </div>
-            {collectorMode ? <button className="figma-collector-chip" type="button" aria-label="Disable Collector Mode" title="Disable Collector Mode" onClick={() => setCollectorMode(false)}><span className="figma-collector-spark" aria-hidden="true">✧</span><b>{copy.collectorMode}</b><span className="figma-collector-info" aria-hidden="true">i</span></button> : null}
+            {collectorMode ? <button className="figma-collector-chip !flex !h-[29px] !items-center !gap-[7px] !rounded-[15px] !border !border-solid !border-[#e3e3e7] !bg-[#f8f8fa] !px-[10px] !text-[#242424] !shadow-[0_1px_2px_rgba(0,0,0,0.02)] !whitespace-nowrap hover:!bg-[#f0f0f2] max-[767px]:!max-w-[190px]" type="button" aria-label="Disable Collector Mode" title="Disable Collector Mode" onClick={() => setCollectorMode(false)}><span className="figma-collector-spark !w-[14px] !flex-none !text-center !text-[#111] !text-[18px] !font-semibold !leading-[14px] ![font-family:Georgia,serif]" aria-hidden="true">✧</span><b className="!text-[11px] !font-semibold max-[767px]:!overflow-hidden max-[767px]:!text-ellipsis">{copy.collectorMode}</b><span className="figma-collector-info !grid !h-[14px] !w-[14px] !place-items-center !rounded-[50%] !border !border-solid !border-[#9a9a9a] !text-[#777] !text-[9px] !font-semibold !leading-[12px] ![font-family:Arial,sans-serif]" aria-hidden="true">i</span></button> : null}
           </div>
           <div className="figma-composer-actions-right">
             {speechSupported ? <button className="figma-composer-microphone" type="button" aria-label="Use microphone" onClick={() => startSpeech(setQuery)}><img src="/figma/composer-microphone.svg" alt="" /></button> : <span />}
@@ -510,8 +538,8 @@ export function AnalysisComposer({ locale = "en", initialHistory = null, onHisto
           <article className="figma-agent-result-card"><header><div><span>{copy.result.priceReference}</span><h3>{result.identification.itemName}</h3></div><b>JPY</b></header><div className="figma-agent-price-range"><div><span>{copy.result.low}</span><strong>{formatYen(result.priceReference.low)}</strong></div><div className="is-median"><span>{copy.result.typical}</span><strong>{formatYen(result.priceReference.median)}</strong></div><div><span>{copy.result.high}</span><strong>{formatYen(result.priceReference.high)}</strong></div></div><p className="figma-agent-result-note">{copy.result.basedOn(result.priceReference.sampleCount)}</p></article>
           {result.collectorMode && result.collectorEvidence ? <div className="figma-agent-section figma-collector-evidence"><h3>{copy.collectorEvidence}</h3><div className="figma-collector-evidence-grid"><article><b>{copy.result.editionSignals}</b><ul>{result.collectorEvidence.editionSignals.length ? result.collectorEvidence.editionSignals.map((item) => <li key={item}>{item}</li>) : <li>{copy.result.noneVisible}</li>}</ul></article><article><b>{copy.result.visibleCondition}</b><ul>{result.collectorEvidence.conditionSignals.length ? result.collectorEvidence.conditionSignals.map((item) => <li key={item}>{item}</li>) : <li>{copy.result.noneVisible}</li>}</ul></article><article><b>{copy.result.visibleIdentifiers}</b><ul>{result.collectorEvidence.visibleIdentifiers.length ? result.collectorEvidence.visibleIdentifiers.map((item) => <li key={item}>{item}</li>) : <li>{copy.result.noneVisible}</li>}</ul></article><article><b>{copy.result.missingEvidence}</b><ul>{result.collectorEvidence.missingEvidence.length ? result.collectorEvidence.missingEvidence.map((item) => <li key={item}>{item}</li>) : <li>{copy.result.noMissingEvidence}</li>}</ul></article></div></div> : null}
           {result.collectorMode ? <div className="figma-agent-section figma-auction-watch"><h3>{copy.result.auctionWatch}</h3><p className="figma-auction-disclaimer">{copy.result.auctionDisclaimer}</p>{result.auctionSources.map((source) => <article key={source.source}><header><div><b>{source.source === "Yahoo Auctions" ? "Yahoo! Auctions" : source.source}</b><span>{copy.result.comparableSignals(source.comparableSignals)}</span></div><small>{auctionStatus(source.status, locale)}</small></header>{source.signals.length ? <div>{source.signals.map((signal) => <a href={signal.url} target="_blank" rel="noreferrer" key={signal.url}><div><b>{signal.title}</b><span>{signal.bidCount === null ? copy.result.bidsUnknown : copy.result.bids(signal.bidCount)} · {signal.remainingTime}</span>{signal.unresolvedDifferences.length ? <small>{signal.unresolvedDifferences.join(" · ")}</small> : null}</div><dl><div><dt>{copy.result.current}</dt><dd>{formatYen(signal.currentPrice)}</dd></div>{signal.startingPrice !== null ? <div><dt>{copy.result.starting}</dt><dd>{formatYen(signal.startingPrice)}</dd></div> : null}{signal.buyNowPrice !== null ? <div><dt>{copy.result.buyNow}</dt><dd>{formatYen(signal.buyNowPrice)}</dd></div> : null}</dl></a>)}</div> : <p className="figma-auction-empty">{copy.result.noAuctionSignals}</p>}</article>)}</div> : null}
-          <div className="figma-agent-section"><h3>{copy.result.whereToLook}</h3><div className="figma-agent-area-grid">{result.recommendedAreas.map((area) => <article key={area.area}><b>{areaName(area.area, locale)}</b><p>{areaReason(area.area, area.reason, locale)}</p><code lang="ja">{area.searchKeywordJa}</code><a className="figma-area-map-link" href={mapsUrl(area.searchKeywordJa)} target="_blank" rel="noreferrer">{copy.result.openMaps}</a></article>)}</div></div>
-          {result.storeSuggestions.length ? <div className="figma-agent-section"><h3>{copy.result.storeSuggestions}</h3><div className="figma-store-suggestions">{result.storeSuggestions.map((store) => <a href={store.sourceUrl} target="_blank" rel="noreferrer" key={`${store.name}-${store.sourceUrl}`}><b>{store.name}</b><span>{copy.result.storeReason}</span></a>)}</div></div> : null}
+          <div className="figma-agent-section"><h3>{copy.result.whereToLook}</h3><div className="figma-agent-area-grid grid grid-cols-2 gap-[10px] max-[767px]:grid-cols-1">{result.recommendedAreas.map((area) => <article className="min-h-[135px] rounded-[12px] border border-solid border-[#e5e5e5] bg-white p-[15px]" key={area.area}><b className="text-[15px]">{areaName(area.area, locale)}</b><p className="!mt-[6px] !mr-0 !mb-[12px] !ml-0 !text-[#5f5f5f] !text-[12px] !leading-[1.5]">{areaReason(area.area, area.reason, locale)}</p><code className="block overflow-hidden rounded-[6px] bg-[#f5f5f5] px-[8px] py-[7px] !text-[#333] !text-[11px] !font-normal !leading-[1.3] ![font-family:var(--font-geist-sans),_Geist,_Arial,sans-serif] text-ellipsis whitespace-nowrap" lang="ja">{area.searchKeywordJa}</code><a className="mt-[10px] inline-block !text-[#333] !text-[11px] !font-[550] [text-underline-offset:3px]" href={mapsUrl(area.searchKeywordJa)} target="_blank" rel="noreferrer">{copy.result.openMaps}</a></article>)}</div></div>
+          {result.storeSuggestions.length ? <div className="figma-agent-section"><h3>{copy.result.storeSuggestions}</h3><div className="figma-store-suggestions flex flex-col overflow-hidden rounded-[11px] border border-solid border-[#e5e5e5] bg-white">{result.storeSuggestions.map((store) => <a className="flex flex-col gap-[3px] border-b border-solid border-[#eee] px-[13px] py-[11px] !text-[#222] no-underline last:border-b-0 hover:[&_b]:underline" href={store.sourceUrl} target="_blank" rel="noreferrer" key={`${store.name}-${store.sourceUrl}`}><b>{store.name}</b><span className="!text-[#666] !text-[11px]">{copy.result.storeReason}</span></a>)}</div></div> : null}
           <details className="figma-agent-sources"><summary><span>{copy.result.viewSources}</span><span className="figma-source-brand-stack" aria-hidden="true"><span><img src="/brands/rakuten.ico" alt="" /></span><span><img src="/brands/mercari.ico" alt="" /></span></span></summary><div>{result.priceReference.samples.map((sample) => <a href={sample.url} target="_blank" rel="noreferrer" key={`${sample.source}-${sample.url}`}><span className="figma-marketplace-brand">{sample.source === "Web fallback" ? "W" : <img src={sample.source === "Rakuten" ? "/brands/rakuten.ico" : "/brands/mercari.ico"} alt="" />}<span className="sr-only">{sample.source}</span></span><p>{sample.title}</p><b>{formatYen(sample.price)}</b></a>)}</div></details>
           <details className="figma-run-details"><summary><span>{copy.result.runDetails}</span><small>{copy.result.steps(activities.length)} · {activityDuration(result.cost.totalMs)}</small></summary><ol>{activities.map((activity) => {
             const activityText = activityCopy(activity, result.identification, result.priceReference.sampleCount, locale);
