@@ -96,7 +96,7 @@ body:has(.home-page) { background:#fcfcfc; }
 .figma-home-heading { width:100%; height:73px; text-align:center; }
 .figma-home-heading h1 { width:100%; height:47px; margin:0; color:#000; font-size:36px; line-height:normal; font-weight:500; letter-spacing:-.72px; }
 .figma-home-heading p { width:100%; height:26px; margin:0; color:#4f4b4b; font-size:20px; line-height:normal; font-weight:400; letter-spacing:-.4px; }
-.figma-category-grid { width:628px; height:209px; display:flex; align-items:center; justify-content:space-between; opacity:1; transform:translateY(0) scale(1); transform-origin:top center; transition:opacity 170ms ease, transform 280ms cubic-bezier(.22,1,.36,1); }
+.figma-category-grid { opacity:1; transform:translateY(0) scale(1); transform-origin:top center; transition:opacity 170ms ease, transform 280ms cubic-bezier(.22,1,.36,1); }
 .figma-category-grid.is-hidden { pointer-events:none; opacity:0; transform:translateY(-10px) scale(.985); }
 .figma-category-card { position:relative; width:186px; height:209px; flex:none; padding:0; border:1px solid #e6e6e6; border-radius:21px; background:transparent; box-shadow:0 0 3.5px rgba(124,124,124,.09); cursor:pointer; color:#000; font:inherit; overflow:hidden; }
 .figma-category-card:hover { border-color:#d0d0d0; box-shadow:0 4px 14px rgba(124,124,124,.12); }
@@ -145,124 +145,23 @@ body:has(.home-page) { background:#fcfcfc; }
 .figma-chat-user-message { align-self:flex-end; max-width:470px; min-height:40px; display:flex; align-items:center; gap:10px; padding:8px 13px; border-radius:18px; background:#f1f1f1; color:#111; font:400 13px/18px var(--font-geist-sans), Geist, Arial, sans-serif; }
 .figma-chat-user-message img { width:42px; height:42px; flex:none; border-radius:9px; object-fit:cover; }
 .figma-chat-user-message p { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; }
-.figma-recognition-card { position:relative; width:792px; min-height:202px; padding:15px 21px; overflow:hidden; border:1px solid #e6e6e6; border-radius:14px; background:#fff; color:#000; animation:figma-chat-enter 260ms cubic-bezier(.22,1,.36,1) both; }
-.figma-recognition-main { width:554px; height:171px; display:flex; align-items:center; gap:46px; overflow:hidden; }
-.figma-recognition-image,.figma-recognition-image-placeholder { width:147px; height:147px; flex:none; border-radius:14px; background:#d9d9d9; object-fit:cover; }
-.figma-recognition-details { width:361px; margin:0; display:flex; flex-direction:column; gap:13px; font-size:12px; line-height:normal; letter-spacing:-.24px; }
-.figma-recognition-details div { display:grid; grid-template-columns:125px 1fr; column-gap:64px; align-items:start; }
-.figma-recognition-details dt,.figma-recognition-details dd { margin:0; }
-.figma-recognition-details dt { font-weight:400; }
-.figma-recognition-details dd { width:172px; font-size:13px; font-weight:500; letter-spacing:-.26px; overflow-wrap:anywhere; }
-.figma-recognition-details input,.figma-recognition-details select { display:block; width:172px; height:25px; margin:-5px 0; padding:4px 7px; border:1px solid transparent; border-radius:6px; outline:0; appearance:none; background:transparent; color:#000; font:500 13px/15px var(--font-geist-sans), Geist, Arial, sans-serif; letter-spacing:-.26px; text-overflow:ellipsis; transition:border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease; }
-.figma-recognition-details input:hover,.figma-recognition-details select:hover { border-color:#d9d9d9; background:#fff; }
-.figma-recognition-details input:focus,.figma-recognition-details select:focus { border-color:#b8b8b8; background:#fff; box-shadow:0 0 0 2px rgba(0,0,0,.05); }
-.figma-recognition-details select { cursor:pointer; }
-.figma-recognition-details input:disabled,.figma-recognition-details select:disabled { cursor:default; opacity:1; -webkit-text-fill-color:#000; }
-.figma-recognition-details input:disabled:hover,.figma-recognition-details select:disabled:hover { border-color:transparent; background:transparent; }
-.figma-recognition-details .figma-pokemon-match-mode dd { color:#286246; font-weight:600; }
-.figma-recognition-actions { position:absolute; right:20px; bottom:15px; display:flex; align-items:center; gap:10px; }
-.figma-recognition-actions button { height:26px; border-radius:8px; font:400 12px/normal var(--font-geist-sans), Geist, Arial, sans-serif; letter-spacing:-.24px; cursor:pointer; }
-.figma-recognition-edit { width:60px; padding:6px 9px; display:flex; align-items:center; gap:7px; border:.7px solid #d9d9d9; background:#fff; color:#000; }
-.figma-recognition-edit img { width:9px; height:9px; }
-.figma-recognition-continue { width:118px; padding:4px 8px 6px 9px; border:0; background:#000; color:#fff; }
-.figma-recognition-actions button:hover { opacity:.72; }
-.figma-recognition-card.is-analyzing { display:flex; align-items:center; gap:28px; }
-.figma-recognition-loading-image { width:147px; height:147px; flex:none; border-radius:14px; background:linear-gradient(100deg,#e3e3e3 20%,#f3f3f3 40%,#e3e3e3 60%); background-size:220% 100%; animation:figma-shimmer 1.2s linear infinite; }
-.figma-recognition-loading-copy { display:flex; flex-direction:column; align-items:flex-start; gap:10px; color:#000; }
-.figma-recognition-loading-copy strong { font-size:15px; font-weight:500; }
-.figma-recognition-loading-copy span { color:#777; font-size:12px; }
-.figma-recognition-loading-copy i { display:flex; gap:4px; margin-top:3px; }
-.figma-recognition-loading-copy b { width:5px; height:5px; border-radius:50%; background:#111; animation:figma-dot 900ms ease-in-out infinite alternate; }
+.figma-recognition-loading-image { animation:figma-shimmer 1.2s linear infinite; }
+.figma-recognition-loading-copy b { animation:figma-dot 900ms ease-in-out infinite alternate; }
 .figma-recognition-loading-copy b:nth-child(2) { animation-delay:150ms; }
 .figma-recognition-loading-copy b:nth-child(3) { animation-delay:300ms; }
-.figma-recognition-continue:disabled { cursor:default; opacity:.45; }
 .home-page:has(.figma-home-composer.is-research) { min-height:1250px; }
 .figma-home-composer.is-research { top:64px; left:calc(50% - 396px); height:auto!important; min-height:0; transform:none; }
 .figma-home-experience.is-sidebar-expanded .figma-home-composer.is-research { left:calc(50% - 306px); transform:none; }
 .figma-home-composer.is-research .figma-chat-thread { position:relative; top:auto; left:auto; transform:none; padding-bottom:140px; }
-.figma-agent-process { width:680px; margin-left:34px; padding:18px 0 8px; color:#181818; font:400 13px/1.45 var(--font-geist-sans), Geist, Arial, sans-serif; animation:figma-chat-enter 240ms cubic-bezier(.22,1,.36,1) both; }
-.figma-agent-process__heading { display:flex; align-items:flex-start; gap:12px; }
-.figma-agent-process__heading strong { display:block; font-size:14px; font-weight:600; }
-.figma-agent-process__heading p { margin:3px 0 0; color:#777; font-size:12px; }
-.figma-agent-process__spinner { width:17px; height:17px; flex:none; margin-top:1px; border:2px solid #dedede; border-top-color:#111; border-radius:50%; animation:figma-spin 800ms linear infinite; }
-.figma-agent-process ol { margin:17px 0 0 8px; padding:0 0 0 8px; list-style:none; border-left:1px solid #e3e3e3; }
-.figma-agent-process li { min-height:32px; display:flex; align-items:flex-start; gap:10px; color:#a0a0a0; }
-.figma-agent-process li > span { width:14px; height:14px; margin-left:-15.5px; display:grid; place-items:center; border:1px solid #d7d7d7; border-radius:50%; background:#fcfcfc; color:#fff; font-size:9px; line-height:1; }
-.figma-agent-process li p { margin:-2px 0 0; }
+.figma-agent-process { animation:figma-chat-enter 240ms cubic-bezier(.22,1,.36,1) both; }
+.figma-agent-process__spinner { animation:figma-spin 800ms linear infinite; }
 .figma-agent-process li.complete { color:#666; }
 .figma-agent-process li.complete > span { border-color:#111; background:#111; }
 .figma-agent-process li.active { color:#111; font-weight:500; }
 .figma-agent-process li.active > span { border-color:#111; box-shadow:inset 0 0 0 3px #fcfcfc; background:#111; animation:figma-pulse 900ms ease-in-out infinite alternate; }
-.figma-agent-answer { width:720px; margin-left:34px; display:flex; flex-direction:column; gap:22px; color:#181818; font:400 13px/1.5 var(--font-geist-sans), Geist, Arial, sans-serif; animation:figma-chat-enter 280ms cubic-bezier(.22,1,.36,1) both; }
-.figma-agent-answer__intro { display:flex; align-items:flex-start; gap:12px; }
+.figma-agent-answer { color:#181818; font:400 13px/1.5 var(--font-geist-sans), Geist, Arial, sans-serif; animation:figma-chat-enter 280ms cubic-bezier(.22,1,.36,1) both; }
 .figma-agent-answer h2,.figma-agent-answer h3,.figma-agent-answer p { margin:0; }
-.figma-agent-answer__intro h2 { font-size:18px; line-height:1.25; font-weight:600; }
-.figma-agent-answer__intro p { max-width:630px; margin-top:7px; color:#4f4f4f; font-size:14px; line-height:1.55; }
-.figma-agent-result-card { overflow:hidden; border:1px solid #e4e4e4; border-radius:14px; background:#fff; }
-.figma-agent-result-card header { min-height:70px; padding:14px 18px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #ededed; }
-.figma-agent-result-card header span { color:#777; font-size:10px; font-weight:600; letter-spacing:.08em; }
-.figma-agent-result-card header h3 { margin-top:4px; font-size:16px; font-weight:600; }
-.figma-agent-result-card header > b { padding:5px 8px; border-radius:7px; background:#f1f1f1; font-size:10px; letter-spacing:.08em; }
-.figma-agent-price-range { display:grid; grid-template-columns:repeat(3,1fr); }
-.figma-agent-price-range > div { min-height:88px; padding:17px 18px; display:flex; flex-direction:column; gap:7px; border-right:1px solid #ededed; }
-.figma-agent-price-range > div:last-child { border-right:0; }
-.figma-agent-price-range span { color:#777; font-size:11px; }
-.figma-agent-price-range strong { font-size:23px; line-height:1; font-weight:550; letter-spacing:-.5px; }
-.figma-agent-price-range .is-median { background:#fafafa; }
-.figma-agent-result-note { padding:11px 18px; border-top:1px solid #ededed; color:#777; font-size:11px; }
-.figma-collector-evidence-preview { margin:0 16px 12px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; border-radius:8px; background:#f5f5f5; font-size:11px; }
-.figma-collector-evidence-preview span { color:#777; }
-.figma-collector-evidence-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-.figma-collector-evidence-grid article { padding:13px; border:1px solid #e5e5e5; border-radius:10px; background:#fff; }
-.figma-collector-evidence-grid b { font-size:11px; }
-.figma-collector-evidence-grid ul { margin:7px 0 0; padding-left:16px; color:#696969; font-size:10px; line-height:1.55; }
-.figma-auction-disclaimer { margin:-3px 0 10px; color:#777; font-size:10px; }
-.figma-auction-watch > article { margin-top:10px; overflow:hidden; border:1px solid #e4e4e4; border-radius:11px; background:#fff; }
-.figma-auction-watch > article > header { padding:11px 13px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #ededed; }
-.figma-auction-watch > article > header div { display:flex; align-items:center; gap:9px; }
-.figma-auction-watch > article > header b { font-size:12px; }
-.figma-auction-watch > article > header span,.figma-auction-watch > article > header small { color:#888; font-size:9px; }
-.figma-auction-watch a { padding:12px 13px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px; color:inherit; text-decoration:none; border-top:1px solid #f0f0f0; }
-.figma-auction-watch a:first-child { border-top:0; }
-.figma-auction-watch a > div { display:flex; flex-direction:column; gap:3px; min-width:0; }
-.figma-auction-watch a > div b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
-.figma-auction-watch a span,.figma-auction-watch a small { color:#808080; font-size:9px; }
-.figma-auction-watch dl { margin:0; display:flex; gap:12px; }
-.figma-auction-watch dl div { text-align:right; }
-.figma-auction-watch dt { color:#888; font-size:8px; }
-.figma-auction-watch dd { margin:2px 0 0; font-size:11px; font-weight:600; }
-.figma-auction-empty { margin:0; padding:13px; color:#777; font-size:10px; }
 .figma-agent-section > h3 { margin-bottom:10px; font-size:15px; font-weight:600; }
-.figma-agent-sources { overflow:hidden; border-top:1px solid #e7e7e7; border-bottom:1px solid #e7e7e7; }
-.figma-agent-sources summary { padding:10px 2px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; font-weight:550; list-style:none; }
-.figma-agent-sources summary::-webkit-details-marker { display:none; }
-.figma-source-brand-stack { display:flex; align-items:center; padding-right:3px; }
-.figma-source-brand-stack > span { width:30px; height:30px; display:grid; place-items:center; overflow:hidden; border:1px solid #e5e5e5; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-.figma-source-brand-stack > span + span { margin-left:-7px; }
-.figma-source-brand-stack img { display:block; width:20px; height:20px; object-fit:contain; }
-.figma-agent-sources > div { padding:0 0 10px; }
-.figma-agent-sources a { min-height:39px; display:grid; grid-template-columns:70px 1fr auto; align-items:center; gap:12px; color:#222; text-decoration:none; }
-.figma-agent-sources a:hover p { text-decoration:underline; }
-.figma-agent-sources a span { color:#777; font-size:11px; }
-.figma-agent-sources .figma-marketplace-brand { width:28px; height:28px; display:grid; place-items:center; overflow:hidden; border:1px solid #ededed; border-radius:8px; background:#fff; }
-.figma-marketplace-brand img { display:block; width:20px; height:20px; object-fit:contain; }
-.figma-agent-sources a p { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.figma-agent-sources a b { font-weight:550; }
-.figma-run-details { overflow:hidden; border:1px solid #e5e5e5; border-radius:11px; background:#fff; }
-.figma-run-details summary { padding:13px 14px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; list-style:none; font-weight:600; }
-.figma-run-details summary::-webkit-details-marker { display:none; }
-.figma-run-details summary small { color:#888; font-size:10px; font-weight:450; }
-.figma-run-details ol { margin:0; padding:0 14px 13px; list-style:none; }
-.figma-run-details li { position:relative; min-height:58px; display:grid; grid-template-columns:22px minmax(0,1fr) auto; align-items:start; gap:10px; padding:10px 0; border-top:1px solid #eee; }
-.figma-run-details li:not(:last-child)::after { content:""; position:absolute; left:8px; top:34px; bottom:-12px; width:1px; background:#dedede; }
-.figma-run-marker { position:relative; z-index:1; width:17px; height:17px; display:grid; place-items:center; border-radius:50%; background:#111; color:#fff; font-size:9px; line-height:1; }
-.figma-run-details li.is-skipped .figma-run-marker { border:1px solid #c9c9c9; background:#fff; color:#888; }
-.figma-run-details li.is-failed .figma-run-marker,.figma-run-details li.is-fallback .figma-run-marker { background:#777; }
-.figma-run-details li > div { min-width:0; }
-.figma-run-details b { display:block; color:#222; font-size:12px; font-weight:600; }
-.figma-run-details p { margin:3px 0 0; color:#707070; font-size:11px; line-height:1.45; }
-.figma-run-details time { padding-top:1px; color:#999; font-size:10px; white-space:nowrap; }
-.figma-run-details .is-total { padding-bottom:2px; }
 .figma-live-error,.figma-inline-error { width:720px; margin-left:34px; padding:14px 16px; border:1px solid #ecd0cd; border-radius:11px; background:#fff7f6; color:#7c241c; font:400 12px/1.5 var(--font-geist-sans),Geist,Arial,sans-serif; }
 .figma-live-error strong { display:block; color:#5d1711; font-size:14px; }
 .figma-live-error p { margin:5px 0 12px; }
@@ -388,19 +287,18 @@ dt { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacin
 .figma-home-composer { position:relative; top:auto; left:auto; width:min(768px, calc(100vw - 120px)); transform:none; }
 .figma-home-experience.is-sidebar-expanded .figma-home-composer { transform:translateX(90px); }
 .figma-home-discovery { width:min(628px, 100%); }
-.figma-category-grid { width:min(628px, 100%); }
 .figma-composer-box,.figma-composer-box.has-image { width:100%; }
 .figma-composer-actions { width:100%; }
 .figma-home-composer.has-selected-category.has-selected-image.is-conversation,
 .figma-home-composer.has-selected-category.is-conversation,
 .figma-home-composer.has-selected-image.is-conversation,
 .figma-home-composer.is-conversation { width:min(792px, calc(100vw - 120px)); }
-.figma-chat-thread,.figma-recognition-card { width:100%; }
+.figma-chat-thread { width:100%; }
 .figma-home-experience:has(.figma-home-composer.is-research) { min-height:100svh; align-items:flex-start; padding-top:64px; padding-bottom:170px; }
 .home-page:has(.figma-home-composer.is-research) { min-height:100svh; }
 .figma-home-composer.is-research { position:relative; top:auto; left:auto; width:min(792px, calc(100vw - 120px)); height:auto!important; margin:0; transform:none; }
 .figma-home-experience.is-sidebar-expanded .figma-home-composer.is-research { left:auto; margin-left:180px; transform:none; }
-.figma-agent-process,.figma-agent-answer,.figma-live-error,.figma-inline-error { max-width:calc(100% - 68px); }
+.figma-agent-process,.figma-live-error,.figma-inline-error { max-width:calc(100% - 68px); }
 .figma-followup-composer { width:min(768px, calc(100vw - 120px)); }
 
 @media (min-width:768px) and (max-width:1100px) {
@@ -462,7 +360,6 @@ dt { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacin
   .figma-home-heading { height:auto; padding:9px 2px 0; }
   .figma-home-heading h1 { height:auto; font-size:clamp(28px, 9vw, 36px); line-height:1.08; letter-spacing:-.6px; }
   .figma-home-heading p { height:auto; margin-top:8px; font-size:15px; line-height:1.35; letter-spacing:-.2px; }
-  .figma-category-grid { width:100%; height:auto; display:grid; grid-template-columns:1fr; gap:10px; }
   .figma-category-grid.is-hidden { display:none; }
   .figma-category-card { width:100%; height:116px; border-radius:16px; }
   .figma-category-label { top:50%; left:42%; width:54%!important; height:auto; transform:translateY(-50%); font-size:14px; text-align:left; }
@@ -480,45 +377,6 @@ dt { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacin
   .figma-chat-thread,.figma-home-composer.is-research .figma-chat-thread { position:relative; inset:auto; width:100%; padding-bottom:0; transform:none; gap:16px; }
   .figma-chat-user-message { max-width:90%; align-items:flex-start; }
   .figma-chat-user-message img { width:48px; height:48px; }
-  .figma-recognition-card { width:100%; min-height:0; padding:14px; overflow:visible; }
-  .figma-recognition-main { width:100%; height:auto; flex-direction:column; align-items:flex-start; gap:15px; overflow:visible; }
-  .figma-recognition-image,.figma-recognition-image-placeholder { width:112px; height:112px; }
-  .figma-recognition-details { width:100%; gap:12px; }
-  .figma-recognition-details div { grid-template-columns:105px minmax(0,1fr); column-gap:10px; }
-  .figma-recognition-details dd,.figma-recognition-details input,.figma-recognition-details select { width:100%; min-width:0; }
-  .figma-recognition-actions { position:relative; inset:auto; margin-top:18px; justify-content:flex-end; }
-  .figma-recognition-card.is-analyzing { flex-direction:column; align-items:flex-start; gap:18px; }
-  .figma-recognition-loading-image { width:112px; height:112px; }
-  .figma-recognition-loading-copy span { line-height:1.45; }
-  .figma-collector-evidence-preview { margin:14px 0 0; align-items:flex-start; gap:8px; flex-direction:column; }
-
-  .figma-agent-process,.figma-agent-answer,.figma-live-error,.figma-inline-error { width:100%; max-width:none; margin-left:0; }
-  .figma-agent-process { padding-top:8px; }
-  .figma-agent-answer { gap:18px; }
-  .figma-agent-answer__intro p { font-size:13px; }
-  .figma-agent-result-card header { padding:13px 14px; }
-  .figma-agent-result-card header h3 { overflow-wrap:anywhere; }
-  .figma-agent-price-range { grid-template-columns:1fr; }
-  .figma-agent-price-range > div { min-height:68px; padding:13px 15px; border-right:0; border-bottom:1px solid #ededed; }
-  .figma-agent-price-range > div:last-child { border-bottom:0; }
-  .figma-collector-evidence-grid { grid-template-columns:1fr; }
-  .figma-auction-watch a { grid-template-columns:1fr; }
-  .figma-auction-watch dl { justify-content:flex-start; flex-wrap:wrap; }
-  .figma-auction-watch dl div { text-align:left; }
-  .figma-agent-sources a { grid-template-columns:36px minmax(0,1fr) auto; gap:8px; }
-  .figma-agent-sources a p { font-size:11px; }
-  .figma-run-details summary { align-items:flex-start; gap:8px; }
-  .figma-run-details li { grid-template-columns:22px minmax(0,1fr); }
-  .figma-run-details time { grid-column:2; padding-top:0; }
-
+  .figma-agent-process,.figma-live-error,.figma-inline-error { width:100%; max-width:none; margin-left:0; }
   .figma-followup-composer,.figma-home-experience.is-sidebar-expanded .figma-followup-composer { left:14px; right:14px; bottom:calc(12px + env(safe-area-inset-bottom)); width:auto; min-height:96px; transform:none; }
-}
-
-@media (max-width:390px) {
-  .figma-recognition-details div { grid-template-columns:1fr; row-gap:5px; }
-  .figma-recognition-details input,.figma-recognition-details select { height:32px; margin:0; border-color:#e4e4e4; background:#fff; }
-  .figma-recognition-actions { width:100%; }
-  .figma-recognition-actions button { flex:1; width:auto; justify-content:center; }
-  .figma-agent-sources a { grid-template-columns:32px minmax(0,1fr); }
-  .figma-agent-sources a > b { grid-column:2; }
 }
