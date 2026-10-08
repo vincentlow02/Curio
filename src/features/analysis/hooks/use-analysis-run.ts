@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { AnalysisSessionView, ResearchStreamEvent } from "../../../core/analysis/types";
 import { isSpecificDescription } from "../../../core/profile/input-routing";
 import type { DetectionResult, PokemonCardIdentity } from "../../../core/profile/types";
 import { compressUpload } from "../lib/compress-upload";
 import { uiCopy, type UiLocale } from "../locales";
-import { saveRecentImage } from "../storage/recent-image-store";
+import { deleteRecentImage, saveRecentImage } from "../storage/recent-image-store";
+import { createAnalysisRunLifecycle } from "../lib/analysis-run-lifecycle";
 import { recognizeCollectible, type RecognitionResponse } from "../services/recognition-service";
 import { startResearch } from "../services/research-service";
 import { useResearchStream } from "../services/research-stream";
@@ -45,6 +46,14 @@ export function createAnalysisSession(body: RecognitionResponse, input: PendingI
 export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: UseAnalysisRunOptions) {
   const [state, dispatch] = useReducer(analysisRunReducer, initialHistory, createInitialAnalysisRunState);
   const lastInput = useRef<PendingInput | null>(null);
+  const lifecycleRef = useRef<ReturnType<typeof createAnalysisRunLifecycle> | null>(null);
+  if (!lifecycleRef.current) lifecycleRef.current = createAnalysisRunLifecycle();
+  const lifecycle = lifecycleRef.current;
+  const runId = lifecycle.currentRunId();
+  useEffect(() => {
+    lifecycle.activate();
+    return () => lifecycle.dispose();
+  }, [lifecycle]);
   const {
     collectorMode,
     submittedText,
@@ -62,14 +71,10 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
   const result = session?.result ?? historyView?.result ?? null;
   const activities = session?.toolActivity ?? historyView?.toolActivity ?? [];
 
-  const handleResearchEvent = useCallback((event: ResearchStreamEvent): void => {
-    if (event.type === "stage") dispatch({ type: "research-stage", event, updatedAt: new Date().toISOString() });
-    if (event.type === "completed") dispatch({ type: "research-completed", event, updatedAt: new Date().toISOString() });
-    if (event.type === "error") throw new Error(event.error);
-  }, []);
-  const readResearchStream = useResearchStream(handleResearchEvent);
+  const readResearchStream = useResearchStream(() => undefined);
 
   const createAnalysis = useCallback(async (input: PendingInput): Promise<void> => {
+    const execution = lifecycle.beginRun();
     lastInput.current = input;
     dispatch({ type: "analysis-started", submittedText: input.text });
     const data = new FormData();
@@ -81,9 +86,11 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
     try {
       if (uploadFile) {
         uploadFile = await compressUpload(uploadFile);
+        if (!lifecycle.isCurrent(execution)) return;
         data.set("image", uploadFile);
       }
-      const response = await recognizeCollectible(data);
+      const response = await recognizeCollectible(data, execution.controller.signal);
+      if (!lifecycle.isCurrent(execution)) return;
       const body = response.body;
       if (response.status === 422 && body.code === "needs_clarification") {
         dispatch({ type: "clarification-requested" });
@@ -91,12 +98,23 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
       }
       if (!response.ok) throw new Error(body.error ?? "Unable to create analysis.");
       const next = createAnalysisSession(body, input);
-      if (uploadFile) await saveRecentImage(next.id, uploadFile).catch(() => undefined);
+      if (uploadFile) {
+        await saveRecentImage(next.id, uploadFile).catch(() => undefined);
+        if (!lifecycle.isCurrent(execution)) {
+          void deleteRecentImage(next.id).catch(() => undefined);
+          return;
+        }
+      }
+      if (!lifecycle.isCurrent(execution)) return;
       dispatch({ type: "recognition-succeeded", session: next.session });
     } catch (caught) {
-      dispatch({ type: "recognition-failed", error: caught instanceof Error ? caught.message : String(caught) });
+      if (lifecycle.isCurrent(execution)) {
+        dispatch({ type: "recognition-failed", error: caught instanceof Error ? caught.message : String(caught) });
+      }
+    } finally {
+      lifecycle.finish(execution);
     }
-  }, [locale]);
+  }, [lifecycle, locale]);
 
   const submitInput = useCallback((input: PendingInput): void => {
     if (!input.file && !input.text.trim()) return;
@@ -108,7 +126,9 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
   }, [createAnalysis]);
 
   const continueResearch = useCallback(async (): Promise<void> => {
-    if (!sessionId || !recognitionDraft || status !== "identified" || researchStarting) return;
+    if (!runId || !sessionId || !recognitionDraft || status !== "identified" || researchStarting) return;
+    const execution = lifecycle.beginResearch(runId);
+    if (!execution) return;
     dispatch({ type: "research-started" });
     try {
       const response = await startResearch({
@@ -118,20 +138,33 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
         collectorEvidence: session?.collectorEvidence ?? null,
         qwenActivity: activities.find((entry) => entry.provider === "Qwen") ?? null,
         locale,
-      });
+      }, execution.controller.signal);
+      if (!lifecycle.isCurrent(execution)) return;
       onHistoryPromote?.(sessionId);
       dispatch({ type: "research-accepted", recognition: recognitionDraft });
       if (!response.body) throw new Error("The research stream was unavailable.");
-      await readResearchStream(response.body);
-      dispatch({ type: "research-finished" });
-    } catch (caught) {
-      dispatch({
-        type: "research-failed",
-        error: caught instanceof Error ? caught.message : String(caught),
-        updatedAt: new Date().toISOString(),
+      await readResearchStream(response.body, {
+        signal: execution.controller.signal,
+        onEvent: (event) => {
+          if (!lifecycle.isCurrent(execution)) return;
+          if (event.type === "stage") dispatch({ type: "research-stage", event, updatedAt: new Date().toISOString() });
+          if (event.type === "completed") dispatch({ type: "research-completed", event, updatedAt: new Date().toISOString() });
+          if (event.type === "error") throw new Error(event.error);
+        },
       });
+      if (lifecycle.isCurrent(execution)) dispatch({ type: "research-finished" });
+    } catch (caught) {
+      if (lifecycle.isCurrent(execution)) {
+        dispatch({
+          type: "research-failed",
+          error: caught instanceof Error ? caught.message : String(caught),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    } finally {
+      lifecycle.finish(execution);
     }
-  }, [activities, collectorMode, locale, onHistoryPromote, readResearchStream, recognitionDraft, researchStarting, session?.collectorEvidence, sessionId, status]);
+  }, [activities, collectorMode, lifecycle, locale, onHistoryPromote, readResearchStream, recognitionDraft, researchStarting, runId, session?.collectorEvidence, sessionId, status]);
 
   const updateRecognition = useCallback(<Key extends keyof DetectionResult>(key: Key, value: DetectionResult[Key]): void => {
     dispatch({ type: "recognition-field-updated", key, value });
@@ -142,9 +175,10 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
   }, []);
 
   const resetAnalysis = useCallback((): void => {
+    lifecycle.invalidate();
     lastInput.current = null;
     dispatch({ type: "reset" });
-  }, []);
+  }, [lifecycle]);
 
   const retryAnalysis = useCallback((): void => {
     if (lastInput.current) void createAnalysis(lastInput.current);

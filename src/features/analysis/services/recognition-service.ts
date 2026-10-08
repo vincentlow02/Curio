@@ -20,8 +20,12 @@ export type RecognitionServiceResult = {
   body: RecognitionResponse;
 };
 
-export async function recognizeCollectible(data: FormData): Promise<RecognitionServiceResult> {
-  const response = await fetch("/api/analysis", { method: "POST", body: data });
+export async function recognizeCollectible(data: FormData, signal?: AbortSignal): Promise<RecognitionServiceResult> {
+  const response = await fetch("/api/analysis", {
+    method: "POST",
+    body: data,
+    ...(signal ? { signal } : {}),
+  });
   const body = await response.json() as RecognitionResponse;
   return { ok: response.ok, status: response.status, body };
 }

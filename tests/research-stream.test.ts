@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ResearchStreamEvent } from "../src/core/analysis/types";
 import { consumeResearchStream } from "../src/features/analysis/services/research-stream";
 
@@ -116,5 +116,37 @@ describe("research stream", () => {
       },
     )).rejects.toThrow("Research failed.");
     expect(handled).toEqual([errorEvent]);
+  });
+
+  it("cancels a pending reader on abort and dispatches no later events", async () => {
+    let cancelCount = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelCount += 1;
+      },
+    });
+    const abortController = new AbortController();
+    const handled: ResearchStreamEvent[] = [];
+    const consuming = consumeResearchStream(stream, (event) => handled.push(event), abortController.signal);
+
+    abortController.abort();
+
+    await expect(consuming).rejects.toMatchObject({ name: "AbortError" });
+    expect(handled).toEqual([]);
+    expect(cancelCount).toBe(1);
+    expect(stream.locked).toBe(false);
+  });
+
+  it("does not acquire a reader when already aborted", async () => {
+    const abortController = new AbortController();
+    abortController.abort();
+    const stream = createStream([]);
+    const getReader = stream.getReader.bind(stream);
+    const getReaderSpy = vi.spyOn(stream, "getReader").mockImplementation(getReader);
+
+    await expect(consumeResearchStream(stream, () => undefined, abortController.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    expect(getReaderSpy).not.toHaveBeenCalled();
   });
 });

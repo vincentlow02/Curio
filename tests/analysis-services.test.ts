@@ -25,6 +25,20 @@ describe("recognition service", () => {
       body: { code: "needs_clarification", error: "Add more detail." },
     });
   });
+
+  it("passes an optional abort signal through to fetch", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ status: "identified" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+
+    await recognizeCollectible(new FormData(), controller.signal);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/analysis", {
+      method: "POST",
+      body: expect.any(FormData),
+      signal: controller.signal,
+    });
+  });
 });
 
 describe("research service", () => {
@@ -77,5 +91,26 @@ describe("research service", () => {
       qwenActivity: null,
       locale: "en",
     })).rejects.toThrow("Research is unavailable.");
+  });
+
+  it("passes an optional abort signal through to fetch", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+
+    await startResearch({
+      sessionId: "run-id",
+      identification: {
+        itemName: "Figure",
+        version: "Standard",
+        category: "Toys & Character Collectibles",
+      },
+      collectorMode: false,
+      collectorEvidence: null,
+      qwenActivity: null,
+      locale: "en",
+    }, controller.signal);
+
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ signal: controller.signal });
   });
 });

@@ -11,10 +11,11 @@ export type ResearchRequest = {
   locale: UiLocale;
 };
 
-export async function startResearch(request: ResearchRequest): Promise<Response> {
+export async function startResearch(request: ResearchRequest, signal?: AbortSignal): Promise<Response> {
   const response = await fetch(`/api/analysis/${encodeURIComponent(request.sessionId)}/research`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    ...(signal ? { signal } : {}),
     body: JSON.stringify({
       identification: request.identification,
       collectorMode: request.collectorMode,
