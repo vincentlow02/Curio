@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createAnalysisSession, updatePokemonCardDraft, updateRecognitionDraft } from "../src/features/analysis/hooks/use-analysis-run";
+import { createAnalysisSession } from "../src/features/analysis/hooks/use-analysis-run";
+import { updatePokemonCardDraft, updateRecognitionDraft } from "../src/features/analysis/lib/analysis-run-state";
 import type { PendingInput } from "../src/features/analysis/types";
 
 const input: PendingInput = {
