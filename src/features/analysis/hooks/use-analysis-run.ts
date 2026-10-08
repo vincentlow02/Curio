@@ -11,7 +11,7 @@ import { createAnalysisRunLifecycle } from "../lib/analysis-run-lifecycle";
 import { recognizeCollectible, type RecognitionResponse } from "../services/recognition-service";
 import { startResearch } from "../services/research-service";
 import { useResearchStream } from "../services/research-stream";
-import { analysisRunReducer, createInitialAnalysisRunState, deriveAnalysisRunFlags } from "../state/analysis-run-reducer";
+import { analysisRunReducer, createInitialAnalysisRunState, deriveAnalysisRunFlags, shouldShowInlineAnalysisError } from "../state/analysis-run-reducer";
 import type { PendingInput, RecentAnalysisRecord } from "../types";
 
 type UseAnalysisRunOptions = {
@@ -60,14 +60,15 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
     session,
     historyView,
     recognitionDraft,
-    creating,
-    clarificationRequested,
     error,
-    researchStarting,
   } = state;
 
   const sessionId = session?.id ?? (historyView?.result ? null : historyView?.id ?? null);
-  const { status, isConversation, isResearch, isBusy } = deriveAnalysisRunFlags(state);
+  const { phase, status, isConversation, isResearch, isBusy } = deriveAnalysisRunFlags(state);
+  const creating = phase === "recognizing";
+  const clarificationRequested = phase === "clarification";
+  const researchStarting = phase === "research-starting";
+  const showInlineError = shouldShowInlineAnalysisError(state.error, phase, isConversation);
   const result = session?.result ?? historyView?.result ?? null;
   const activities = session?.toolActivity ?? historyView?.toolActivity ?? [];
 
@@ -126,7 +127,7 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
   }, [createAnalysis]);
 
   const continueResearch = useCallback(async (): Promise<void> => {
-    if (!runId || !sessionId || !recognitionDraft || status !== "identified" || researchStarting) return;
+    if (!runId || !sessionId || !recognitionDraft || phase !== "confirmation" || status !== "identified") return;
     const execution = lifecycle.beginResearch(runId);
     if (!execution) return;
     dispatch({ type: "research-started" });
@@ -152,7 +153,6 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
           if (event.type === "error") throw new Error(event.error);
         },
       });
-      if (lifecycle.isCurrent(execution)) dispatch({ type: "research-finished" });
     } catch (caught) {
       if (lifecycle.isCurrent(execution)) {
         dispatch({
@@ -164,7 +164,7 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
     } finally {
       lifecycle.finish(execution);
     }
-  }, [activities, collectorMode, lifecycle, locale, onHistoryPromote, readResearchStream, recognitionDraft, researchStarting, runId, session?.collectorEvidence, sessionId, status]);
+  }, [activities, collectorMode, lifecycle, locale, onHistoryPromote, phase, readResearchStream, recognitionDraft, runId, session?.collectorEvidence, sessionId, status]);
 
   const updateRecognition = useCallback(<Key extends keyof DetectionResult>(key: Key, value: DetectionResult[Key]): void => {
     dispatch({ type: "recognition-field-updated", key, value });
@@ -192,11 +192,13 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
     clarificationRequested,
     collectorMode,
     creating,
-    error,
+    error: error?.message ?? null,
     historyView,
     isBusy,
     isConversation,
     isResearch,
+    showInlineError,
+    phase,
     recognitionDraft,
     researchStarting,
     result,

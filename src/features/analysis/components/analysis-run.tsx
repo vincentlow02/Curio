@@ -10,7 +10,6 @@ import { RecognitionStage } from "./recognition-stage";
 import { ResearchStage } from "./research-stage";
 import { ResultStage } from "./result-stage";
 import { useAnalysisRun } from "../hooks/use-analysis-run";
-import { shouldShowInlineAnalysisError } from "../state/analysis-run-reducer";
 import type { RecentAnalysisRecord } from "../types";
 export type { RecentAnalysisRecord } from "../types";
 
@@ -71,6 +70,8 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
     result,
     session,
     sessionId,
+    phase,
+    showInlineError,
     status,
     submittedText,
     confirmRecognition,
@@ -195,9 +196,9 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
 
       {creating || status === "queued" || status === "identifying" ? <div className={`figma-recognition-card is-analyzing ${recognitionCardClass} ${recognitionAnalyzingCardClass}`}><div className={`figma-recognition-loading-image ${recognitionLoadingImageClass}`} /><div className={`figma-recognition-loading-copy ${recognitionLoadingCopyClass}`}><strong className={recognitionLoadingTitleClass}>{stageMessage(status, locale, session?.message)}</strong><span className={recognitionLoadingDescriptionClass}>{copy.identifyingDetail}</span><i className={recognitionLoadingDotsClass}><b className={recognitionLoadingDotClass} /><b className={recognitionLoadingDotClass} /><b className={recognitionLoadingDotClass} /></i></div></div> : null}
 
-      {(status === "needs_review" || status === "failed") ? <div className="figma-live-error" role="alert"><strong>{stageMessage(status, locale, session?.message)}</strong><p>{errorCopy(session?.error ?? error)}</p><button type="button" onClick={resetToNew}>Start a new analysis</button></div> : null}
+      {phase === "error" && isConversation ? <div className="figma-live-error" role="alert"><strong>{stageMessage(status === "needs_review" || status === "failed" ? status : "failed", locale, session?.message)}</strong><p>{errorCopy(session?.error ?? error)}</p><button type="button" onClick={resetToNew}>Start a new analysis</button></div> : null}
 
-      {recognitionDraft && status && !["queued", "identifying", "needs_review", "failed"].includes(status) ? (
+      {recognitionDraft && status && ["confirmation", "research-starting", "researching", "completed"].includes(phase) ? (
         <RecognitionStage
           recognition={recognitionDraft}
           status={status}
@@ -212,16 +213,16 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
         />
       ) : null}
 
-      {isResearch && status && status !== "completed" ? (
+      {phase === "researching" && status && status !== "completed" ? (
         <ResearchStage status={status} message={stageMessage(status, locale, session?.message)} locale={locale} collectorMode={collectorMode} />
       ) : null}
 
-      {status === "completed" && result ? <>
+      {phase === "completed" && result ? <>
         <ResultStage result={result} activities={activities} locale={locale} />
         <form className="figma-followup-composer" onSubmit={(event) => { event.preventDefault(); const text = nextText.trim(); const file = nextFile; resetToNew(); submitInput({ file, text, category: null, collectorMode: false }); }}><textarea rows={1} value={nextText} onChange={(event) => setNextText(event.target.value)} placeholder={nextFile ? nextFile.name : copy.placeholder} /><div className="figma-followup-actions"><button className="figma-followup-add" type="button" aria-label="Add image" onClick={() => nextFileInputRef.current?.click()}><img src="/figma/composer-add.svg" alt="" /></button><input ref={nextFileInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setNextFile(event.target.files?.[0] ?? null)} /><div className="figma-followup-actions-right">{speechSupported ? <button className="figma-followup-microphone" type="button" onClick={() => startSpeech(setNextText)}><img src="/figma/composer-microphone.svg" alt="" /></button> : <span />}<button className="figma-followup-submit" type="submit" disabled={!nextText.trim() && !nextFile}><img src="/figma/composer-submit-active.svg" alt="" /></button></div></div></form>
       </> : null}
     </div>}
-    {shouldShowInlineAnalysisError(error, status) ? <div className="figma-inline-error" role="alert">{error}</div> : null}
+    {showInlineError ? <div className="figma-inline-error" role="alert">{error}</div> : null}
 
   </section>;
 }
