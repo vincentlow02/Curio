@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { AnalysisResult, AnalysisSessionView, AnalysisStage, CollectorEvidence, ResearchStreamEvent, ToolActivity } from "../../../core/analysis/types";
+import type { AnalysisResult, AnalysisSessionView, AnalysisStage, ResearchStreamEvent, ToolActivity } from "../../../core/analysis/types";
 import { isSpecificDescription } from "../../../core/profile/input-routing";
 import { buildPokemonCardSearchKeyword } from "../../../core/profile/pokemon-card";
 import { type CollectibleCategory, type DetectionResult, type PokemonCardIdentity } from "../../../core/profile/types";
 import { uiCopy, type UiLocale } from "../locales";
 import { loadRecentImage, saveRecentImage } from "../storage/recent-image-store";
 import { compressUpload } from "../lib/compress-upload";
+import { recognizeCollectible } from "../services/recognition-service";
+import { startResearch } from "../services/research-service";
 import { InputStage, type PendingInput } from "./input-stage";
 import { RecognitionStage } from "./recognition-stage";
 import { ResearchStage } from "./research-stage";
@@ -170,8 +172,8 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
         uploadFile = await compressUpload(uploadFile);
         data.set("image", uploadFile);
       }
-      const response = await fetch("/api/analysis", { method: "POST", body: data });
-      const body = await response.json() as { runId?: string; sessionId?: string; status?: "identified" | "needs_review" | "failed"; identification?: DetectionResult | null; collectorEvidence?: CollectorEvidence | null; toolActivity?: ToolActivity[]; createdAt?: string; error?: string; code?: string; collectorMode?: boolean };
+      const response = await recognizeCollectible(data);
+      const body = response.body;
       if (response.status === 422 && body.code === "needs_clarification") {
         setCreating(false);
         setClarificationRequested(true);
@@ -206,15 +208,14 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
     setResearchStarting(true);
     setError(null);
     try {
-      const response = await fetch(`/api/analysis/${encodeURIComponent(sessionId)}/research`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identification: recognitionDraft, collectorMode, collectorEvidence: session?.collectorEvidence ?? null, qwenActivity: activities.find((entry) => entry.provider === "Qwen") ?? null, locale }),
+      const response = await startResearch({
+        sessionId,
+        identification: recognitionDraft,
+        collectorMode,
+        collectorEvidence: session?.collectorEvidence ?? null,
+        qwenActivity: activities.find((entry) => entry.provider === "Qwen") ?? null,
+        locale,
       });
-      if (!response.ok) {
-        const body = await response.json() as { error?: string };
-        throw new Error(body.error ?? "Unable to start research.");
-      }
       onHistoryPromote?.(sessionId);
       setSession((current) => current ? { ...current, status: "queued_research", progress: 36, message: "Research started", queuePosition: null, identification: recognitionDraft } : current);
       if (!response.body) throw new Error("The research stream was unavailable.");
