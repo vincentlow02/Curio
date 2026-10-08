@@ -13,7 +13,7 @@ const researchOrder: AnalysisStage[] = ["queued_research", "searching_marketplac
 
 const researchProgressClass = "!w-[680px] !ml-[34px] !px-0 !pt-[18px] !pb-[8px] !text-[#181818] !text-[13px] !font-normal !leading-[1.45] [font-family:var(--font-geist-sans),_Geist,_Arial,sans-serif] max-[767px]:!w-full max-[767px]:!max-w-none max-[767px]:!ml-0 max-[767px]:!pt-[8px]";
 const researchHeadingClass = "flex items-start gap-[12px]";
-const researchSpinnerClass = "h-[17px] w-[17px] flex-none mt-[1px] border-2 border-solid border-[#dedede] border-t-[#111] rounded-full";
+const researchSpinnerClass = "figma-agent-process__spinner h-[17px] w-[17px] flex-none mt-[1px] border-2 border-solid border-[#dedede] border-t-[#111] rounded-full";
 const researchHeadingTitleClass = "block text-[14px] font-semibold";
 const researchHeadingDescriptionClass = "mt-[3px] mb-0 text-[12px] text-[#777]";
 const researchStepsClass = "mt-[17px] mb-0 ml-[8px] border-l border-solid border-[#e3e3e3] border-y-0 border-r-0 pl-[8px] pr-0 pt-0 pb-0 list-none";
