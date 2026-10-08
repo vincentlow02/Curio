@@ -57,7 +57,7 @@ function errorCopy(message: string | null | undefined): string {
   return message;
 }
 
-export function AnalysisComposer({ locale = "en", initialHistory = null, onHistorySave, onHistoryPromote, onBusyChange }: Props): React.ReactElement {
+export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySave, onHistoryPromote, onBusyChange }: Props): React.ReactElement {
   const copy = uiCopy[locale];
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<CollectibleCategory | null>(null);

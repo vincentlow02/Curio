@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AnalysisSidebar } from "../../../components/ui/analysis-sidebar";
-import { AnalysisComposer, type RecentAnalysisRecord } from "./analysis-composer";
+import { AnalysisRun, type RecentAnalysisRecord } from "./analysis-run";
 import { deleteRecentImage } from "../storage/recent-image-store";
 import type { UiLocale } from "../locales";
 
@@ -13,7 +13,7 @@ export function AnalysisWorkspace(): React.ReactElement {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [history, setHistory] = useState<RecentAnalysisRecord[]>([]);
   const [selectedHistory, setSelectedHistory] = useState<RecentAnalysisRecord | null>(null);
-  const [composerKey, setComposerKey] = useState(0);
+  const [analysisRunKey, setAnalysisRunKey] = useState(0);
   const [locale, setLocale] = useState<UiLocale>("en");
   const [languageDisabled, setLanguageDisabled] = useState(false);
 
@@ -64,12 +64,12 @@ export function AnalysisWorkspace(): React.ReactElement {
 
   const startNewChat = (): void => {
     setSelectedHistory(null);
-    setComposerKey((current) => current + 1);
+    setAnalysisRunKey((current) => current + 1);
   };
 
   const openHistory = (record: RecentAnalysisRecord): void => {
     setSelectedHistory(record);
-    setComposerKey((current) => current + 1);
+    setAnalysisRunKey((current) => current + 1);
   };
 
   const deleteHistory = (id: string): void => {
@@ -81,7 +81,7 @@ export function AnalysisWorkspace(): React.ReactElement {
     });
     if (selectedHistory?.id === id) {
       setSelectedHistory(null);
-      setComposerKey((current) => current + 1);
+      setAnalysisRunKey((current) => current + 1);
     }
   };
 
@@ -99,7 +99,7 @@ export function AnalysisWorkspace(): React.ReactElement {
         onLocaleChange={changeLocale}
         languageDisabled={languageDisabled}
       />
-      <AnalysisComposer key={composerKey} locale={locale} initialHistory={selectedHistory} onHistorySave={saveHistory} onHistoryPromote={promoteHistory} onBusyChange={setLanguageDisabled} />
+      <AnalysisRun key={analysisRunKey} locale={locale} initialHistory={selectedHistory} onHistorySave={saveHistory} onHistoryPromote={promoteHistory} onBusyChange={setLanguageDisabled} />
     </div>
   );
 }
