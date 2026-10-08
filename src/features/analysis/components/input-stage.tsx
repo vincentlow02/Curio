@@ -4,15 +4,11 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useRef, type RefObject } from "react";
 import type { CollectibleCategory } from "../../../core/profile/types";
 import { uiCopy, type UiLocale } from "../locales";
+import type { PendingInput } from "../types";
 
 type SelectedImage = { file: File; name: string; url: string } | null;
 
-export type PendingInput = {
-  file: File | null;
-  text: string;
-  category: CollectibleCategory | null;
-  collectorMode: boolean;
-};
+export type { PendingInput } from "../types";
 
 type InputStageProps = {
   locale: UiLocale;

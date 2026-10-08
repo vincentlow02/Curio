@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AnalysisSidebar } from "../../../components/ui/analysis-sidebar";
-import { AnalysisRun, type RecentAnalysisRecord } from "./analysis-run";
+import { AnalysisRun } from "./analysis-run";
+import type { RecentAnalysisRecord } from "../types";
 import { deleteRecentImage } from "../storage/recent-image-store";
 import type { UiLocale } from "../locales";
 
