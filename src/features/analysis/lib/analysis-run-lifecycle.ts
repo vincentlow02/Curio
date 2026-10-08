@@ -9,6 +9,7 @@ export type AnalysisRunLifecycle = {
   activate: () => void;
   currentRunId: () => number | null;
   beginRun: () => AnalysisExecution;
+  restoreRun: () => number | null;
   beginResearch: (runId: number) => AnalysisExecution | null;
   isCurrent: (execution: AnalysisExecution) => boolean;
   finish: (execution: AnalysisExecution) => void;
@@ -69,6 +70,14 @@ export function createAnalysisRunLifecycle(): AnalysisRunLifecycle {
       };
       research = execution;
       return execution;
+    },
+    restoreRun() {
+      if (!mounted) return null;
+      if (currentRun === null) {
+        invalidate();
+        currentRun = generation;
+      }
+      return currentRun;
     },
     isCurrent(execution) {
       return mounted

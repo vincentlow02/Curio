@@ -42,6 +42,51 @@ function startingAnalysis(state: AnalysisRunState = createInitialAnalysisRunStat
 }
 
 describe("analysis run reducer", () => {
+  it("continues a restored identified history through completion", () => {
+    const restored = createInitialAnalysisRunState(record());
+    expect(restored.session).toMatchObject({ id: "history-id", status: "identified", identification: recognition });
+    const starting = analysisRunReducer(restored, { type: "research-started" });
+    expect(starting.phase).toBe("research-starting");
+    const researching = analysisRunReducer(starting, { type: "research-accepted", recognition });
+    const result = fixtureSession("success").result!;
+    const completed = analysisRunReducer(researching, {
+      type: "research-completed",
+      event: { type: "completed", status: "completed", result, toolActivity: [] },
+      updatedAt: "2026-10-08T00:02:00.000Z",
+    });
+    expect(completed.session?.result).toEqual(result);
+    expect(deriveAnalysisRunFlags(completed)).toMatchObject({ phase: "completed", isBusy: false });
+  });
+
+  it.each(["queued_research", "searching_marketplaces", "searching_auctions", "searching_fallback", "processing_prices"] as const)(
+    "restores interrupted %s as confirmation, not a live busy request", (status) => {
+      const restored = createInitialAnalysisRunState(record({ status }));
+      expect(deriveAnalysisRunFlags(restored)).toMatchObject({ phase: "confirmation", status: "identified", isBusy: false });
+      expect(analysisRunReducer(restored, { type: "research-started" }).phase).toBe("research-starting");
+    },
+  );
+
+  it.each(["queued", "identifying", "searching_marketplaces"] as const)(
+    "restores %s without recognition as a recoverable error, not endless loading", (status) => {
+      const restored = createInitialAnalysisRunState(record({ status, recognition: null }));
+      expect(deriveAnalysisRunFlags(restored)).toMatchObject({ phase: "error", status: "failed", isBusy: false });
+      expect(restored.error?.message).toContain("interrupted");
+      expect(analysisRunReducer(restored, { type: "reset" }).phase).toBe("input");
+    },
+  );
+
+  it("preserves completed and legacy history without creating an active session", () => {
+    const result = fixtureSession("success").result!;
+    const restored = createInitialAnalysisRunState(record({ status: "searching_marketplaces", result }));
+    expect(restored.session).toBeNull();
+    expect(restored.historyView?.result).toEqual(result);
+    expect(deriveAnalysisRunFlags(restored)).toMatchObject({ status: "completed", isBusy: false });
+    expect(restored.phase).toBe("completed");
+    const legacy = record();
+    delete legacy.status;
+    expect(createInitialAnalysisRunState(legacy).session?.status).toBe("identified");
+  });
+
   it("initializes a new workflow and restores the selected history view", () => {
     expect(createInitialAnalysisRunState(null)).toMatchObject({
       phase: "input",

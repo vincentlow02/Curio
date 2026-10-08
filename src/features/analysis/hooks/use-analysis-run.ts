@@ -49,7 +49,6 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
   const lifecycleRef = useRef<ReturnType<typeof createAnalysisRunLifecycle> | null>(null);
   if (!lifecycleRef.current) lifecycleRef.current = createAnalysisRunLifecycle();
   const lifecycle = lifecycleRef.current;
-  const runId = lifecycle.currentRunId();
   useEffect(() => {
     lifecycle.activate();
     return () => lifecycle.dispose();
@@ -127,7 +126,9 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
   }, [createAnalysis]);
 
   const continueResearch = useCallback(async (): Promise<void> => {
-    if (!runId || !sessionId || !recognitionDraft || phase !== "confirmation" || status !== "identified") return;
+    if (!sessionId || !recognitionDraft || phase !== "confirmation" || status !== "identified") return;
+    const runId = lifecycle.restoreRun();
+    if (runId === null) return;
     const execution = lifecycle.beginResearch(runId);
     if (!execution) return;
     dispatch({ type: "research-started" });
@@ -169,7 +170,7 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
     } finally {
       lifecycle.finish(execution);
     }
-  }, [activities, collectorMode, lifecycle, locale, onHistoryPromote, phase, readResearchStream, recognitionDraft, runId, session?.collectorEvidence, sessionId, status]);
+  }, [activities, collectorMode, lifecycle, locale, onHistoryPromote, phase, readResearchStream, recognitionDraft, session?.collectorEvidence, sessionId, status]);
 
   const updateRecognition = useCallback(<Key extends keyof DetectionResult>(key: Key, value: DetectionResult[Key]): void => {
     dispatch({ type: "recognition-field-updated", key, value });

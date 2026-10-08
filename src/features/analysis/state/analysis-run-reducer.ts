@@ -55,8 +55,8 @@ export type AnalysisRunFlags = {
 
 export function deriveAnalysisRunFlags(state: AnalysisRunState): AnalysisRunFlags {
   const status: AnalysisStage | null = state.session?.status
-    ?? state.historyView?.status
-    ?? (state.historyView ? (state.historyView.result ? "completed" : state.historyView.recognition ? "identified" : "queued") : null);
+    ?? (state.historyView?.result ? "completed" : state.historyView?.status
+      ?? (state.historyView ? (state.historyView.recognition ? "identified" : "queued") : null));
   const isConversation = ["recognizing", "confirmation", "research-starting", "researching", "completed"].includes(state.phase)
     || (state.phase === "error" && Boolean(state.session || state.historyView));
   return {
@@ -77,15 +77,38 @@ export function shouldShowInlineAnalysisError(
 }
 
 export function createInitialAnalysisRunState(historyView: RecentAnalysisRecord | null): AnalysisRunState {
-  const historyStatus = historyView?.status ?? (historyView ? (historyView.result ? "completed" : historyView.recognition ? "identified" : "queued") : null);
+  const historyStatus = historyView?.result ? "completed" : historyView?.status ?? (historyView?.recognition ? "identified" : null);
+  // Persisted progress is not a live request. Resume only after explicit confirmation.
+  const interrupted = historyStatus === "queued" || historyStatus === "identifying"
+    || (historyStatus !== null && researchStages.has(historyStatus));
+  const resumable = Boolean(historyView?.recognition && (historyStatus === "identified" || interrupted));
+  const restoredStatus = resumable ? "identified" : historyStatus === "needs_review" ? "needs_review" : "failed";
+  const restoredError = resumable ? null : interrupted || historyStatus === null
+    ? "This analysis was interrupted. Start a new analysis."
+    : "The saved analysis could not be completed. Start a new analysis.";
+  const session: AnalysisSessionView | null = historyView && !historyView.result ? {
+    id: historyView.id,
+    status: restoredStatus,
+    queuePosition: null,
+    progress: resumable ? 32 : 100,
+    message: resumable ? "Review the saved identity before restarting research." : "Analysis interrupted",
+    identification: historyView.recognition,
+    collectorMode: historyView.collectorMode ?? false,
+    collectorEvidence: null,
+    toolActivity: historyView.toolActivity,
+    createdAt: historyView.createdAt,
+    updatedAt: historyView.createdAt,
+    result: null,
+    error: restoredError,
+  } : null;
   return {
-    phase: historyPhase(historyStatus),
+    phase: !historyView ? "input" : historyView.result ? "completed" : resumable ? "confirmation" : "error",
     collectorMode: historyView?.result?.collectorMode ?? historyView?.collectorMode ?? false,
     submittedText: historyView?.submittedText ?? "",
-    session: null,
+    session,
     historyView,
     recognitionDraft: historyView?.recognition ?? null,
-    error: null,
+    error: session?.error ? { kind: "workflow", message: session.error } : null,
   };
 }
 
@@ -209,15 +232,6 @@ export function analysisRunReducer(state: AnalysisRunState, action: AnalysisRunA
     default:
       return state;
   }
-}
-
-function historyPhase(status: AnalysisStage | null): AnalysisPhase {
-  if (status === "completed") return "completed";
-  if (status === "failed" || status === "needs_review") return "error";
-  if (status === "identified") return "confirmation";
-  if (status === "queued_research" || status === "searching_marketplaces" || status === "searching_auctions" || status === "searching_fallback" || status === "processing_prices") return "researching";
-  if (status === "queued" || status === "identifying") return "recognizing";
-  return "input";
 }
 
 const researchStages = new Set<AnalysisStage>([

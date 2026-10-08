@@ -2,6 +2,22 @@ import { describe, expect, it } from "vitest";
 import { createAnalysisRunLifecycle } from "../src/features/analysis/lib/analysis-run-lifecycle";
 
 describe("analysis run lifecycle", () => {
+  it("restores a history run without recognition and prevents duplicate research", () => {
+    const lifecycle = createAnalysisRunLifecycle();
+    const runId = lifecycle.restoreRun();
+    expect(runId).not.toBeNull();
+    expect(lifecycle.restoreRun()).toBe(runId);
+    const research = lifecycle.beginResearch(runId!);
+    expect(research).not.toBeNull();
+    expect(lifecycle.isCurrent(research!)).toBe(true);
+    expect(lifecycle.beginResearch(runId!)).toBeNull();
+    lifecycle.dispose();
+    expect(lifecycle.restoreRun()).toBeNull();
+    expect(research?.controller.signal.aborted).toBe(true);
+    lifecycle.activate();
+    expect(lifecycle.restoreRun()).not.toBe(runId);
+  });
+
   it("aborts and invalidates a previous recognition when a new run starts", () => {
     const lifecycle = createAnalysisRunLifecycle();
     const first = lifecycle.beginRun();

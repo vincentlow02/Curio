@@ -9,3 +9,4 @@ output/**/*.json
 coverage/
 *.tsbuildinfo
 .vercel
+/production
