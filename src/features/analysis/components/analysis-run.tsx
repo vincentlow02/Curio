@@ -10,6 +10,7 @@ import { RecognitionStage } from "./recognition-stage";
 import { ResearchStage } from "./research-stage";
 import { ResultStage } from "./result-stage";
 import { useAnalysisRun } from "../hooks/use-analysis-run";
+import { shouldShowInlineAnalysisError } from "../state/analysis-run-reducer";
 import type { RecentAnalysisRecord } from "../types";
 export type { RecentAnalysisRecord } from "../types";
 
@@ -219,8 +220,8 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
         <ResultStage result={result} activities={activities} locale={locale} />
         <form className="figma-followup-composer" onSubmit={(event) => { event.preventDefault(); const text = nextText.trim(); const file = nextFile; resetToNew(); submitInput({ file, text, category: null, collectorMode: false }); }}><textarea rows={1} value={nextText} onChange={(event) => setNextText(event.target.value)} placeholder={nextFile ? nextFile.name : copy.placeholder} /><div className="figma-followup-actions"><button className="figma-followup-add" type="button" aria-label="Add image" onClick={() => nextFileInputRef.current?.click()}><img src="/figma/composer-add.svg" alt="" /></button><input ref={nextFileInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setNextFile(event.target.files?.[0] ?? null)} /><div className="figma-followup-actions-right">{speechSupported ? <button className="figma-followup-microphone" type="button" onClick={() => startSpeech(setNextText)}><img src="/figma/composer-microphone.svg" alt="" /></button> : <span />}<button className="figma-followup-submit" type="submit" disabled={!nextText.trim() && !nextFile}><img src="/figma/composer-submit-active.svg" alt="" /></button></div></div></form>
       </> : null}
-      {error && status !== "failed" ? <div className="figma-inline-error" role="alert">{error}</div> : null}
     </div>}
+    {shouldShowInlineAnalysisError(error, status) ? <div className="figma-inline-error" role="alert">{error}</div> : null}
 
   </section>;
 }

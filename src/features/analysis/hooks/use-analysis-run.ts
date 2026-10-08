@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useReducer, useRef } from "react";
-import type { AnalysisSessionView, AnalysisStage, ResearchStreamEvent } from "../../../core/analysis/types";
+import type { AnalysisSessionView, ResearchStreamEvent } from "../../../core/analysis/types";
 import { isSpecificDescription } from "../../../core/profile/input-routing";
 import type { DetectionResult, PokemonCardIdentity } from "../../../core/profile/types";
 import { compressUpload } from "../lib/compress-upload";
@@ -10,7 +10,7 @@ import { saveRecentImage } from "../storage/recent-image-store";
 import { recognizeCollectible, type RecognitionResponse } from "../services/recognition-service";
 import { startResearch } from "../services/research-service";
 import { useResearchStream } from "../services/research-stream";
-import { analysisRunReducer, createInitialAnalysisRunState } from "../state/analysis-run-reducer";
+import { analysisRunReducer, createInitialAnalysisRunState, deriveAnalysisRunFlags } from "../state/analysis-run-reducer";
 import type { PendingInput, RecentAnalysisRecord } from "../types";
 
 type UseAnalysisRunOptions = {
@@ -58,12 +58,9 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
   } = state;
 
   const sessionId = session?.id ?? (historyView?.result ? null : historyView?.id ?? null);
-  const status: AnalysisStage | null = session?.status ?? historyView?.status ?? (historyView ? (historyView.result ? "completed" : historyView.recognition ? "identified" : "queued") : creating ? "queued" : null);
+  const { status, isConversation, isResearch, isBusy } = deriveAnalysisRunFlags(state);
   const result = session?.result ?? historyView?.result ?? null;
   const activities = session?.toolActivity ?? historyView?.toolActivity ?? [];
-  const isConversation = status !== null;
-  const isResearch = status !== null && ["queued_research", "searching_marketplaces", "searching_auctions", "searching_fallback", "processing_prices", "completed"].includes(status);
-  const isBusy = creating || researchStarting || (status !== null && ["queued", "identifying", "queued_research", "searching_marketplaces", "searching_auctions", "searching_fallback", "processing_prices"].includes(status));
 
   const handleResearchEvent = useCallback((event: ResearchStreamEvent): void => {
     if (event.type === "stage") dispatch({ type: "research-stage", event, updatedAt: new Date().toISOString() });
@@ -128,7 +125,11 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
       await readResearchStream(response.body);
       dispatch({ type: "research-finished" });
     } catch (caught) {
-      dispatch({ type: "research-failed", error: caught instanceof Error ? caught.message : String(caught) });
+      dispatch({
+        type: "research-failed",
+        error: caught instanceof Error ? caught.message : String(caught),
+        updatedAt: new Date().toISOString(),
+      });
     }
   }, [activities, collectorMode, locale, onHistoryPromote, readResearchStream, recognitionDraft, researchStarting, session?.collectorEvidence, sessionId, status]);
 

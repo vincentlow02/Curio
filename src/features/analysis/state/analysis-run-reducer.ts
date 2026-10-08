@@ -30,8 +30,31 @@ export type AnalysisRunAction =
   | { type: "research-stage"; event: Extract<ResearchStreamEvent, { type: "stage" }>; updatedAt: string }
   | { type: "research-completed"; event: Extract<ResearchStreamEvent, { type: "completed" }>; updatedAt: string }
   | { type: "research-finished" }
-  | { type: "research-failed"; error: string }
+  | { type: "research-failed"; error: string; updatedAt: string }
   | { type: "reset" };
+
+export type AnalysisRunFlags = {
+  status: AnalysisStage | null;
+  isConversation: boolean;
+  isResearch: boolean;
+  isBusy: boolean;
+};
+
+export function deriveAnalysisRunFlags(state: AnalysisRunState): AnalysisRunFlags {
+  const status: AnalysisStage | null = state.session?.status
+    ?? state.historyView?.status
+    ?? (state.historyView ? (state.historyView.result ? "completed" : state.historyView.recognition ? "identified" : "queued") : state.creating ? "queued" : null);
+  return {
+    status,
+    isConversation: status !== null,
+    isResearch: status !== null && ["queued_research", "searching_marketplaces", "searching_auctions", "searching_fallback", "processing_prices", "completed"].includes(status),
+    isBusy: state.creating || state.researchStarting || (status !== null && ["queued", "identifying", "queued_research", "searching_marketplaces", "searching_auctions", "searching_fallback", "processing_prices"].includes(status)),
+  };
+}
+
+export function shouldShowInlineAnalysisError(error: string | null, status: AnalysisStage | null): boolean {
+  return Boolean(error) && status !== "failed";
+}
 
 export function createInitialAnalysisRunState(historyView: RecentAnalysisRecord | null): AnalysisRunState {
   return {
@@ -130,7 +153,19 @@ export function analysisRunReducer(state: AnalysisRunState, action: AnalysisRunA
         },
       };
     case "research-failed":
-      return { ...state, researchStarting: false, error: action.error };
+      return {
+        ...state,
+        researchStarting: false,
+        error: action.error,
+        session: state.session ? {
+          ...state.session,
+          status: "failed",
+          progress: 100,
+          message: "Analysis failed",
+          error: action.error,
+          updatedAt: action.updatedAt,
+        } : null,
+      };
     case "research-finished":
       return { ...state, researchStarting: false };
     case "reset":

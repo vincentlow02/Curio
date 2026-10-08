@@ -5,6 +5,8 @@ import { fixtureSession } from "../src/features/analysis/fixtures/analysis-view-
 import {
   analysisRunReducer,
   createInitialAnalysisRunState,
+  deriveAnalysisRunFlags,
+  shouldShowInlineAnalysisError,
   type AnalysisRunState,
 } from "../src/features/analysis/state/analysis-run-reducer";
 import type { RecentAnalysisRecord } from "../src/features/analysis/types";
@@ -89,10 +91,19 @@ describe("analysis run reducer", () => {
     expect(needsClarification).toMatchObject({ creating: false, clarificationRequested: true });
     expect(analysisRunReducer(needsClarification, { type: "clarification-cleared" }).clarificationRequested).toBe(false);
 
-    expect(analysisRunReducer(startingAnalysis(), { type: "recognition-failed", error: "Recognition failed" })).toMatchObject({
+    const recognitionFailure = analysisRunReducer(startingAnalysis(), { type: "recognition-failed", error: "Recognition failed (503)" });
+    expect(recognitionFailure).toMatchObject({
       creating: false,
-      error: "Recognition failed",
+      error: "Recognition failed (503)",
+      submittedText: "Vintage figure",
+      session: null,
     });
+    expect(deriveAnalysisRunFlags(recognitionFailure)).toMatchObject({ status: null, isConversation: false });
+    expect(shouldShowInlineAnalysisError(recognitionFailure.error, deriveAnalysisRunFlags(recognitionFailure).status)).toBe(true);
+
+    const invalidImage = analysisRunReducer(recognitionFailure, { type: "error-changed", value: "Only JPG, PNG and WEBP images are supported." });
+    expect(invalidImage.submittedText).toBe("Vintage figure");
+    expect(shouldShowInlineAnalysisError(invalidImage.error, deriveAnalysisRunFlags(invalidImage).status)).toBe(true);
   });
 
   it("updates confirmation fields and removes card identity when the category changes", () => {
@@ -146,10 +157,10 @@ describe("analysis run reducer", () => {
     });
   });
 
-  it("completes research, clears the pending flag, and retains a stream failure", () => {
+  it("completes research, clears the pending flag, and enters an explicit failure state", () => {
     const searching = {
       ...createInitialAnalysisRunState(null),
-      session: { ...fixtureSession("searching_marketplaces"), status: "searching_marketplaces" as const },
+      session: { ...fixtureSession("searching_marketplaces"), status: "searching_marketplaces" as const, identification: recognition },
       researchStarting: true,
     };
     const result = fixtureSession("success").result;
@@ -165,11 +176,29 @@ describe("analysis run reducer", () => {
       session: { status: "completed", progress: 100, result },
     });
 
-    expect(analysisRunReducer(searching, { type: "research-failed", error: "Stream failed" })).toMatchObject({
-      researchStarting: false,
-      error: "Stream failed",
-      session: { status: "searching_marketplaces" },
+    const failed = analysisRunReducer(searching, {
+      type: "research-failed",
+      error: "Research request failed",
+      updatedAt: "2026-10-08T00:03:00.000Z",
     });
+    expect(failed).toMatchObject({
+      researchStarting: false,
+      error: "Research request failed",
+      session: {
+        status: "failed",
+        progress: 100,
+        identification: recognition,
+        error: "Research request failed",
+        updatedAt: "2026-10-08T00:03:00.000Z",
+      },
+    });
+    expect(deriveAnalysisRunFlags(failed)).toMatchObject({
+      status: "failed",
+      isConversation: true,
+      isResearch: false,
+      isBusy: false,
+    });
+    expect(shouldShowInlineAnalysisError(failed.error, deriveAnalysisRunFlags(failed).status)).toBe(false);
   });
 
   it("resets all run state without changing the separate history persistence layer", () => {
