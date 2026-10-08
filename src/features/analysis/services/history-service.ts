@@ -1,10 +1,22 @@
 import type { RecentAnalysisRecord } from "../types";
-import { deleteRecentImage } from "../storage/recent-image-store";
+import { deleteRecentImage, loadRecentImage, saveRecentImage } from "../storage/recent-image-store";
 
 export const HISTORY_STORAGE_KEY = "qwen-collectible-recent-v1";
 const MAX_HISTORY_RECORDS = 12;
 
 type HistoryStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+export function saveAnalysisImage(id: string, file: File): Promise<void> {
+  return saveRecentImage(id, file);
+}
+
+export function loadAnalysisImage(id: string): Promise<File | null> {
+  return loadRecentImage(id);
+}
+
+export function deleteAnalysisImage(id: string): Promise<void> {
+  return deleteRecentImage(id);
+}
 
 function browserStorage(): HistoryStorage | null {
   return typeof localStorage === "undefined" ? null : localStorage;
@@ -32,7 +44,7 @@ export function saveAnalysisHistory(
     : current.map((item) => item.id === record.id ? record : item);
   const retainedIds = new Set(next.map((item) => item.id));
   for (const removed of current) {
-    if (!retainedIds.has(removed.id)) void deleteRecentImage(removed.id).catch(() => undefined);
+    if (!retainedIds.has(removed.id)) void deleteAnalysisImage(removed.id).catch(() => undefined);
   }
   if (storage) storage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next));
   return next;
@@ -56,7 +68,7 @@ export function deleteAnalysisHistory(
   storage: HistoryStorage | null = browserStorage(),
 ): RecentAnalysisRecord[] {
   const next = current.filter((record) => record.id !== id);
-  void deleteRecentImage(id).catch(() => undefined);
+  void deleteAnalysisImage(id).catch(() => undefined);
   if (storage) storage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next));
   return next;
 }

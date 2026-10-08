@@ -6,8 +6,8 @@ import { isSpecificDescription } from "../../../core/profile/input-routing";
 import type { DetectionResult, PokemonCardIdentity } from "../../../core/profile/types";
 import { compressUpload } from "../lib/compress-upload";
 import { uiCopy, type UiLocale } from "../locales";
-import { deleteRecentImage, saveRecentImage } from "../storage/recent-image-store";
 import { createAnalysisRunLifecycle } from "../lib/analysis-run-lifecycle";
+import { deleteAnalysisImage, saveAnalysisImage } from "../services/history-service";
 import { recognizeCollectible, type RecognitionResponse } from "../services/recognition-service";
 import { startResearch } from "../services/research-service";
 import { useResearchStream } from "../services/research-stream";
@@ -100,9 +100,9 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
       if (!response.ok) throw new Error(body.error ?? "Unable to create analysis.");
       const next = createAnalysisSession(body, input);
       if (uploadFile) {
-        await saveRecentImage(next.id, uploadFile).catch(() => undefined);
+        await saveAnalysisImage(next.id, uploadFile).catch(() => undefined);
         if (!lifecycle.isCurrent(execution)) {
-          void deleteRecentImage(next.id).catch(() => undefined);
+          void deleteAnalysisImage(next.id).catch(() => undefined);
           return;
         }
       }

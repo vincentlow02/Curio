@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AnalysisSessionView, AnalysisStage } from "../../../core/analysis/types";
 import type { CollectibleCategory } from "../../../core/profile/types";
 import { uiCopy, type UiLocale } from "../locales";
-import { loadRecentImage } from "../storage/recent-image-store";
+import { loadAnalysisImage } from "../services/history-service";
 import { InputStage } from "./input-stage";
 import { RecognitionStage } from "./recognition-stage";
 import { ResearchStage } from "./research-stage";
@@ -102,7 +102,7 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
   useEffect(() => {
     if (!initialHistory?.id || !initialHistory.imageName) return;
     let cancelled = false;
-    void loadRecentImage(initialHistory.id).then((file) => {
+    void loadAnalysisImage(initialHistory.id).then((file) => {
       if (cancelled || !file) return;
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       const url = URL.createObjectURL(file);

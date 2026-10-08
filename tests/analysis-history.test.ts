@@ -1,14 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RecentAnalysisRecord } from "../src/features/analysis/types";
 
-const { deleteRecentImage } = vi.hoisted(() => ({ deleteRecentImage: vi.fn(async (_id: string): Promise<void> => undefined) }));
-vi.mock("../src/features/analysis/storage/recent-image-store", () => ({ deleteRecentImage }));
+const { deleteRecentImage, loadRecentImage, saveRecentImage } = vi.hoisted(() => ({
+  deleteRecentImage: vi.fn(async (_id: string): Promise<void> => undefined),
+  loadRecentImage: vi.fn(async (_id: string): Promise<File | null> => null),
+  saveRecentImage: vi.fn(async (_id: string, _file: File): Promise<void> => undefined),
+}));
+vi.mock("../src/features/analysis/storage/recent-image-store", () => ({
+  deleteRecentImage,
+  loadRecentImage,
+  saveRecentImage,
+}));
 
 import {
+  deleteAnalysisImage,
   deleteAnalysisHistory,
   HISTORY_STORAGE_KEY,
+  loadAnalysisImage,
   loadAnalysisHistory,
   promoteAnalysisHistory,
+  saveAnalysisImage,
   saveAnalysisHistory,
 } from "../src/features/analysis/services/history-service";
 
@@ -35,7 +46,42 @@ function createStorage(initial: Record<string, string> = {}) {
 }
 
 describe("analysis history persistence", () => {
-  beforeEach(() => deleteRecentImage.mockClear());
+  beforeEach(() => {
+    deleteRecentImage.mockClear();
+    loadRecentImage.mockClear();
+    saveRecentImage.mockClear();
+  });
+
+  it("persists and restores metadata through the existing key and record schema", () => {
+    const storage = createStorage();
+    const saved = saveAnalysisHistory([], record("stable-history-id"), storage);
+
+    expect(loadAnalysisHistory(storage)).toEqual(saved);
+    expect(storage.read(HISTORY_STORAGE_KEY)).toBe(JSON.stringify([record("stable-history-id")]));
+    expect(saved[0]?.id).toBe("stable-history-id");
+  });
+
+  it("routes image save, load, and delete through the history service", async () => {
+    const file = new File(["image"], "collectible.png", { type: "image/png" });
+    const restored = new File(["restored"], "collectible.png", { type: "image/png" });
+    loadRecentImage.mockResolvedValueOnce(restored);
+
+    await saveAnalysisImage("history-id", file);
+    await expect(loadAnalysisImage("history-id")).resolves.toBe(restored);
+    await deleteAnalysisImage("history-id");
+
+    expect(saveRecentImage).toHaveBeenCalledWith("history-id", file);
+    expect(loadRecentImage).toHaveBeenCalledWith("history-id");
+    expect(deleteRecentImage).toHaveBeenCalledWith("history-id");
+  });
+
+  it("propagates image persistence failures for the existing callers to handle", async () => {
+    saveRecentImage.mockRejectedValueOnce(new Error("IndexedDB unavailable"));
+    loadRecentImage.mockRejectedValueOnce(new Error("IndexedDB unavailable"));
+
+    await expect(saveAnalysisImage("history-id", new File([], "input.png"))).rejects.toThrow("IndexedDB unavailable");
+    await expect(loadAnalysisImage("history-id")).rejects.toThrow("IndexedDB unavailable");
+  });
 
   it("loads records from the existing key and preserves the twelve-record limit", () => {
     const records = Array.from({ length: 14 }, (_, index) => record(`run-${index}`));

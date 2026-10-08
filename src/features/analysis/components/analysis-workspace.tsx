@@ -4,10 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { AnalysisSidebar } from "../../../components/ui/analysis-sidebar";
 import { AnalysisRun } from "./analysis-run";
 import { useAnalysisHistory } from "../hooks/use-analysis-history";
-import { HISTORY_STORAGE_KEY } from "../services/history-service";
+import { persistLocale, readStoredLocale } from "../services/locale-storage";
 import type { UiLocale } from "../locales";
-
-const LOCALE_STORAGE_KEY = "curio-ui-locale";
 
 export function AnalysisWorkspace(): React.ReactElement {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
@@ -25,21 +23,17 @@ export function AnalysisWorkspace(): React.ReactElement {
   } = useAnalysisHistory();
 
   useEffect(() => {
-    try {
-      const storedLocale = localStorage.getItem(LOCALE_STORAGE_KEY);
-      if (storedLocale === "en" || storedLocale === "zh" || storedLocale === "ja") {
-        setLocale(storedLocale);
-        document.documentElement.lang = storedLocale === "zh" ? "zh-CN" : storedLocale;
-      }
-    } catch {
-      localStorage.removeItem(HISTORY_STORAGE_KEY);
+    const storedLocale = readStoredLocale();
+    if (storedLocale) {
+      setLocale(storedLocale);
+      document.documentElement.lang = storedLocale === "zh" ? "zh-CN" : storedLocale;
     }
   }, []);
 
   const changeLocale = (nextLocale: UiLocale): void => {
     if (languageDisabled) return;
     setLocale(nextLocale);
-    localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
+    persistLocale(nextLocale);
     document.documentElement.lang = nextLocale === "zh" ? "zh-CN" : nextLocale;
   };
 
