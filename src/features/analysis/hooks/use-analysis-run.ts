@@ -10,7 +10,7 @@ import { createAnalysisRunLifecycle } from "../lib/analysis-run-lifecycle";
 import { deleteAnalysisImage, saveAnalysisImage } from "../services/history-service";
 import { recognizeCollectible, type RecognitionResponse } from "../services/recognition-service";
 import { startResearch } from "../services/research-service";
-import { useResearchStream } from "../services/research-stream";
+import { useResearchStream } from "./use-research-stream";
 import { analysisRunReducer, createInitialAnalysisRunState, deriveAnalysisRunFlags, shouldShowInlineAnalysisError } from "../state/analysis-run-reducer";
 import type { PendingInput, RecentAnalysisRecord } from "../types";
 
@@ -144,15 +144,20 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
       onHistoryPromote?.(sessionId);
       dispatch({ type: "research-accepted", recognition: recognitionDraft });
       if (!response.body) throw new Error("The research stream was unavailable.");
+      let terminalEventReceived = false;
       await readResearchStream(response.body, {
         signal: execution.controller.signal,
         onEvent: (event) => {
           if (!lifecycle.isCurrent(execution)) return;
           if (event.type === "stage") dispatch({ type: "research-stage", event, updatedAt: new Date().toISOString() });
-          if (event.type === "completed") dispatch({ type: "research-completed", event, updatedAt: new Date().toISOString() });
+          if (event.type === "completed") {
+            terminalEventReceived = true;
+            dispatch({ type: "research-completed", event, updatedAt: new Date().toISOString() });
+          }
           if (event.type === "error") throw new Error(event.error);
         },
       });
+      if (!terminalEventReceived) throw new Error("The research stream ended before completion.");
     } catch (caught) {
       if (lifecycle.isCurrent(execution)) {
         dispatch({

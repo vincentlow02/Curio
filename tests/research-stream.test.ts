@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ResearchStreamEvent } from "../src/core/analysis/types";
-import { consumeResearchStream } from "../src/features/analysis/services/research-stream";
+import {
+  consumeResearchStream,
+  ResearchStreamError,
+  validateResearchStreamEvent,
+} from "../src/features/analysis/services/research-stream";
 
 function createStream(chunks: Uint8Array[]): ReadableStream<Uint8Array> {
   return new ReadableStream({
@@ -15,11 +19,55 @@ function encode(value: string): Uint8Array {
   return new TextEncoder().encode(value);
 }
 
-function stageEvent(message: string): ResearchStreamEvent {
+function stageEvent(message: string): Extract<ResearchStreamEvent, { type: "stage" }> {
   return {
     type: "stage",
     status: "searching_marketplaces",
     message,
+    toolActivity: [],
+  };
+}
+
+function completedEvent(): Extract<ResearchStreamEvent, { type: "completed" }> {
+  return {
+    type: "completed",
+    status: "completed",
+    result: {
+      identification: {
+        itemName: "Vintage figure",
+        version: "First release",
+        priceSearchKeywordJa: "ヴィンテージ フィギュア",
+        category: "Toys & Character Collectibles",
+      },
+      collectorMode: false,
+      collectorEvidence: null,
+      auctionSources: [
+        { source: "Yahoo Auctions", status: "skipped", candidatesSeen: 0, comparableSignals: 0, signals: [] },
+        { source: "Mandarake Auction", status: "skipped", candidatesSeen: 0, comparableSignals: 0, signals: [] },
+      ],
+      priceReference: {
+        currency: "JPY",
+        low: null,
+        median: null,
+        high: null,
+        sampleCount: 0,
+        samples: [],
+        disclaimer: "Online asking-price reference",
+      },
+      recommendedAreas: [],
+      storeSuggestions: [],
+      warnings: [],
+      cost: {
+        qwenCalls: 1,
+        inputTokens: 0,
+        outputTokens: 0,
+        marketplacePages: 2,
+        auctionPages: 0,
+        tavilyCalls: 0,
+        daytonaCalls: 0,
+        totalMs: 12,
+      },
+    },
     toolActivity: [],
   };
 }
@@ -30,10 +78,53 @@ async function collectEvents(stream: ReadableStream<Uint8Array>): Promise<Resear
   return events;
 }
 
+async function expectStreamError(
+  value: string,
+  kind: ResearchStreamError["kind"],
+): Promise<void> {
+  await expect(collectEvents(createStream([encode(value)]))).rejects.toMatchObject({
+    name: "ResearchStreamError",
+    kind,
+  });
+}
+
 describe("research stream", () => {
-  it("parses a complete event contained in one chunk", async () => {
+  it("parses a complete valid event in one chunk", async () => {
     const event = stageEvent("Searching");
     await expect(collectEvents(createStream([encode(`${JSON.stringify(event)}\n`)]))).resolves.toEqual([event]);
+  });
+
+  it("parses all event types currently emitted by the backend", async () => {
+    const stage = stageEvent("Searching");
+    const completed = completedEvent();
+    const failed: ResearchStreamEvent = { type: "error", status: "failed", error: "Research failed." };
+
+    await expect(collectEvents(createStream([
+      encode([stage, completed, failed].map((event) => JSON.stringify(event)).join("\n")),
+    ]))).resolves.toEqual([stage, completed, failed]);
+  });
+
+  it("accepts a completed event with zero comparable listings", async () => {
+    const event = completedEvent();
+    expect(event.result.priceReference.sampleCount).toBe(0);
+    await expect(collectEvents(createStream([encode(JSON.stringify(event))]))).resolves.toEqual([event]);
+  });
+
+  it("accepts optional activity fields when omitted or supplied with valid values", async () => {
+    const event = stageEvent("Searching");
+    event.toolActivity = [
+      { provider: "Qwen", status: "succeeded", calls: 1, durationMs: null },
+      {
+        provider: "Daytona",
+        status: "skipped",
+        calls: 0,
+        durationMs: 0,
+        verificationStatus: "not_run",
+        fallbackUsed: false,
+        cacheHit: false,
+      },
+    ];
+    await expect(collectEvents(createStream([encode(JSON.stringify(event))]))).resolves.toEqual([event]);
   });
 
   it("parses an event split across multiple chunks", async () => {
@@ -53,6 +144,25 @@ describe("research stream", () => {
     await expect(collectEvents(createStream([encode(`${events.map((event) => JSON.stringify(event)).join("\n")}\n`)]))).resolves.toEqual(events);
   });
 
+  it("parses the final complete event without a terminating newline exactly once", async () => {
+    const events = [stageEvent("First"), stageEvent("Final")];
+    const handled: ResearchStreamEvent[] = [];
+
+    await consumeResearchStream(
+      createStream([encode(`${JSON.stringify(events[0])}\r\n${JSON.stringify(events[1])}  `)]),
+      (event) => handled.push(event),
+    );
+
+    expect(handled).toEqual(events);
+  });
+
+  it("supports CRLF, blank lines, and trailing whitespace", async () => {
+    const events = [stageEvent("First"), stageEvent("Second")];
+    const body = ` \r\n${JSON.stringify(events[0])}  \r\n\t\r\n${JSON.stringify(events[1])} \r\n`;
+
+    await expect(collectEvents(createStream([encode(body)]))).resolves.toEqual(events);
+  });
+
   it("decodes multibyte UTF-8 characters split across chunks", async () => {
     const event = stageEvent("搜索中・調査中");
     const bytes = encode(`${JSON.stringify(event)}\n`);
@@ -61,49 +171,64 @@ describe("research stream", () => {
     await expect(collectEvents(createStream([bytes.slice(0, splitAt), bytes.slice(splitAt)]))).resolves.toEqual([event]);
   });
 
-  it("ignores a final event without a terminating newline, matching the existing parser", async () => {
-    const event = stageEvent("Final");
-
-    await expect(collectEvents(createStream([encode(JSON.stringify(event))]))).resolves.toEqual([]);
+  it("ignores blank streams without crashing the parser", async () => {
+    await expect(collectEvents(createStream([]))).resolves.toEqual([]);
   });
 
-  it("ignores empty lines and preserves the order of valid events", async () => {
-    const events = [stageEvent("First"), stageEvent("Second")];
-
-    await expect(collectEvents(createStream([encode(`\n${JSON.stringify(events[0])}\n\n${JSON.stringify(events[1])}\n`)]))).resolves.toEqual(events);
+  it("rejects malformed JSON with a safe, categorized error", async () => {
+    await expectStreamError("{sensitive response body}\n", "invalid-json");
   });
 
-  it("rejects malformed JSON", async () => {
-    await expect(collectEvents(createStream([encode("{invalid}\n")]))).rejects.toThrow(SyntaxError);
+  it.each([null, [], 1, "event", {}])("rejects a non-event JSON shape: %j", async (value) => {
+    await expectStreamError(`${JSON.stringify(value)}\n`, "invalid-event-shape");
   });
 
-  it("propagates stream read errors", async () => {
-    let chunkSent = false;
-    const stream = new ReadableStream<Uint8Array>({
-      pull(controller) {
-        if (!chunkSent) {
-          chunkSent = true;
-          controller.enqueue(encode(`${JSON.stringify(stageEvent("Before error"))}\n`));
-          return;
-        }
-        controller.error(new Error("Stream read failed."));
-      },
-    });
-    const events: ResearchStreamEvent[] = [];
-
-    await expect(consumeResearchStream(stream, (event) => events.push(event))).rejects.toThrow("Stream read failed.");
-    expect(events).toEqual([stageEvent("Before error")]);
+  it("rejects known events with missing required fields", async () => {
+    const result = validateResearchStreamEvent({ type: "stage", status: "searching_marketplaces", toolActivity: [] });
+    expect(result).toEqual({ kind: "invalid-required-field" });
+    await expectStreamError('{"type":"stage","status":"searching_marketplaces","toolActivity":[]}\n', "invalid-required-field");
   });
 
-  it("does not dispatch buffered incomplete data when the stream closes", async () => {
-    const complete = stageEvent("Complete");
-    const incomplete = stageEvent("Incomplete");
-    const stream = createStream([encode(`${JSON.stringify(complete)}\n${JSON.stringify(incomplete)}`)]);
-
-    await expect(collectEvents(stream)).resolves.toEqual([complete]);
+  it("rejects invalid statuses", async () => {
+    expect(validateResearchStreamEvent({
+      type: "stage",
+      status: "provider_running",
+      message: "Searching",
+      toolActivity: [],
+    })).toEqual({ kind: "invalid-status" });
+    await expectStreamError('{"type":"completed","status":"failed"}\n', "invalid-status");
   });
 
-  it("stops processing events when an event handler rejects an error event", async () => {
+  it("rejects invalid nested fields in known event types", async () => {
+    const malformed = {
+      ...completedEvent(),
+      result: { ...completedEvent().result, priceReference: { ...completedEvent().result.priceReference, sampleCount: "zero" } },
+    };
+    await expectStreamError(JSON.stringify(malformed), "invalid-required-field");
+  });
+
+  it("classifies and ignores unknown object event types for forward compatibility", async () => {
+    const unknown = { type: "future.marketplace.progress", source: "BookOff" };
+    expect(validateResearchStreamEvent(unknown)).toEqual({ kind: "unknown-event-type" });
+
+    const known = stageEvent("Known event");
+    await expect(collectEvents(createStream([
+      encode(`${JSON.stringify(unknown)}\n${JSON.stringify(known)}\n`),
+    ]))).resolves.toEqual([known]);
+  });
+
+  it("rejects an incomplete final JSON line instead of dispatching it", async () => {
+    const incomplete = '{"type":"stage","status":"searching_marketplaces"';
+    const handled: ResearchStreamEvent[] = [];
+
+    await expect(consumeResearchStream(
+      createStream([encode(incomplete)]),
+      (event) => handled.push(event),
+    )).rejects.toMatchObject({ kind: "invalid-json" });
+    expect(handled).toEqual([]);
+  });
+
+  it("propagates callback failures and stops processing later events", async () => {
     const errorEvent: ResearchStreamEvent = { type: "error", status: "failed", error: "Research failed." };
     const trailing = stageEvent("Should not be handled");
     const handled: ResearchStreamEvent[] = [];
@@ -118,6 +243,21 @@ describe("research stream", () => {
     expect(handled).toEqual([errorEvent]);
   });
 
+  it("sanitizes reader errors and releases the reader lock", async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(new Error("sensitive provider response"));
+      },
+    });
+
+    await expect(collectEvents(stream)).rejects.toMatchObject({
+      name: "ResearchStreamError",
+      kind: "stream-read",
+      message: "The research stream could not be read.",
+    });
+    expect(stream.locked).toBe(false);
+  });
+
   it("cancels a pending reader on abort and dispatches no later events", async () => {
     let cancelCount = 0;
     const stream = new ReadableStream<Uint8Array>({
@@ -129,6 +269,43 @@ describe("research stream", () => {
     const handled: ResearchStreamEvent[] = [];
     const consuming = consumeResearchStream(stream, (event) => handled.push(event), abortController.signal);
 
+    abortController.abort();
+
+    await expect(consuming).rejects.toMatchObject({ name: "AbortError" });
+    expect(handled).toEqual([]);
+    expect(cancelCount).toBe(1);
+    expect(stream.locked).toBe(false);
+  });
+
+  it("handles a rejected reader cancellation without leaking its rejection", async () => {
+    const abortController = new AbortController();
+    const stream = new ReadableStream<Uint8Array>({
+      cancel() {
+        return Promise.reject(new Error("cancellation failed"));
+      },
+    });
+    const consuming = consumeResearchStream(stream, () => undefined, abortController.signal);
+
+    abortController.abort();
+
+    await expect(consuming).rejects.toMatchObject({ name: "AbortError" });
+    expect(stream.locked).toBe(false);
+  });
+
+  it("does not dispatch an incomplete buffered event when aborted", async () => {
+    let cancelCount = 0;
+    const abortController = new AbortController();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encode('{"type":"stage","status":"searching_marketplaces"'));
+      },
+      cancel() {
+        cancelCount += 1;
+      },
+    });
+    const handled: ResearchStreamEvent[] = [];
+    const consuming = consumeResearchStream(stream, (event) => handled.push(event), abortController.signal);
+    await new Promise((resolve) => setTimeout(resolve, 0));
     abortController.abort();
 
     await expect(consuming).rejects.toMatchObject({ name: "AbortError" });
