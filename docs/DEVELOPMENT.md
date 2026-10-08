@@ -15,7 +15,6 @@ General-purpose chatbots can provide plausible answers, but collectible research
 - Qwen Cloud identifies the collectible from an image or text and returns strict structured data.
 - Playwright reads public Japanese marketplace pages using a Japanese search keyword.
 - Node.js matches listings, removes duplicates, and calculates the price reference deterministically.
-- Daytona independently recalculates the result in an isolated sandbox and reports whether it agrees with Node.js.
 - Tavily is a strictly limited fallback only when Rakuten and Mercari produce no usable samples.
 
 ## Supported categories
@@ -35,11 +34,10 @@ Image or text
   -> Rakuten + Mercari public search pages
   -> Tavily basic fallback only when both primary sources have no valid samples
   -> deterministic Node.js matching and price calculation
-  -> optional Daytona consistency verification
   -> sourced asking-price reference and Tokyo area suggestions
 ```
 
-Qwen does not generate prices, store inventory, addresses, or marketplace listings. The UI exposes safe `Run details` showing provider status, call counts, candidate counts, token usage, Node calculation status, Daytona verification, and total duration.
+Qwen does not generate prices, store inventory, addresses, or marketplace listings. The UI exposes safe `Run details` showing provider status, call counts, candidate counts, token usage, Node calculation status, and total duration. Current price calculation does not depend on an external sandbox.
 
 ## Collector Mode
 
@@ -54,19 +52,22 @@ Collector Mode adds visible edition and condition evidence without making a seco
 
 ```text
 src/app/                     Next.js pages and API routes
-src/features/analysis/       Responsive UI, stream handling, recent history
+src/features/analysis/       Components, hooks, reducer, services, local history
+src/components/ui/           Shared sidebar, settings, and locale UI
+src/core/analysis/           Shared session, result, and streaming contracts
 src/core/profile/            Detection types and validation
-src/core/price/              Deterministic calculation and matching
 src/core/recommendation/     Tokyo area recommendations
 src/server/analysis/         Detect and research orchestration
-src/server/providers/        Qwen, marketplaces, Tavily, auctions, Daytona
+src/server/providers/        Qwen and public auctions
 src/server/browser/          Local and Browserless browser provider
 src/server/security/         Request limits and upload checks
-src/price/                   Reusable price-spike implementation
+src/price/                   Marketplace collection, matching, pricing, Tavily
 tests/                       Unit and integration tests
 ```
 
 Production requests are stateless. Recent history is device-local: up to 12 records are stored in `localStorage`, while image previews are stored in IndexedDB. No database is required for the demo.
+
+The frontend follows Workspace → Run → Stage. The four Stage components are flat files in `features/analysis/components/`. Workflow state and initialization live in `state/analysis-run-reducer.ts`; hooks orchestrate requests, and services handle API and storage boundaries. See [Architecture](./ARCHITECTURE.md) for module responsibilities and history recovery behavior.
 
 ## Local setup
 
@@ -92,7 +93,7 @@ To develop without consuming provider credits:
 WEB_USE_FIXTURE=true
 ```
 
-For live mode, set `WEB_USE_FIXTURE=false` and configure the required server-side variables.
+Fixture mode returns fixed identification and result data without running live collection or the matcher. It verifies UI/API wiring, not real-provider success. For live mode, set `WEB_USE_FIXTURE=false` and configure the required server-side variables.
 
 ## Environment variables
 
@@ -130,7 +131,7 @@ ENABLE_TAVILY_PRICE_FALLBACK=true
 TAVILY_API_KEY=
 ```
 
-All remaining limits and timeouts are documented in `.env.example`.
+Use `.env.example` as the configuration template. `src/server/config/env.ts` is the source of truth for variables read by the current web pipeline; standalone CLI settings may differ.
 
 Keys that have appeared in chat, screenshots, logs, or shared documents must be revoked before deployment.
 
@@ -180,19 +181,20 @@ Generated output and local runtime snapshots are ignored by Git.
 
 ```powershell
 npm run typecheck
+npm run typecheck:strict
 npm test
 npm run build
 ```
 
-Fixture tests do not call Qwen, Tavily, Daytona, marketplaces, or other network services.
+Fixture tests do not call Qwen, Tavily, marketplaces, or other network services. CI also builds the production Docker image and smoke-tests recognition with fixture mode; this does not replace a real-API E2E test.
 
 ## Vercel deployment
 
-The primary portfolio deployment uses Vercel Hobby and Browserless. The Docker and Railway files remain available for optional self-hosting.
+The primary portfolio deployment uses Vercel and Browserless. Docker files remain available for optional self-hosting.
 
 1. Import the GitHub repository into a personal Vercel Hobby project and enable Fluid Compute.
 2. Add all secrets through Vercel Environment Variables and set `BROWSER_PROVIDER=browserless`.
-3. Confirm the research Function shows the current 300-second maximum before publishing; the application uses a 240-second internal budget.
+3. Verify the effective Function timeout before publishing. The route requests 300 seconds; the internal research budget defaults to 240 seconds and is capped at 240 seconds. Deployment limits may differ.
 4. Confirm `WEB_USE_FIXTURE=false` and run the complete image, confirmation, and research workflow.
 5. Check the Browserless dashboard after the first ten runs and record the measured unit usage.
 
@@ -202,6 +204,7 @@ The deployment does not require Supabase, another database, or a persistent volu
 
 - API keys stay server-side and error responses are sanitized.
 - Request and upload limits control casual public use; provider dashboard limits provide the hard cost boundary.
+- Recognition and research consume the same process-local request quota. A normal full analysis consumes two requests. This is best-effort limiting, not distributed enforcement or user authentication; the run ID is a correlation identifier.
 - Marketplace pages can change or present CAPTCHA; Curio returns partial results rather than bypassing protection.
 - No automatic login, purchasing, bidding, pagination, or inventory claims are implemented.
 - A missing source is shown as uncertainty instead of fabricated data.
