@@ -2,7 +2,7 @@
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useState } from "react";
-import type { RecentAnalysisRecord } from "../../features/analysis/components/analysis-composer";
+import type { RecentAnalysisRecord } from "../../features/analysis/types";
 import { uiCopy, type UiLocale } from "../../features/analysis/locales";
 import { AccountSettings } from "./account-settings";
 

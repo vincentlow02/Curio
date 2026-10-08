@@ -3,6 +3,7 @@ import { buildPokemonCardSearchKeyword } from "../../../../../core/profile/pokem
 import { assertDetectionResult, type DetectionResult } from "../../../../../core/profile/types";
 import { researchCollectible } from "../../../../../server/analysis/run-pipeline";
 import { publicError } from "../../../../../server/security/redact-error";
+import { checkDemoRateLimit } from "../../../../../server/security/demo-rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -16,6 +17,8 @@ type RequestBody = {
 };
 
 export async function POST(request: Request, context: { params: Promise<{ sessionId: string }> }): Promise<Response> {
+  const rateLimit = checkDemoRateLimit(request);
+  if (!rateLimit.allowed) return Response.json({ error: "The public demo usage limit has been reached. Please try again later." }, { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds), "Cache-Control": "no-store" } });
   const { sessionId: runId } = await context.params;
   if (!/^[0-9a-f-]{36}$/i.test(runId)) return Response.json({ error: "Invalid analysis run ID." }, { status: 400 });
   let body: RequestBody;
@@ -37,7 +40,6 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
       void (async () => {
         try {
           const workflow = await researchCollectible({
-            runId,
             identification,
             collectorMode: body.collectorMode as boolean,
             collectorEvidence: body.collectorEvidence ?? null,

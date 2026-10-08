@@ -126,10 +126,6 @@ BROWSERLESS_API_TOKEN=
 BROWSER_SESSION_TIMEOUT_SECONDS=55
 RESEARCH_TIME_BUDGET_SECONDS=240
 
-ENABLE_DAYTONA_PROCESSING=true
-DAYTONA_API_KEY=
-DAYTONA_API_URL=https://app.daytona.io/api
-
 ENABLE_TAVILY_PRICE_FALLBACK=true
 TAVILY_API_KEY=
 ```
@@ -146,26 +142,11 @@ Keys that have appeared in chat, screenshots, logs, or shared documents must be 
 
 Uploads support JPG, JPEG, PNG, and WEBP. The browser reduces large images below 4 MB before upload, and text descriptions are limited to 2,000 characters. The server still bounds the multipart request and validates the image signature.
 
-## Deterministic pricing and Daytona
+## Deterministic pricing
 
 Node.js is the authoritative calculation layer. It performs listing matching, deduplication, condition handling, median absolute deviation filtering, and Low/Typical/High aggregation.
 
-When enabled, Daytona receives only the normalized calculation input. Its isolated TypeScript sandbox independently recalculates the decisions and range:
-
-- It does not browse the web.
-- It receives no Qwen, Tavily, Rakuten, or Mercari credentials.
-- It cannot replace or mutate the Node result.
-- A failure or mismatch keeps the Node result and adds a warning.
-- The temporary sandbox is deleted immediately after verification; the configured auto-delete interval remains a cleanup fallback.
-- Daytona verification adds no LLM tokens.
-
-Use a synthetic local input to verify the Daytona connection:
-
-```powershell
-npm run daytona-smoke
-```
-
-This command creates a real sandbox and should not run automatically in CI.
+The same Node.js calculation produces the Low/Typical/High range and excludes outliers using the median absolute deviation (MAD) rule. Marketplace collection and price calculation do not require an external calculation service.
 
 ## Technical spike commands
 

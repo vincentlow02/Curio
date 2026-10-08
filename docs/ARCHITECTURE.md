@@ -66,6 +66,8 @@ Optional work is skipped safely when the remaining budget is insufficient:
 - Marketplace content is untrusted and filtered before aggregation.
 - Raw provider errors are redacted from public responses.
 - Process-local request limiting is best-effort on Vercel. Hard cost protection belongs in provider dashboards.
+- Recognition and research both consume the existing shared request quota. Direct research calls are limited too; a complete analysis normally uses two requests. The run ID is a correlation identifier, not an authorization token.
+- Restoring completed history does not call providers. Interrupted research with a saved identity returns to confirmation and restarts only when the user explicitly continues; interrupted recognition without an identity displays an error instead of permanent loading.
 
 ## Failure behavior
 

@@ -155,6 +155,7 @@ body:has(.home-page) { background:#fcfcfc; }
 .figma-home-composer.is-research .figma-chat-thread { position:relative; top:auto; left:auto; transform:none; padding-bottom:140px; }
 .figma-agent-process { animation:figma-chat-enter 240ms cubic-bezier(.22,1,.36,1) both; }
 .figma-agent-process__spinner { animation:figma-spin 800ms linear infinite; }
+@media (prefers-reduced-motion: reduce) { .figma-agent-process__spinner { animation:none; } }
 .figma-agent-process li.complete { color:#666; }
 .figma-agent-process li.complete > span { border-color:#111; background:#111; }
 .figma-agent-process li.active { color:#111; font-weight:500; }
