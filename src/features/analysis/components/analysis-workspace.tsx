@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnalysisSidebar } from "../../../components/ui/analysis-sidebar";
 import { AnalysisRun } from "./analysis-run";
 import { useAnalysisHistory } from "../hooks/use-analysis-history";

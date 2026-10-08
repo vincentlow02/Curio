@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 
 import dotenv from "dotenv";
 
-import { processPriceResultWithDaytona } from "../src/daytona/price-processor.js";
 import type { ItemProfile } from "../src/price/item-profile.js";
 import { captureTavilyPriceFallback, disabledTavilyFallback } from "../src/price/tavily-price-fallback.js";
 import { buildPriceResult } from "../src/price/matcher.js";
@@ -39,6 +38,18 @@ const INPUT_SCHEMA = resolve(PROJECT_ROOT, "schemas", "item-profile.schema.json"
 const RESULT_SCHEMA = resolve(PROJECT_ROOT, "schemas", "price-reference-result.schema.json");
 const PRICE_SCRAPER_VERSION = "marketplaces-v3";
 const STORE_SCRAPER_VERSION = "maps-v1";
+const daytonaReport = {
+  enabled: false,
+  attempted: false,
+  succeeded: false,
+  fallbackUsed: false,
+  verificationStatus: "not_run" as const,
+  nodeResultRetained: true as const,
+  sandboxId: null,
+  remoteStatePath: null,
+  error: null,
+  durationMs: 0,
+};
 
 class AppError extends Error {
   constructor(message: string) { super(message); this.name = "AppError"; }
@@ -248,19 +259,6 @@ async function main(): Promise<void> {
   const built = tavilyFallback.triggered
     ? buildPriceResult({ profile, snapshot, tavilyFallback, storeSnapshot, maxCardsScannedPerSource: limits.maxCardsScannedPerSource, maxSamplesPerSource: limits.maxSamplesPerSource })
     : primaryBuilt;
-  const daytonaEnabled = cli.mode === "live" && enabled("ENABLE_DAYTONA_PROCESSING");
-  const daytona = await processPriceResultWithDaytona(built.result, {
-    enabled: daytonaEnabled,
-    sessionId: artifacts.runId,
-    apiKey: process.env.DAYTONA_API_KEY?.trim(),
-    apiUrl: process.env.DAYTONA_API_URL?.trim(),
-    target: process.env.DAYTONA_TARGET?.trim(),
-    createTimeoutSeconds: positiveInt("DAYTONA_CREATE_TIMEOUT_SECONDS", 60, 120),
-    executionTimeoutSeconds: positiveInt("DAYTONA_EXECUTION_TIMEOUT_SECONDS", 30, 60),
-    stateTtlHours: positiveInt("DAYTONA_STATE_TTL_HOURS", 168, 168),
-  });
-  if (daytona.report.verificationStatus === "mismatch") built.result.warnings.push(`Daytona 验证结果与 Node 计算不一致，已保留 Node 确定性结果：${daytona.report.error ?? "unknown error"}`);
-  if (daytona.report.verificationStatus === "unavailable") built.result.warnings.push(`Daytona 验证不可用，已保留 Node 确定性结果：${daytona.report.error ?? "unknown error"}`);
   assertSafeResult(built.result);
   await validateSchema(built.result, RESULT_SCHEMA, "result");
   const completed = Date.now();
@@ -281,15 +279,15 @@ async function main(): Promise<void> {
     cache: { priceHit: priceCacheHit, storeHit: storeCacheHit, tavilyFallbackHit: tavilyFallbackCacheHit, refresh: cli.refresh, priceKey, storeKey, tavilyFallbackKey },
     errors: [...snapshot.sources.flatMap((entry) => entry.error ? [`${entry.source}: ${entry.error}`] : []), ...(tavilyFallback.searchError ? [`Tavily fallback: ${tavilyFallback.searchError}`] : []), ...tavilyFallback.results.flatMap((result) => result.pageError ? [`Fallback result ${result.rank}: ${result.pageError}`] : []), ...(storeSnapshot.error ? [`Google Maps: ${storeSnapshot.error}`] : [])],
     warnings: built.result.warnings,
-    daytona: daytona.report,
+    daytona: daytonaReport,
     tavilyFallback: { triggered: tavilyFallback.triggered, query: tavilyFallback.query, searchUrl: tavilyFallback.searchUrl, searchError: tavilyFallback.searchError, resultsOpened: tavilyFallback.results.filter((result) => result.opened).length, validPrices: tavilyFallback.candidates.length },
     startedAt,
     completedAt,
   };
   const tavilyCredits = typeof tavilyFallback.usage?.credits === "number" ? tavilyFallback.usage.credits : 0;
-  const cost: PriceCost = { mode: cli.mode, browserSearchPagesOpened, storeSearchPagesOpened, detailPagesOpened: 0, qwenCalls: 0, inputTokens: 0, outputTokens: 0, daytonaCalls: daytona.report.attempted ? 1 : 0, daytonaSandboxesCreated: daytona.report.sandboxId ? 1 : 0, daytonaDurationMs: daytona.report.durationMs, tavilySearchCalls, tavilyCredits, fallbackDetailPagesOpened, priceCacheHit, storeCacheHit, startedAt, completedAt, totalMs: completed - started };
+  const cost: PriceCost = { mode: cli.mode, browserSearchPagesOpened, storeSearchPagesOpened, detailPagesOpened: 0, qwenCalls: 0, inputTokens: 0, outputTokens: 0, daytonaCalls: 0, daytonaSandboxesCreated: 0, daytonaDurationMs: 0, tavilySearchCalls, tavilyCredits, fallbackDetailPagesOpened, priceCacheHit, storeCacheHit, startedAt, completedAt, totalMs: completed - started };
   if (cli.mode === "fixture") assertFixture({ cost, result: built.result, trace, verifyStores: cli.verifyStores });
-  await Promise.all([writeJson(artifacts.input, profile), writeJson(artifacts.snapshot, snapshot), writeJson(artifacts.fallbackSnapshot, tavilyFallback), writeJson(artifacts.storeSnapshot, storeSnapshot), writeJson(artifacts.daytonaState, daytona.state ?? { version: 1, sessionId: artifacts.runId, processor: "local_node", daytona: daytona.report }), writeJson(artifacts.result, built.result), writeJson(artifacts.trace, trace), writeJson(artifacts.cost, cost)]);
+  await Promise.all([writeJson(artifacts.input, profile), writeJson(artifacts.snapshot, snapshot), writeJson(artifacts.fallbackSnapshot, tavilyFallback), writeJson(artifacts.storeSnapshot, storeSnapshot), writeJson(artifacts.daytonaState, { version: 1, sessionId: artifacts.runId, processor: "local_node", daytona: daytonaReport }), writeJson(artifacts.result, built.result), writeJson(artifacts.trace, trace), writeJson(artifacts.cost, cost)]);
   process.stdout.write(`${JSON.stringify(built.result, null, 2)}\n`);
   console.error(`运行目录：${artifacts.directory}`);
 }

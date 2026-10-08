@@ -15,7 +15,7 @@
 ```
 BROWSER_PROVIDER              = browserless
 BROWSERLESS_WS_ENDPOINT       = wss://production-sfo.browserless.io
-BROWSERLESS_API_TOKEN         = [你的 Browserless Token]
+BROWSERLESS_API_TOKEN         = <set in the deployment environment>
 BROWSER_SESSION_TIMEOUT_SECONDS = 55
 RESEARCH_TIME_BUDGET_SECONDS  = 240
 ```

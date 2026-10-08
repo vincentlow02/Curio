@@ -12,11 +12,7 @@ export const env = {
   get qwenVisionModel() { return process.env.QWEN_VISION_MODEL?.trim() ?? ""; },
   get qwenTextModel() { return process.env.QWEN_TEXT_MODEL?.trim() ?? ""; },
   get tavilyApiKey() { return process.env.TAVILY_API_KEY?.trim(); },
-  get daytonaApiKey() { return process.env.DAYTONA_API_KEY?.trim(); },
-  get daytonaApiUrl() { return process.env.DAYTONA_API_URL?.trim(); },
-  get daytonaTarget() { return process.env.DAYTONA_TARGET?.trim(); },
   get enableTavily() { return process.env.ENABLE_TAVILY_PRICE_FALLBACK !== "false"; },
-  get enableDaytona() { return process.env.ENABLE_DAYTONA_PROCESSING === "true"; },
   get headless() { return process.env.PLAYWRIGHT_HEADLESS !== "false"; },
   get browserProvider() {
     if (process.env.BROWSER_PROVIDER?.trim() === "browserless") return "browserless" as const;
@@ -40,7 +36,7 @@ export function liveReadiness(): Record<string, boolean> {
     qwenBaseUrl: Boolean(env.qwenBaseUrl),
     qwenVisionModel: Boolean(env.qwenVisionModel),
     qwenTextModel: Boolean(env.qwenTextModel),
-    daytona: !env.enableDaytona || Boolean(env.daytonaApiKey),
+    daytona: true, // Retained for backward-compatible health response shape.
     tavily: !env.enableTavily || Boolean(env.tavilyApiKey),
     browser: env.browserProvider === "local" ? process.env.VERCEL !== "1" : Boolean(env.browserlessWsEndpoint && env.browserlessApiToken),
   };

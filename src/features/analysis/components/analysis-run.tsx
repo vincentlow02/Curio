@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { AnalysisSessionView, AnalysisStage } from "../../../core/analysis/types";
+import type { AnalysisStage } from "../../../core/analysis/types";
 import type { CollectibleCategory } from "../../../core/profile/types";
 import { uiCopy, type UiLocale } from "../locales";
 import { loadAnalysisImage } from "../services/history-service";

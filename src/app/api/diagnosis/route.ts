@@ -16,7 +16,7 @@ export async function GET() {
       qwenBaseUrl: env.qwenBaseUrl ? "✅ configured" : "❌ missing",
       qwenVisionModel: env.qwenVisionModel ? "✅ configured" : "❌ missing",
       tavilyApiKey: env.tavilyApiKey ? "✅ configured" : "❌ missing",
-      daytonaApiKey: env.daytonaApiKey ? "✅ configured" : "❌ missing",
+      daytonaApiKey: "not required",
     },
     readiness: liveReadiness(),
   };

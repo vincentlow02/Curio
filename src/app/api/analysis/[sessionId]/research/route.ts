@@ -37,7 +37,6 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
       void (async () => {
         try {
           const workflow = await researchCollectible({
-            runId,
             identification,
             collectorMode: body.collectorMode as boolean,
             collectorEvidence: body.collectorEvidence ?? null,

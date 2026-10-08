@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import type { AnalysisSessionView, ResearchStreamEvent } from "../../../core/analysis/types";
+import type { AnalysisSessionView } from "../../../core/analysis/types";
 import { isSpecificDescription } from "../../../core/profile/input-routing";
 import type { DetectionResult, PokemonCardIdentity } from "../../../core/profile/types";
 import { compressUpload } from "../lib/compress-upload";
-import { uiCopy, type UiLocale } from "../locales";
+import type { UiLocale } from "../locales";
 import { createAnalysisRunLifecycle } from "../lib/analysis-run-lifecycle";
 import { deleteAnalysisImage, saveAnalysisImage } from "../services/history-service";
 import { recognizeCollectible, type RecognitionResponse } from "../services/recognition-service";
