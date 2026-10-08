@@ -24,13 +24,22 @@ function browserStorage(): HistoryStorage | null {
 
 export function loadAnalysisHistory(storage: HistoryStorage | null = browserStorage()): RecentAnalysisRecord[] {
   if (!storage) return [];
+
+  let serialized: string | null;
   try {
-    const stored = JSON.parse(storage.getItem(HISTORY_STORAGE_KEY) ?? "[]") as unknown;
-    return Array.isArray(stored) ? stored.slice(0, MAX_HISTORY_RECORDS) as RecentAnalysisRecord[] : [];
+    serialized = storage.getItem(HISTORY_STORAGE_KEY);
   } catch {
-    storage.removeItem(HISTORY_STORAGE_KEY);
     return [];
   }
+
+  let stored: unknown;
+  try {
+    stored = JSON.parse(serialized ?? "[]") as unknown;
+  } catch {
+    return [];
+  }
+
+  return Array.isArray(stored) ? stored.slice(0, MAX_HISTORY_RECORDS) as RecentAnalysisRecord[] : [];
 }
 
 export function saveAnalysisHistory(

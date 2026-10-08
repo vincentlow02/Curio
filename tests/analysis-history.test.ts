@@ -96,23 +96,25 @@ describe("analysis history persistence", () => {
     expect(loadAnalysisHistory(createStorage({ [HISTORY_STORAGE_KEY]: JSON.stringify({ invalid: true }) }))).toEqual([]);
   });
 
-  it("removes malformed stored JSON while preserving the existing storage key", () => {
+  it("preserves malformed stored JSON so it can be recovered later", () => {
     const storage = createStorage({ [HISTORY_STORAGE_KEY]: "{invalid" });
 
     expect(loadAnalysisHistory(storage)).toEqual([]);
-    expect(storage.removeItem).toHaveBeenCalledWith(HISTORY_STORAGE_KEY);
-    expect(storage.read(HISTORY_STORAGE_KEY)).toBeNull();
+    expect(storage.removeItem).not.toHaveBeenCalled();
+    expect(storage.read(HISTORY_STORAGE_KEY)).toBe("{invalid");
+
+    const recoveredRecord = record("recovered");
+    storage.setItem(HISTORY_STORAGE_KEY, JSON.stringify([recoveredRecord]));
+    expect(loadAnalysisHistory(storage)).toEqual([recoveredRecord]);
   });
 
-  it("clears history after a storage read failure and propagates cleanup failures", () => {
-    const readFailure = createStorage();
+  it("preserves history after a storage read failure", () => {
+    const original = JSON.stringify([record("preserved")]);
+    const readFailure = createStorage({ [HISTORY_STORAGE_KEY]: original });
     readFailure.getItem.mockImplementation(() => { throw new Error("Storage unavailable"); });
     expect(loadAnalysisHistory(readFailure)).toEqual([]);
-    expect(readFailure.removeItem).toHaveBeenCalledWith(HISTORY_STORAGE_KEY);
-
-    const cleanupFailure = createStorage({ [HISTORY_STORAGE_KEY]: "{" });
-    cleanupFailure.removeItem.mockImplementation(() => { throw new Error("Cleanup unavailable"); });
-    expect(() => loadAnalysisHistory(cleanupFailure)).toThrow("Cleanup unavailable");
+    expect(readFailure.removeItem).not.toHaveBeenCalled();
+    expect(readFailure.read(HISTORY_STORAGE_KEY)).toBe(original);
   });
 
   it("prepends new records, updates existing records in place, and persists the same schema", () => {
