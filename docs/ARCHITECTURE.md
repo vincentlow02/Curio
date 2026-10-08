@@ -18,11 +18,21 @@ User browser
             │    ├─ local: Chromium
             │    └─ Vercel: Browserless over CDP
             ├─ deterministic Node.js price calculation
-            ├─ optional Tavily fallback
-            └─ optional Daytona verification
+            └─ optional Tavily fallback
 ```
 
 There is no database, message broker, server-side session store, or production browser binary in Vercel.
+
+## Frontend boundaries
+
+- `src/app/page.tsx` mounts `AnalysisWorkspace`.
+- `analysis-workspace.tsx` owns sidebar and locale settings, and coordinates new runs and history selection.
+- `analysis-run.tsx` composes a single run, previews, history-save integration, and the four Stage components. The Stages are currently flat files in `features/analysis/components/`, not separate nested component libraries.
+- `use-analysis-run.ts` orchestrates API calls; `analysis-run-reducer.ts` initializes state and defines transitions. `isBusy` is derived from Phase rather than maintained as a second independent workflow flag.
+- `use-research-stream.ts` delegates decoding and runtime event validation to `services/research-stream.ts`.
+- `use-analysis-history.ts` manages history selection; `history-service.ts` wraps metadata persistence and the IndexedDB image adapter.
+- `lib/analysis-run-lifecycle.ts` invalidates stale executions, rejects duplicate active research, and aborts client requests when the run is disposed. This does not guarantee immediate cancellation of server-side provider work.
+- Shared contracts live in `core/analysis/types.ts` and `core/profile/types.ts`; feature input/history types live in `features/analysis/types.ts`, and pricing contracts in `price/types.ts`.
 
 ## Request flow
 
@@ -33,7 +43,7 @@ There is no database, message broker, server-side session store, or production b
 5. A source failure becomes a source-specific status. Other completed sources remain usable.
 6. The TypeScript matcher applies identity, condition, duplicate and outlier rules. Qwen never calculates the price.
 7. Tavily runs only when the primary sources produce no valid sample. Its result pages use a second short browser lease only when required.
-8. Daytona can independently verify the normalized calculation. Failure or mismatch never replaces the Node.js result.
+8. Node.js maps the reference range, source samples, auction evidence, warnings, and category-based Tokyo area suggestions into the shared `AnalysisResult` contract. The route emits a terminal NDJSON result event. No external calculation sandbox is used.
 
 ## Browser lifecycle
 
@@ -45,17 +55,16 @@ There is no database, message broker, server-side session store, or production b
 - A lease is limited to 55 seconds and its idempotent `close()` closes the context and connection.
 - Marketplace parsers receive a `BrowserContext`; they do not choose or launch browser infrastructure.
 
-Browserless Free currently bills one unit for each block of up to 30 seconds per browser connection. A primary research uses one connection regardless of whether it opens two or four pages. The expected one-to-two-unit cost is a planning estimate that must be checked against the first ten live runs.
+A primary research uses one browser connection regardless of whether it opens two or four pages. Fallback collection may open a second connection. Provider-side quotas and measured usage, not process-local request counts alone, must be used to control cost.
 
 ## Time budget
 
-The research route declares a 300-second Vercel maximum, matching the current Hobby Fluid Compute limit. The application uses a separate 240-second internal deadline so cleanup and error serialization do not run at the platform boundary. Before publishing a deployment, the effective Function duration must be verified in Vercel because plan limits can change.
+The research route declares a 300-second maximum. The application uses a separate internal deadline with a 240-second default and cap. The effective deployment timeout still needs to be verified in Vercel; the source configuration does not guarantee that a platform or plan permits that duration.
 
 Optional work is skipped safely when the remaining budget is insufficient:
 
 - primary browser lease: at most 55 seconds;
 - Tavily fallback: only when at least 80 seconds remain;
-- Daytona: only when at least 75 seconds remain;
 - final calculation and response retain their own margin.
 
 ## State and trust boundaries
@@ -73,10 +82,10 @@ Optional work is skipped safely when the remaining budget is insufficient:
 
 - Uncertain identification returns `needs_review`.
 - Each marketplace reports its own failure without rejecting the whole primary research phase.
-- A dropped research stream can be retried with the already confirmed identity.
-- Tavily and Daytona failures preserve deterministic Node.js output.
+- An interrupted history record with a saved identity returns to confirmation. Research restarts only after an explicit user action; records without an identity show an error instead of indefinite loading.
+- Tavily failure is reported without fabricating marketplace evidence or prices.
 - Browserless configuration errors are reported explicitly; Vercel never attempts a local browser launch.
-- Browserless quota exhaustion makes live collection unavailable until the quota resets, but fixture mode remains usable.
+- Browserless quota exhaustion makes live collection unavailable until the quota resets, but fixture mode remains usable. Fixture mode returns fixed identification and result data; it is not a live-provider or matcher E2E verification.
 
 ## Why this shape fits the demo
 
