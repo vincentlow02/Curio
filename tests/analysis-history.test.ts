@@ -19,6 +19,7 @@ import {
   loadAnalysisImage,
   loadAnalysisHistory,
   promoteAnalysisHistory,
+  readAnalysisHistory,
   saveAnalysisImage,
   saveAnalysisHistory,
 } from "../src/features/analysis/services/history-service";
@@ -56,9 +57,10 @@ describe("analysis history persistence", () => {
     const storage = createStorage();
     const saved = saveAnalysisHistory([], record("stable-history-id"), storage);
 
-    expect(loadAnalysisHistory(storage)).toEqual(saved);
+    expect(saved.status).toBe("saved");
+    expect(loadAnalysisHistory(storage)).toEqual(saved.records);
     expect(storage.read(HISTORY_STORAGE_KEY)).toBe(JSON.stringify([record("stable-history-id")]));
-    expect(saved[0]?.id).toBe("stable-history-id");
+    expect(saved.records[0]?.id).toBe("stable-history-id");
   });
 
   it("routes image save, load, and delete through the history service", async () => {
@@ -96,6 +98,17 @@ describe("analysis history persistence", () => {
     expect(loadAnalysisHistory(createStorage({ [HISTORY_STORAGE_KEY]: JSON.stringify({ invalid: true }) }))).toEqual([]);
   });
 
+  it("distinguishes an empty history from read failures and invalid stored JSON", () => {
+    expect(readAnalysisHistory(createStorage())).toEqual({ status: "loaded", records: [] });
+    expect(readAnalysisHistory(createStorage({ [HISTORY_STORAGE_KEY]: "{invalid" }))).toEqual({
+      status: "unavailable",
+      reason: "invalid-json",
+    });
+    const storage = createStorage();
+    storage.getItem.mockImplementation(() => { throw new Error("Storage unavailable"); });
+    expect(readAnalysisHistory(storage)).toEqual({ status: "unavailable", reason: "read-failed" });
+  });
+
   it("preserves malformed stored JSON so it can be recovered later", () => {
     const storage = createStorage({ [HISTORY_STORAGE_KEY]: "{invalid" });
 
@@ -117,45 +130,94 @@ describe("analysis history persistence", () => {
     expect(readFailure.read(HISTORY_STORAGE_KEY)).toBe(original);
   });
 
+  it("allows saving a new record when the history storage contains a valid empty list", () => {
+    const storage = createStorage({ [HISTORY_STORAGE_KEY]: "[]" });
+
+    const result = saveAnalysisHistory([], record("first"), storage);
+
+    expect(result).toEqual({ records: [record("first")], status: "saved" });
+    expect(JSON.parse(storage.read(HISTORY_STORAGE_KEY) ?? "null")).toEqual([record("first")]);
+  });
+
+  it("does not overwrite corrupt history when saving a new analysis", () => {
+    const original = "{invalid";
+    const storage = createStorage({ [HISTORY_STORAGE_KEY]: original });
+
+    const result = saveAnalysisHistory([], record("new-analysis"), storage);
+
+    expect(result).toEqual({ records: [], status: "protected" });
+    expect(storage.read(HISTORY_STORAGE_KEY)).toBe(original);
+    expect(storage.setItem).not.toHaveBeenCalled();
+  });
+
+  it("protects a transient read failure and saves from storage after reads recover", () => {
+    const originalRecords = [record("existing")];
+    const original = JSON.stringify(originalRecords);
+    const storage = createStorage({ [HISTORY_STORAGE_KEY]: original });
+    storage.getItem.mockImplementationOnce(() => { throw new Error("Temporary storage failure"); });
+
+    const blocked = saveAnalysisHistory([], record("new"), storage);
+    expect(blocked).toEqual({ records: [], status: "protected" });
+    expect(storage.read(HISTORY_STORAGE_KEY)).toBe(original);
+    expect(storage.setItem).not.toHaveBeenCalled();
+
+    const recovered = saveAnalysisHistory([], record("new"), storage);
+    expect(recovered).toEqual({ records: [record("new"), ...originalRecords], status: "saved" });
+    expect(JSON.parse(storage.read(HISTORY_STORAGE_KEY) ?? "null")).toEqual(recovered.records);
+  });
+
+  it("does not delete history metadata or images when storage cannot be read", () => {
+    const original = "{invalid";
+    const storage = createStorage({ [HISTORY_STORAGE_KEY]: original });
+
+    expect(deleteAnalysisHistory([record("image-record")], "image-record", storage).status).toBe("protected");
+    expect(promoteAnalysisHistory([record("image-record")], "image-record", storage).status).toBe("protected");
+    expect(saveAnalysisHistory([record("image-record")], record("new"), storage).status).toBe("protected");
+    expect(storage.read(HISTORY_STORAGE_KEY)).toBe(original);
+    expect(storage.setItem).not.toHaveBeenCalled();
+    expect(deleteRecentImage).not.toHaveBeenCalled();
+  });
+
   it("prepends new records, updates existing records in place, and persists the same schema", () => {
     const original = [record("a"), record("b")];
-    const storage = createStorage();
+    const storage = createStorage({ [HISTORY_STORAGE_KEY]: JSON.stringify(original) });
 
     const inserted = saveAnalysisHistory(original, record("c"), storage);
-    expect(inserted.map((item) => item.id)).toEqual(["c", "a", "b"]);
+    expect(inserted.records.map((item) => item.id)).toEqual(["c", "a", "b"]);
 
-    const updated = saveAnalysisHistory(inserted, record("a", "Updated"), storage);
-    expect(updated.map((item) => item.id)).toEqual(["c", "a", "b"]);
-    expect(updated[1]?.title).toBe("Updated");
-    expect(JSON.parse(storage.read(HISTORY_STORAGE_KEY) ?? "[]")).toEqual(updated);
+    const updated = saveAnalysisHistory(inserted.records, record("a", "Updated"), storage);
+    expect(updated.records.map((item) => item.id)).toEqual(["c", "a", "b"]);
+    expect(updated.records[1]?.title).toBe("Updated");
+    expect(JSON.parse(storage.read(HISTORY_STORAGE_KEY) ?? "[]")).toEqual(updated.records);
   });
 
   it("caps new history at twelve and deletes image data for records removed by the cap", () => {
     const original = Array.from({ length: 12 }, (_, index) => record(`run-${index}`));
-    const storage = createStorage();
+    const storage = createStorage({ [HISTORY_STORAGE_KEY]: JSON.stringify(original) });
 
     const next = saveAnalysisHistory(original, record("new"), storage);
 
-    expect(next).toHaveLength(12);
-    expect(next[0]?.id).toBe("new");
-    expect(next.at(-1)?.id).toBe("run-10");
+    expect(next.records).toHaveLength(12);
+    expect(next.records[0]?.id).toBe("new");
+    expect(next.records.at(-1)?.id).toBe("run-10");
     expect(deleteRecentImage).toHaveBeenCalledWith("run-11");
   });
 
   it("promotes an existing record without changing its data or adding missing records", () => {
     const current = [record("a"), record("b")];
-    const storage = createStorage();
+    const storage = createStorage({ [HISTORY_STORAGE_KEY]: JSON.stringify(current) });
 
-    expect(promoteAnalysisHistory(current, "b", storage).map((item) => item.id)).toEqual(["b", "a"]);
+    const promoted = promoteAnalysisHistory(current, "b", storage);
+    expect(promoted.records.map((item) => item.id)).toEqual(["b", "a"]);
     expect(JSON.parse(storage.read(HISTORY_STORAGE_KEY) ?? "[]").map((item: RecentAnalysisRecord) => item.id)).toEqual(["b", "a"]);
-    expect(promoteAnalysisHistory(current, "missing", storage)).toBe(current);
+    expect(promoteAnalysisHistory(current, "missing", storage).records).toEqual(promoted.records);
   });
 
   it("deletes one record and its associated image, persisting the remaining list", async () => {
     const current = [record("a"), record("b")];
-    const storage = createStorage();
+    const storage = createStorage({ [HISTORY_STORAGE_KEY]: JSON.stringify(current) });
 
-    expect(deleteAnalysisHistory(current, "a", storage)).toEqual([record("b")]);
+    expect(deleteAnalysisHistory(current, "a", storage).records).toEqual([record("b")]);
     expect(deleteRecentImage).toHaveBeenCalledWith("a");
     await Promise.resolve();
     expect(JSON.parse(storage.read(HISTORY_STORAGE_KEY) ?? "[]")).toEqual([record("b")]);
@@ -173,5 +235,15 @@ describe("analysis history persistence", () => {
     storage.setItem.mockImplementation(() => { throw new Error("Quota exceeded"); });
 
     expect(() => saveAnalysisHistory([], record("a"), storage)).toThrow("Quota exceeded");
+  });
+
+  it("does not delete image data when saving an over-limit history fails", () => {
+    const records = Array.from({ length: 12 }, (_, index) => record(`run-${index}`));
+    const storage = createStorage({ [HISTORY_STORAGE_KEY]: JSON.stringify(records) });
+    storage.setItem.mockImplementation(() => { throw new Error("Quota exceeded"); });
+
+    expect(() => saveAnalysisHistory(records, record("new"), storage)).toThrow("Quota exceeded");
+    expect(deleteRecentImage).not.toHaveBeenCalled();
+    expect(storage.read(HISTORY_STORAGE_KEY)).toBe(JSON.stringify(records));
   });
 });

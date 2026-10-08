@@ -4,36 +4,47 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RecentAnalysisRecord } from "../types";
 import {
   deleteAnalysisHistory,
-  loadAnalysisHistory,
+  readAnalysisHistory,
   promoteAnalysisHistory,
   saveAnalysisHistory,
 } from "../services/history-service";
 
 export function useAnalysisHistory() {
   const [history, setHistory] = useState<RecentAnalysisRecord[]>([]);
+  const [historyLoadStatus, setHistoryLoadStatus] = useState<"loading" | "loaded" | "unavailable">("loading");
   const [selectedHistory, setSelectedHistory] = useState<RecentAnalysisRecord | null>(null);
   const [analysisRunKey, setAnalysisRunKey] = useState(0);
   const historyRef = useRef(history);
 
   useEffect(() => {
-    const loaded = loadAnalysisHistory();
-    historyRef.current = loaded;
-    setHistory(loaded);
+    const result = readAnalysisHistory();
+    setHistoryLoadStatus(result.status);
+    if (result.status === "loaded") {
+      historyRef.current = result.records;
+      setHistory(result.records);
+    }
   }, []);
 
   const updateHistory = useCallback((next: RecentAnalysisRecord[]): void => {
     historyRef.current = next;
     setHistory(next);
+    setHistoryLoadStatus("loaded");
   }, []);
 
   const saveHistory = useCallback((record: RecentAnalysisRecord): void => {
-    const next = saveAnalysisHistory(historyRef.current, record);
-    updateHistory(next);
-    setSelectedHistory(record);
+    const result = saveAnalysisHistory(historyRef.current, record);
+    if (result.status === "saved") {
+      updateHistory(result.records);
+      setSelectedHistory(record);
+    } else {
+      setHistoryLoadStatus("unavailable");
+    }
   }, [updateHistory]);
 
   const promoteHistory = useCallback((id: string): void => {
-    updateHistory(promoteAnalysisHistory(historyRef.current, id));
+    const result = promoteAnalysisHistory(historyRef.current, id);
+    if (result.status === "saved") updateHistory(result.records);
+    else setHistoryLoadStatus("unavailable");
   }, [updateHistory]);
 
   const startNewChat = useCallback((): void => {
@@ -47,7 +58,12 @@ export function useAnalysisHistory() {
   }, []);
 
   const deleteHistory = useCallback((id: string): void => {
-    updateHistory(deleteAnalysisHistory(historyRef.current, id));
+    const result = deleteAnalysisHistory(historyRef.current, id);
+    if (result.status === "protected") {
+      setHistoryLoadStatus("unavailable");
+      return;
+    }
+    updateHistory(result.records);
     if (selectedHistory?.id === id) {
       setSelectedHistory(null);
       setAnalysisRunKey((current) => current + 1);
@@ -56,6 +72,7 @@ export function useAnalysisHistory() {
 
   return {
     history,
+    historyLoadStatus,
     selectedHistory,
     analysisRunKey,
     saveHistory,
