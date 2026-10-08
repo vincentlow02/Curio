@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AnalysisResult, AnalysisSessionView, AnalysisStage, ResearchStreamEvent, ToolActivity } from "../../../core/analysis/types";
 import { isSpecificDescription } from "../../../core/profile/input-routing";
 import { buildPokemonCardSearchKeyword } from "../../../core/profile/pokemon-card";
@@ -10,6 +10,7 @@ import { loadRecentImage, saveRecentImage } from "../storage/recent-image-store"
 import { compressUpload } from "../lib/compress-upload";
 import { recognizeCollectible } from "../services/recognition-service";
 import { startResearch } from "../services/research-service";
+import { useResearchStream } from "../services/research-stream";
 import { InputStage, type PendingInput } from "./input-stage";
 import { RecognitionStage } from "./recognition-stage";
 import { ResearchStage } from "./research-stage";
@@ -23,6 +24,7 @@ const recognitionLoadingDescriptionClass = "!text-[12px] !text-[#777] max-[767px
 const recognitionLoadingDotsClass = "!mt-[3px] !flex !gap-[4px]";
 const recognitionLoadingDotClass = "!h-[5px] !w-[5px] !rounded-full !bg-[#111]";
 const recognitionCardClass = "!relative !w-full !min-h-[202px] !overflow-hidden !border !border-solid !border-[#e6e6e6] !rounded-[14px] !bg-white !p-[15px_21px] !text-black animate-[figma-chat-enter_260ms_cubic-bezier(0.22,1,0.36,1)_both] max-[767px]:!min-h-0 max-[767px]:!overflow-visible max-[767px]:!p-[14px]";
+const researchProgress: Partial<Record<AnalysisStage, number>> = { searching_marketplaces: 45, searching_auctions: 58, searching_fallback: 62, processing_prices: 80, completed: 100, failed: 100 };
 export type RecentAnalysisRecord = {
   id: string;
   title: string;
@@ -87,6 +89,12 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
   const isResearch = status !== null && ["queued_research", "searching_marketplaces", "searching_auctions", "searching_fallback", "processing_prices", "completed"].includes(status);
   const isBusy = creating || researchStarting || (status !== null && ["queued", "identifying", "queued_research", "searching_marketplaces", "searching_auctions", "searching_fallback", "processing_prices"].includes(status));
   const submitActive = Boolean(selectedImage || query.trim());
+  const handleResearchEvent = useCallback((event: ResearchStreamEvent): void => {
+    if (event.type === "stage") setSession((current) => current ? { ...current, status: event.status, progress: researchProgress[event.status] ?? current.progress, message: event.message, toolActivity: event.toolActivity, updatedAt: new Date().toISOString() } : current);
+    if (event.type === "completed") setSession((current) => current ? { ...current, status: "completed", progress: 100, message: "Analysis complete", result: event.result, toolActivity: event.toolActivity, updatedAt: new Date().toISOString(), error: null } : current);
+    if (event.type === "error") throw new Error(event.error);
+  }, []);
+  const readResearchStream = useResearchStream(handleResearchEvent);
 
   useEffect(() => {
     onBusyChange?.(isBusy);
@@ -219,23 +227,7 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
       onHistoryPromote?.(sessionId);
       setSession((current) => current ? { ...current, status: "queued_research", progress: 36, message: "Research started", queuePosition: null, identification: recognitionDraft } : current);
       if (!response.body) throw new Error("The research stream was unavailable.");
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      const progress: Partial<Record<AnalysisStage, number>> = { searching_marketplaces: 45, searching_auctions: 58, searching_fallback: 62, processing_prices: 80, completed: 100, failed: 100 };
-      for (;;) {
-        const chunk = await reader.read();
-        buffer += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines.filter(Boolean)) {
-          const event = JSON.parse(line) as ResearchStreamEvent;
-          if (event.type === "stage") setSession((current) => current ? { ...current, status: event.status, progress: progress[event.status] ?? current.progress, message: event.message, toolActivity: event.toolActivity, updatedAt: new Date().toISOString() } : current);
-          if (event.type === "completed") setSession((current) => current ? { ...current, status: "completed", progress: 100, message: "Analysis complete", result: event.result, toolActivity: event.toolActivity, updatedAt: new Date().toISOString(), error: null } : current);
-          if (event.type === "error") throw new Error(event.error);
-        }
-        if (chunk.done) break;
-      }
+      await readResearchStream(response.body);
       setResearchStarting(false);
     } catch (caught) {
       setResearchStarting(false);
