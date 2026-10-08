@@ -10,6 +10,7 @@ import { uiCopy, type UiLocale } from "../locales";
 import { loadRecentImage, saveRecentImage } from "../storage/recent-image-store";
 import { compressUpload } from "../lib/compress-upload";
 import { RecognitionStage } from "./recognition-stage";
+import { ResearchStage } from "./research-stage";
 import { ResultStage } from "./result-stage";
 
 const categories = [
@@ -17,10 +18,6 @@ const categories = [
   { id: "games", title: "Cards & Game Collectibles" as CollectibleCategory, label: <>Cards &amp; Game<br />Collectibles</>, image: "/figma/category-games.png" },
   { id: "music", title: "Records & Music Collectibles" as CollectibleCategory, label: <>Records &amp; Music<br />Collectibles</>, image: "/figma/category-music.png" },
 ] as const;
-
-const researchSteps = ["searching_marketplaces", "searching_auctions", "searching_fallback", "processing_prices"] as const;
-
-const researchOrder: AnalysisStage[] = ["queued_research", "searching_marketplaces", "searching_auctions", "searching_fallback", "processing_prices", "completed"];
 
 const recognitionAnalyzingCardClass = "!flex !flex-row !items-center !gap-[28px] max-[767px]:!flex-col max-[767px]:!items-start max-[767px]:!gap-[18px]";
 const recognitionLoadingImageClass = "!h-[147px] !w-[147px] !flex-none !rounded-[14px] !bg-[linear-gradient(100deg,#e3e3e3_20%,#f3f3f3_40%,#e3e3e3_60%)] ![background-size:220%_100%] max-[767px]:!h-[112px] max-[767px]:!w-[112px]";
@@ -30,15 +27,6 @@ const recognitionLoadingDescriptionClass = "!text-[12px] !text-[#777] max-[767px
 const recognitionLoadingDotsClass = "!mt-[3px] !flex !gap-[4px]";
 const recognitionLoadingDotClass = "!h-[5px] !w-[5px] !rounded-full !bg-[#111]";
 const recognitionCardClass = "!relative !w-full !min-h-[202px] !overflow-hidden !border !border-solid !border-[#e6e6e6] !rounded-[14px] !bg-white !p-[15px_21px] !text-black animate-[figma-chat-enter_260ms_cubic-bezier(0.22,1,0.36,1)_both] max-[767px]:!min-h-0 max-[767px]:!overflow-visible max-[767px]:!p-[14px]";
-const researchProgressClass = "!w-[680px] !ml-[34px] !px-0 !pt-[18px] !pb-[8px] !text-[#181818] !text-[13px] !font-normal !leading-[1.45] [font-family:var(--font-geist-sans),_Geist,_Arial,sans-serif] max-[767px]:!w-full max-[767px]:!max-w-none max-[767px]:!ml-0 max-[767px]:!pt-[8px]";
-const researchHeadingClass = "flex items-start gap-[12px]";
-const researchSpinnerClass = "h-[17px] w-[17px] flex-none mt-[1px] border-2 border-solid border-[#dedede] border-t-[#111] rounded-full";
-const researchHeadingTitleClass = "block text-[14px] font-semibold";
-const researchHeadingDescriptionClass = "mt-[3px] mb-0 text-[12px] text-[#777]";
-const researchStepsClass = "mt-[17px] mb-0 ml-[8px] border-l border-solid border-[#e3e3e3] border-y-0 border-r-0 pl-[8px] pr-0 pt-0 pb-0 list-none";
-const researchStepClass = "flex min-h-[32px] items-start gap-[10px] text-[#a0a0a0]";
-const researchStepMarkerClass = "grid h-[14px] w-[14px] place-items-center ml-[-15.5px] border border-solid border-[#d7d7d7] rounded-full bg-[#fcfcfc] text-white text-[9px] leading-[1]";
-const researchStepTextClass = "mt-[-2px] mb-0";
 export type RecentAnalysisRecord = {
   id: string;
   title: string;
@@ -62,11 +50,6 @@ type Props = {
 
 type SelectedImage = { file: File; name: string; url: string };
 type PendingInput = { file: File | null; text: string; category: CollectibleCategory | null; collectorMode: boolean };
-
-function stageIndex(status: AnalysisStage): number {
-  const index = researchOrder.indexOf(status);
-  return index < 0 ? 0 : index;
-}
 
 function stageMessage(status: AnalysisStage | null, locale: UiLocale, fallback?: string): string {
   const messages = uiCopy[locale].stages;
@@ -411,10 +394,9 @@ export function AnalysisComposer({ locale = "en", initialHistory = null, onHisto
         />
       ) : null}
 
-      {isResearch && status !== "completed" ? <section className={`figma-agent-process ${researchProgressClass}`}><div className={`figma-agent-process__heading ${researchHeadingClass}`}><span className={`figma-agent-process__spinner ${researchSpinnerClass}`} /><div><strong className={researchHeadingTitleClass}>{stageMessage(status, locale, session?.message)}</strong><p className={researchHeadingDescriptionClass}>{copy.liveSourcesDetail}</p></div></div><ol className={researchStepsClass}>{researchSteps.filter((step) => collectorMode || step !== "searching_auctions").map((step) => {
-        const current = stageIndex(status!); const stepPosition = stageIndex(step); const state = current > stepPosition ? "complete" : current === stepPosition ? "active" : "pending";
-        return <li className={`${state} ${researchStepClass}`} key={step}><span className={researchStepMarkerClass}>{state === "complete" ? "✓" : ""}</span><p className={researchStepTextClass}>{copy.researchSteps[step]}</p></li>;
-      })}</ol></section> : null}
+      {isResearch && status !== "completed" ? (
+        <ResearchStage status={status} message={stageMessage(status, locale, session?.message)} locale={locale} collectorMode={collectorMode} />
+      ) : null}
 
       {status === "completed" && result ? <>
         <ResultStage result={result} activities={activities} locale={locale} />
