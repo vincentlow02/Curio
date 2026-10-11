@@ -9,7 +9,7 @@ import { coordinateMarketplaceSearches } from "../providers/marketplaces/coordin
 import { selectMarketplaceProviders } from "../providers/marketplaces/selector";
 import { disabledStoreSnapshot } from "../../price/store-verifier";
 import { captureTavilyPriceFallback, disabledTavilyFallback } from "../../price/tavily-price-fallback";
-import type { SearchSnapshot } from "../../price/types";
+import type { MarketplaceSource, SearchSnapshot } from "../../price/types";
 import { browserProvider, type BrowserLease } from "../browser/browser-provider";
 import { env } from "../config/env";
 import { captureAuctionSearches, skippedAuctionSources } from "../providers/auctions/capture-auctions";
@@ -100,9 +100,9 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
     const profile = toPriceItemProfile(input.identification);
     const marketplaceProviders = selectMarketplaceProviders(profile);
     let marketplacePagesOpened = 0;
-    for (const source of ["Rakuten", "Mercari"] as const) {
+    for (const source of ["Rakuten", "Mercari", "Yahoo! Shopping"] as const) {
       setActivity(marketplaceProviders.some((provider) => provider.source === source)
-        ? { provider: source, status: "running", calls: 1, durationMs: null }
+        ? { provider: source, status: "running", calls: 0, durationMs: null }
         : { provider: source, status: "skipped", calls: 0, durationMs: 0, resultCount: 0, validResultCount: 0 });
     }
     if (input.collectorMode) {
@@ -117,7 +117,8 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
     throwIfAborted(workflowSignal);
     const browserStarted = Date.now();
     let snapshot: SearchSnapshot;
-    let marketplaceDurationsMs: Partial<Record<"Rakuten" | "Mercari", number>> = {};
+    let marketplaceDurationsMs: Partial<Record<MarketplaceSource, number>> = {};
+    let marketplaceCallsBySource: Partial<Record<MarketplaceSource, number>> = {};
     let auctionSources = skippedAuctionSources();
     try {
       const marketplaceSearch = coordinateMarketplaceSearches({
@@ -138,6 +139,7 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
       if (market?.status === "fulfilled") {
         snapshot = market.value.snapshot;
         marketplaceDurationsMs = market.value.durationMsBySource;
+        marketplaceCallsBySource = market.value.callsBySource;
       } else {
         snapshot = emptySnapshot(input.identification.priceSearchKeywordJa, market?.status === "rejected" ? publicError(market.reason) : "Marketplace search failed.");
       }
@@ -148,7 +150,7 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
       snapshot = emptySnapshot(input.identification.priceSearchKeywordJa, publicError(error, "The browser provider was unavailable."));
       if (input.collectorMode) auctionSources = (["Yahoo Auctions", "Mandarake Auction"] as const).map((source) => ({ source, status: "failed" as const, candidatesSeen: 0, comparableSignals: 0, signals: [] }));
     }
-    for (const source of snapshot.sources) setActivity({ provider: source.source, status: source.error ? "failed" : "succeeded", calls: 1, durationMs: marketplaceDurationsMs[source.source] ?? Date.now() - browserStarted, resultCount: source.candidates.length, cacheHit: false });
+    for (const source of snapshot.sources) setActivity({ provider: source.source, status: source.error ? "failed" : "succeeded", calls: marketplaceCallsBySource[source.source] ?? 0, durationMs: marketplaceDurationsMs[source.source] ?? Date.now() - browserStarted, resultCount: source.candidates.length, cacheHit: false });
     for (const source of auctionSources) setActivity({ provider: source.source, status: source.status === "failed" ? "failed" : source.status === "skipped" ? "skipped" : "succeeded", calls: source.status === "skipped" ? 0 : 1, durationMs: source.status === "skipped" ? 0 : Date.now() - browserStarted, resultCount: source.candidatesSeen, validResultCount: source.comparableSignals, cacheHit: false });
 
     let fallback = disabledTavilyFallback(profile);
@@ -166,7 +168,7 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
       nodeCalculationMs += Date.now() - nodeStarted;
     } else setActivity({ provider: "Tavily", status: "skipped", calls: 0, durationMs: 0, resultCount: 0 });
 
-    for (const provider of ["Rakuten", "Mercari", "Tavily"] as const) {
+    for (const provider of ["Rakuten", "Mercari", "Yahoo! Shopping", "Tavily"] as const) {
       const current = activities.find((entry) => entry.provider === provider);
       if (current) setActivity({ ...current, validResultCount: built.result.samples.filter((sample) => sample.source === (provider === "Tavily" ? "Web fallback" : provider)).length });
     }

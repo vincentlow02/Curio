@@ -54,6 +54,7 @@ export const rakutenBrowserProvider: BrowserMarketplaceProvider = {
       searchUrl: buildRakutenSearchUrl(args.keyword),
       maxCards: args.maxCards,
       ...(args.onPageOpened ? { onPageOpened: args.onPageOpened } : {}),
+      ...(args.onRequest ? { onRequest: args.onRequest } : {}),
       capture: captureRakuten,
     });
   },

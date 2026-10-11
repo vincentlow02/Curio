@@ -70,3 +70,23 @@ export function identityMatches(profile: ItemProfile, text: string): boolean {
   const candidates = terms([profile.itemName, profile.brandCharacterSeries, ...profile.searchKeywordsJa]);
   return candidates.some((term) => normalized.includes(term));
 }
+
+export type IdentityMatchStatus = "match" | "unknown" | "conflict";
+
+export function classifyIdentityMatch(profile: ItemProfile, text: string): IdentityMatchStatus {
+  if (profile.pokemonCard) {
+    const match = matchPokemonCardIdentity(profile.pokemonCard, text);
+    return match === "exact" ? "match" : match === "ambiguous" ? "unknown" : "conflict";
+  }
+
+  const expectedModels = `${profile.itemName} ${profile.versionOrPeriod} ${profile.priceSearchKeywordJa}`
+    .normalize("NFKC")
+    .match(/[A-Za-z]{2,}[\s-]?\d{2,}/g)
+    ?.map(normalizeIdentity) ?? [];
+  if (!expectedModels.length) return identityMatches(profile, text) ? "match" : "conflict";
+
+  const normalized = normalizeIdentity(text);
+  if ([...new Set(expectedModels)].every((model) => normalized.includes(model))) return "match";
+  const observedModels = text.normalize("NFKC").match(/[A-Za-z]{2,}[\s-]?\d{2,}/g) ?? [];
+  return observedModels.length ? "conflict" : "unknown";
+}

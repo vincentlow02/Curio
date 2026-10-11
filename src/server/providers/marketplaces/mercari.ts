@@ -63,6 +63,7 @@ export const mercariProvider: BrowserMarketplaceProvider = {
       searchUrl: buildMercariSearchUrl(args.keyword),
       maxCards: args.maxCards,
       ...(args.onPageOpened ? { onPageOpened: args.onPageOpened } : {}),
+      ...(args.onRequest ? { onRequest: args.onRequest } : {}),
       capture: captureMercari,
     });
   },

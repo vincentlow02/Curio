@@ -14,7 +14,7 @@ export type AnalysisStage =
   | "failed";
 
 export type ToolActivity = {
-  provider: "Qwen" | "Rakuten" | "Mercari" | "Yahoo Auctions" | "Mandarake Auction" | "Tavily" | "Node" | "Daytona";
+  provider: "Qwen" | "Rakuten" | "Mercari" | "Yahoo! Shopping" | "Yahoo Auctions" | "Mandarake Auction" | "Tavily" | "Node" | "Daytona";
   status: "pending" | "running" | "succeeded" | "failed" | "skipped" | "fallback";
   calls: number;
   durationMs: number | null;
@@ -37,7 +37,7 @@ type PublicPriceSample = {
   title: string;
   price: number;
   currency: "JPY";
-  source: "Rakuten" | "Mercari" | "Web fallback";
+  source: "Rakuten" | "Mercari" | "Yahoo! Shopping" | "Web fallback";
   url: string;
   condition: "used" | "new" | "unknown";
   versionMatch: "exact" | "similar";

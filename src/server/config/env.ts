@@ -16,6 +16,8 @@ export const env = {
   get rakutenOfficialApiEnabled() { return process.env.RAKUTEN_OFFICIAL_API_ENABLED === "true"; },
   get rakutenApplicationId() { return process.env.RAKUTEN_APPLICATION_ID?.trim() ?? ""; },
   get rakutenAccessKey() { return process.env.RAKUTEN_ACCESS_KEY?.trim() ?? ""; },
+  get yahooShoppingApiEnabled() { return process.env.YAHOO_SHOPPING_API_ENABLED === "true"; },
+  get yahooShoppingAppId() { return process.env.YAHOO_SHOPPING_APP_ID?.trim() ?? ""; },
   get headless() { return process.env.PLAYWRIGHT_HEADLESS !== "false"; },
   get browserProvider() {
     if (process.env.BROWSER_PROVIDER?.trim() === "browserless") return "browserless" as const;

@@ -2,9 +2,11 @@ import type { ItemProfile } from "../../../price/item-profile";
 import type { MarketplaceSource, SearchSnapshot } from "../../../price/types";
 
 export type MarketplaceSearchInput = {
+  profile: ItemProfile;
   keyword: string;
   maxCards: number;
   signal?: AbortSignal;
+  onRequest?: () => void;
 };
 
 export type MarketplaceProviderBase = {

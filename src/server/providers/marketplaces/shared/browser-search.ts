@@ -15,12 +15,14 @@ export async function captureBrowserSearch(args: {
   searchUrl: string;
   maxCards: number;
   onPageOpened?: () => void;
+  onRequest?: () => void;
   capture(page: Page, maxCards: number): Promise<RakutenListingCandidate[]>;
 }): Promise<SearchSnapshot["sources"][number]> {
   let page: Page | null = null;
   try {
     page = await args.context.newPage();
     args.onPageOpened?.();
+    args.onRequest?.();
     await page.goto(args.searchUrl, { waitUntil: "domcontentloaded", timeout: 40_000 });
     const candidates = await args.capture(page, args.maxCards);
     return { source: args.source, keyword: args.keyword, searchUrl: args.searchUrl, error: null, candidates };

@@ -42,6 +42,7 @@ export class RakutenApiError extends Error {
 type FetchRakutenItemsOptions = {
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
+  onRequest?: () => void;
   rateLimit?: (signal?: AbortSignal) => Promise<void>;
 };
 
@@ -130,6 +131,7 @@ export async function fetchRakutenItems(
 
   const rateLimit = options.rateLimit ?? waitForRateLimit;
   await rateLimit(options.signal);
+  options.onRequest?.();
   const timeoutSignal = AbortSignal.timeout(RAKUTEN_API_TIMEOUT_MS);
   const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
   let response: Response;

@@ -1,5 +1,5 @@
 import type { ItemProfile } from "./item-profile";
-import { identityMatches } from "./identity";
+import { classifyIdentityMatch, identityMatches } from "./identity";
 import { matchPokemonCardIdentity } from "../core/profile/pokemon-card";
 import { buildStoreSearchUrl } from "./store-verifier";
 import type {
@@ -19,7 +19,6 @@ const NEW_ITEM = /新品|未使用|未開封/i;
 const INCOMPLETE = /裏蓋なし|背面蓋なし|欠品|電池なし|バッテリーなし/i;
 const ACCESSORY_OR_SOFTWARE = /ソフトのみ|ゲームソフト|UMD|ケースのみ|充電器のみ|バッテリーのみ|液晶|交換部品|パーツ|保護カバー|収納ケース/i;
 const BUNDLE = /まとめ売り|まとめて|\d+台セット|本体セット|すぐ(?:に)?遊べるセット|ソフト.*セット|バリュー[・\s-]?パック|ソフトプレゼント|カセット|ソフト\s*\d+本|充電器.*ケース付き|メモリースティック付|モンハンセット/i;
-
 function normalize(value: string): string {
   return value.normalize("NFKC").toUpperCase().replace(/[^A-Z0-9一-龠ぁ-んァ-ヶ]/g, "");
 }
@@ -102,9 +101,13 @@ export function buildPriceResult(args: {
         const cardMatch = matchPokemonCardIdentity(args.profile.pokemonCard, combined);
         if (cardMatch === "ambiguous") reason = "unconfirmed_card_identity";
         else if (cardMatch === "different") reason = "different_model";
-      } else if (!identityMatches(args.profile, combined)) reason = "different_model";
-      else if (BUNDLE.test(candidate.title)) reason = "bundle_or_lot";
-      else if (candidate.source === "Rakuten" && !/中古|USED/i.test(candidate.title)) reason = "new_item";
+      } else {
+        const identityStatus = classifyIdentityMatch(args.profile, combined);
+        if (identityStatus === "unknown") reason = "unconfirmed_model";
+        else if (identityStatus === "conflict" && !identityMatches(args.profile, combined)) reason = "different_model";
+      }
+      if (!reason && BUNDLE.test(candidate.title)) reason = "bundle_or_lot";
+      if (!reason && candidate.source === "Rakuten" && !/中古|USED/i.test(candidate.title)) reason = "new_item";
       const dedupeKey = `${normalize(candidate.title)}|${candidate.displayedPrice ?? ""}`;
       if (!reason && seen.has(dedupeKey)) reason = "duplicate";
       if (!reason && sourceSamples.length >= args.maxSamplesPerSource) reason = "sample_limit";
@@ -135,7 +138,7 @@ export function buildPriceResult(args: {
   markAggregation(samples);
   const referenceSamples = samples.filter((sample) => sample.includedInReferenceRange);
   const warnings: string[] = [];
-  for (const source of ["Rakuten", "Mercari"] as const) {
+  for (const source of ["Rakuten", "Mercari", "Yahoo! Shopping"] as const) {
     const count = samples.filter((sample) => sample.source === source).length;
     const sourceError = args.snapshot.sources.find((entry) => entry.source === source)?.error;
     if (sourceError) warnings.push(`${source} search page could not be read: ${sourceError}`);
@@ -169,7 +172,7 @@ export function buildPriceResult(args: {
       samples,
       observedRange: { currency: "JPY", min: prices.length ? Math.min(...prices) : null, max: prices.length ? Math.max(...prices) : null, sampleCount: prices.length },
       referenceRange: { currency: "JPY", ...numericRange(referenceSamples), label: "Online asking-price reference", method: "median_absolute_deviation" },
-      referenceRangeBySource: (["Rakuten", "Mercari", ...(args.tavilyFallback.triggered ? ["Web fallback" as const] : [])] as PriceSource[]).map((source) => ({ source, ...numericRange(referenceSamples.filter((sample) => sample.source === source)) })),
+      referenceRangeBySource: (["Rakuten", "Mercari", "Yahoo! Shopping", ...(args.tavilyFallback.triggered ? ["Web fallback" as const] : [])] as PriceSource[]).map((source) => ({ source, ...numericRange(referenceSamples.filter((sample) => sample.source === source)) })),
       conditionRanges: (["used", "new", "unknown"] as const)
         .map((condition) => ({ condition, ...numericRange(samples.filter((sample) => sample.condition === condition && (condition !== "used" || sample.includedInReferenceRange))) }))
         .filter((entry) => entry.sampleCount > 0),

@@ -36,10 +36,13 @@ export function mapRakutenItems(items: unknown[], maxCards = 30): RakutenListing
   return candidates;
 }
 
-async function searchRakutenApi(args: { keyword: string; maxCards: number; signal?: AbortSignal }): Promise<SearchSnapshot["sources"][number]> {
+async function searchRakutenApi(args: { keyword: string; maxCards: number; signal?: AbortSignal; onRequest?: () => void }): Promise<SearchSnapshot["sources"][number]> {
   const keyword = buildMarketplaceKeyword(args.keyword);
   try {
-    const response = await fetchRakutenItems(keyword, args.signal ? { signal: args.signal } : {});
+    const response = await fetchRakutenItems(keyword, {
+      ...(args.signal ? { signal: args.signal } : {}),
+      ...(args.onRequest ? { onRequest: args.onRequest } : {}),
+    });
     return {
       source: "Rakuten",
       keyword,

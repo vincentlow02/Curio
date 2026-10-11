@@ -16,7 +16,7 @@ describe("marketplace provider registry", () => {
 
     expect(selectMarketplaceProviders(profile).map((provider) => provider.source)).toEqual(["Rakuten", "Mercari"]);
     expect(marketplaceRegistry.filter((entry) => entry.status === "disabled").map((entry) => entry.id)).toEqual([
-      "Yahoo!フリマ", "Rakuma", "Surugaya", "BOOKOFF", "HARD OFF", "2nd STREET", "Yahoo! Auctions", "Mandarake",
+      "Yahoo! Shopping", "Yahoo!フリマ", "Rakuma", "Surugaya", "BOOKOFF", "HARD OFF", "2nd STREET", "Yahoo! Auctions", "Mandarake",
     ]);
   });
 

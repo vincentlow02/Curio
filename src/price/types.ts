@@ -1,5 +1,5 @@
 export type RunMode = "fixture" | "live" | "replay";
-export type MarketplaceSource = "Rakuten" | "Mercari";
+export type MarketplaceSource = "Rakuten" | "Mercari" | "Yahoo! Shopping";
 export type PriceSource = MarketplaceSource | "Web fallback";
 
 export type RakutenListingCandidate = {
@@ -10,6 +10,7 @@ export type RakutenListingCandidate = {
   url: string;
   shopName: string;
   availabilityText: string;
+  listingCondition?: "used" | "new" | "unknown";
 };
 
 export type TavilyFallbackSnapshot = {
@@ -49,6 +50,7 @@ export type ExclusionReason =
   | "missing_price"
   | "sold_out"
   | "out_of_stock"
+  | "unconfirmed_model"
   | "junk_or_broken"
   | "new_item"
   | "incomplete_item"

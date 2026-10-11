@@ -7,6 +7,7 @@ import { selectMarketplaceProviders } from "./selector";
 export type CoordinatedMarketplaceSearch = {
   snapshot: SearchSnapshot;
   durationMsBySource: Partial<Record<MarketplaceSource, number>>;
+  callsBySource: Partial<Record<MarketplaceSource, number>>;
 };
 
 export async function coordinateMarketplaceSearches(args: {
@@ -19,6 +20,7 @@ export async function coordinateMarketplaceSearches(args: {
 }): Promise<CoordinatedMarketplaceSearch> {
   const providers = selectMarketplaceProviders(args.profile);
   const input = {
+    profile: args.profile,
     keyword: args.keyword,
     maxCards: args.maxCardsPerSource,
     ...(args.signal ? { signal: args.signal } : {}),
@@ -27,20 +29,25 @@ export async function coordinateMarketplaceSearches(args: {
   const browserContextResult = browserProviders.length && args.getBrowserContext
     ? Promise.resolve().then(() => args.getBrowserContext!()).then((context) => ({ context }), (error: unknown) => ({ error }))
     : null;
+  const callsBySource: Partial<Record<MarketplaceSource, number>> = {};
   const settled = await Promise.all(providers.map((provider) => {
     const startedAt = performance.now();
+    const providerInput = {
+      ...input,
+      onRequest: () => { callsBySource[provider.source] = (callsBySource[provider.source] ?? 0) + 1; },
+    };
     const search = Promise.resolve().then(() => provider.runtime === "browser"
       ? browserContextResult
         ? browserContextResult.then((result) => {
             if ("error" in result) throw result.error;
             return provider.searchWithBrowser({
-              ...input,
+              ...providerInput,
               context: result.context,
               ...(args.onBrowserPageOpened ? { onPageOpened: args.onBrowserPageOpened } : {}),
             });
           })
         : Promise.reject(new Error("A browser context is required by this Marketplace provider."))
-      : provider.search(input));
+      : provider.search(providerInput));
     const durationMs = (): number => Math.max(0, Math.round(performance.now() - startedAt));
     return search.then(
       (value) => ({ status: "fulfilled" as const, value, durationMs: durationMs() }),
@@ -60,5 +67,5 @@ export async function coordinateMarketplaceSearches(args: {
       candidates: [],
     };
   });
-  return { snapshot: { version: 2, capturedAt: new Date().toISOString(), sources }, durationMsBySource };
+  return { snapshot: { version: 2, capturedAt: new Date().toISOString(), sources }, durationMsBySource, callsBySource };
 }
