@@ -34,9 +34,18 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
   }
 
   const encoder = new TextEncoder();
+  const workflowAbort = new AbortController();
+  const abortFromRequest = (): void => workflowAbort.abort(request.signal.reason);
+  if (request.signal.aborted) abortFromRequest();
+  else request.signal.addEventListener("abort", abortFromRequest, { once: true });
+  let streamCanceled = false;
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const send = (event: ResearchStreamEvent): void => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      const send = (event: ResearchStreamEvent): void => {
+        if (workflowAbort.signal.aborted) return;
+        try { controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`)); }
+        catch (error) { streamCanceled = true; workflowAbort.abort(error); }
+      };
       void (async () => {
         try {
           const workflow = await researchCollectible({
@@ -44,15 +53,23 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
             collectorMode: body.collectorMode as boolean,
             collectorEvidence: body.collectorEvidence ?? null,
             qwenActivity: body.qwenActivity?.provider === "Qwen" ? body.qwenActivity : null,
+            signal: workflowAbort.signal,
             onStage: (event) => send({ type: "stage", ...event }),
           });
           send({ type: "completed", status: "completed", ...workflow });
         } catch (error) {
           send({ type: "error", status: "failed", error: publicError(error, "The research providers were unavailable.") });
         } finally {
-          controller.close();
+          request.signal.removeEventListener("abort", abortFromRequest);
+          if (!streamCanceled) {
+            try { controller.close(); } catch { /* The stream may have been canceled while research was settling. */ }
+          }
         }
       })();
+    },
+    cancel(reason) {
+      streamCanceled = true;
+      if (!workflowAbort.signal.aborted) workflowAbort.abort(reason);
     },
   });
   return new Response(stream, { status: 200, headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store, no-transform", "X-Content-Type-Options": "nosniff" } });

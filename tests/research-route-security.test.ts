@@ -82,4 +82,24 @@ describe("research route cost protection", () => {
     expect((await POST(researchRequest("203.0.113.23"), context)).status).toBe(429);
     expect(researchCollectible).toHaveBeenCalledTimes(2);
   });
+
+  it("aborts the research workflow when the NDJSON reader cancels", async () => {
+    let workflowSignal: AbortSignal | undefined;
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => { markStarted = resolve; });
+    const session = fixtureSession("success");
+    vi.mocked(researchCollectible).mockImplementation(async ({ signal }) => {
+      workflowSignal = signal;
+      markStarted();
+      await new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve(), { once: true }));
+      return { result: session.result!, toolActivity: session.toolActivity };
+    });
+
+    const response = await POST(researchRequest(), context);
+    const reader = response.body!.getReader();
+    await started;
+    await reader.cancel("client disconnected");
+
+    expect(workflowSignal?.aborted).toBe(true);
+  });
 });

@@ -13,6 +13,9 @@ export const env = {
   get qwenTextModel() { return process.env.QWEN_TEXT_MODEL?.trim() ?? ""; },
   get tavilyApiKey() { return process.env.TAVILY_API_KEY?.trim(); },
   get enableTavily() { return process.env.ENABLE_TAVILY_PRICE_FALLBACK !== "false"; },
+  get rakutenOfficialApiEnabled() { return process.env.RAKUTEN_OFFICIAL_API_ENABLED === "true"; },
+  get rakutenApplicationId() { return process.env.RAKUTEN_APPLICATION_ID?.trim() ?? ""; },
+  get rakutenAccessKey() { return process.env.RAKUTEN_ACCESS_KEY?.trim() ?? ""; },
   get headless() { return process.env.PLAYWRIGHT_HEADLESS !== "false"; },
   get browserProvider() {
     if (process.env.BROWSER_PROVIDER?.trim() === "browserless") return "browserless" as const;

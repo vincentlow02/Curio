@@ -38,4 +38,19 @@ describe("browser provider", () => {
     expect(closeContext).toHaveBeenCalledTimes(1);
     expect(closeBrowser).toHaveBeenCalledTimes(1);
   });
+
+  it("closes the Browser connection if creating its context fails", async () => {
+    process.env.VERCEL = "1";
+    process.env.BROWSER_PROVIDER = "browserless";
+    process.env.BROWSERLESS_WS_ENDPOINT = "wss://production-sfo.browserless.io";
+    process.env.BROWSERLESS_API_TOKEN = "test-token";
+    const closeBrowser = vi.fn().mockResolvedValue(undefined);
+    const browser = { newContext: vi.fn().mockRejectedValue(new Error("Context creation failed")), close: closeBrowser };
+    mocks.connectOverCDP.mockResolvedValue(browser);
+    const { createBrowserProvider } = await import("../src/server/browser/browser-provider");
+
+    await expect(createBrowserProvider().open()).rejects.toThrow("Context creation failed");
+
+    expect(closeBrowser).toHaveBeenCalledOnce();
+  });
 });

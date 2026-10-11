@@ -35,6 +35,16 @@ async function lease(browser: Browser, context: BrowserContext, timeoutMs: numbe
   return { browser, context, close };
 }
 
+async function openLease(browser: Browser, locale: string, timeoutMs: number): Promise<BrowserLease> {
+  try {
+    const context = await browser.newContext({ locale });
+    return lease(browser, context, timeoutMs);
+  } catch (error) {
+    await browser.close().catch(() => undefined);
+    throw error;
+  }
+}
+
 export function createBrowserProvider(): BrowserProvider {
   return {
     async open(options = {}): Promise<BrowserLease> {
@@ -45,15 +55,13 @@ export function createBrowserProvider(): BrowserProvider {
           throw new Error("Browserless is not configured for the production browser provider.");
         }
         const browser = await chromium.connectOverCDP(browserlessUrl(env.browserlessWsEndpoint, env.browserlessApiToken), { timeout: 10_000 });
-        const context = await browser.newContext({ locale });
-        return lease(browser, context, timeoutMs);
+        return openLease(browser, locale, timeoutMs);
       }
       if (process.env.VERCEL === "1") {
         throw new Error("Local Chromium is disabled on Vercel. Configure Browserless instead.");
       }
       const browser = await chromium.launch({ headless: env.headless });
-      const context = await browser.newContext({ locale });
-      return lease(browser, context, timeoutMs);
+      return openLease(browser, locale, timeoutMs);
     },
   };
 }

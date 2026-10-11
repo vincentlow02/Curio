@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { assertDetectionResult, COLLECTIBLE_CATEGORIES, detectionReviewReason } from "../src/core/profile/types";
 import { assertSafeRecommendations, FORBIDDEN_INVENTORY, recommendAreas, verifiedStoreSuggestions } from "../src/core/recommendation/recommend";
 import { identityMatches } from "../src/price/identity";
-import { buildMarketplaceKeyword, buildMercariKeyword } from "../src/price/marketplace-browser";
+import { buildMarketplaceKeyword } from "../src/server/providers/marketplaces/shared/keyword";
+import { buildMercariKeyword } from "../src/server/providers/marketplaces/mercari";
 import { buildTavilyPriceQuery } from "../src/price/tavily-price-fallback";
 import { STORE_DISCLAIMER, type ItemProfile } from "../src/price/item-profile";
 

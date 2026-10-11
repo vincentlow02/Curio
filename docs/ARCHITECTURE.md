@@ -29,23 +29,28 @@ There is no database, message broker, server-side session store, or production b
 1. `POST /api/analysis` validates the text and optional image. Images are bounded to 4 MB after client-side compression. Qwen returns a structured identity and optional Collector Mode evidence in the same request.
 2. The user reviews and can edit the identity.
 3. `POST /api/analysis/{runId}/research` receives the confirmed identity and emits NDJSON stage events until it returns the result.
-4. One browser lease creates one context. Rakuten and Mercari use separate pages; Collector Mode adds separate Yahoo! Auctions and Mandarake pages. All requested primary pages run concurrently through `Promise.allSettled()`.
-5. A source failure becomes a source-specific status. Other completed sources remain usable.
-6. The TypeScript matcher applies identity, condition, duplicate and outlier rules. Qwen never calculates the price.
-7. Tavily runs only when the primary sources produce no valid sample. Its result pages use a second short browser lease only when required.
-8. Daytona can independently verify the normalized calculation. Failure or mismatch never replaces the Node.js result.
+4. The Marketplace selector chooses enabled providers from the registry using the confirmed item profile. Rakuten uses the official Item Search API only when `RAKUTEN_OFFICIAL_API_ENABLED=true`; otherwise the preserved Rakuten Browser Provider remains selected. HTTP providers run without a Browser lease; the research workflow opens one lease lazily only when a selected provider or Collector Mode needs a Browser. Rakuten Browser, Mercari, and Collector Auctions share that lease.
+5. Each Marketplace provider owns its search URL and site-specific DOM parsing. Browser providers use shared helpers for page navigation, per-source errors, and cleanup; HTTP providers receive only keyword, limits, and an optional abort signal. A source failure becomes a source-specific status; other completed sources remain usable.
+6. Enabled Marketplace providers return the existing `SearchSnapshot` and candidate shape. The TypeScript matcher applies identity, condition, duplicate and outlier rules, and the pricing path is unchanged. Qwen never calculates the price.
+7. Other planned marketplaces are registered as disabled and are not queried. An API request failure is reported for Rakuten and never starts the Browser implementation as an automatic fallback; setting the feature flag to `false` explicitly selects the preserved Browser Provider.
+8. Tavily runs only when the primary sources produce no valid sample. Its API search is HTTP-only; if result pages need inspection, it requests the workflow's shared Browser context lazily.
+9. Daytona can independently verify the normalized calculation. Failure or mismatch never replaces the Node.js result.
 
 ## Browser lifecycle
 
-`src/server/browser/browser-provider.ts` is the only infrastructure-aware browser module.
+`src/server/browser/browser-provider.ts` is the only infrastructure-aware browser module. The research workflow owns one lazy lease accessor and closes the lease on completion, failure, cancellation, or deadline. The Marketplace coordinator requests a context only for Browser-backed providers; HTTP providers do not depend on Playwright.
 
 - Local mode calls `chromium.launch()`.
 - Browserless mode calls `chromium.connectOverCDP()`.
 - Vercel refuses to fall back to local Chromium.
 - A lease is limited to 55 seconds and its idempotent `close()` closes the context and connection.
-- Marketplace parsers receive a `BrowserContext`; they do not choose or launch browser infrastructure.
+- Browser Marketplace providers receive a `BrowserContext`; shared browser-search helpers create and close their pages. HTTP Marketplace providers have no Browser context in their contract.
+- `src/server/providers/marketplaces/registry.ts` lists enabled and disabled marketplace registrations. `selector.ts` filters enabled providers, and `coordinator.ts` returns the existing `SearchSnapshot` contract.
+- `src/server/providers/marketplaces/rakuten-api-client.ts` performs the server-only Rakuten API request. `rakuten.ts` maps V2 items into the existing candidate contract; `rakuten-browser.ts` retains the previous DOM scraper for explicit rollback. The API flag defaults off, and credentials are read only in server modules.
+- Rakuten requests are serialized to at most one per second inside one Node.js process, with no automatic retry and `Retry-After` cooldown after 429. This does not enforce the limit across serverless instances; API production activation remains blocked until cross-instance rate limiting and usage permission are confirmed.
+- Collector Auctions use the same lazy lease. Tavily result inspection uses it only if usable result pages are returned. Store verification is currently disabled in the research workflow; its standalone helper still owns a separate lease if called directly.
 
-Browserless Free currently bills one unit for each block of up to 30 seconds per browser connection. A primary research uses one connection regardless of whether it opens two or four pages. The expected one-to-two-unit cost is a planning estimate that must be checked against the first ten live runs.
+Browserless Free currently bills one unit for each block of up to 30 seconds per browser connection. A primary research uses at most one shared connection for Marketplace and Collector pages; Tavily inspection reuses it rather than opening another connection. Actual usage still depends on whether a Browser-backed provider or fallback page inspection runs.
 
 ## Time budget
 

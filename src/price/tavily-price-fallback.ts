@@ -3,10 +3,9 @@ import { isIP } from "node:net";
 import type { BrowserContext, Page } from "playwright-core";
 
 import type { ItemProfile } from "./item-profile";
-import { buildMarketplaceKeyword } from "./marketplace-browser";
+import { buildMarketplaceKeyword } from "../server/providers/marketplaces/shared/keyword";
 import { identityMatches } from "./identity";
 import type { TavilyFallbackSnapshot } from "./types";
-import { browserProvider } from "../server/browser/browser-provider";
 
 type TavilyResponse = {
   results?: Array<{ title?: string; url?: string; content?: string; score?: number }>;
@@ -70,7 +69,7 @@ export function disabledTavilyFallback(profile: ItemProfile): TavilyFallbackSnap
   return { version: 1, provider: "Tavily", triggered: false, query: buildTavilyPriceQuery(profile), searchUrl: "https://api.tavily.com/search", capturedAt: new Date().toISOString(), searchError: null, results: [], candidates: [], usage: null };
 }
 
-export async function captureTavilyPriceFallback(args: { profile: ItemProfile; apiKey: string | undefined; maxResultsToOpen: number }): Promise<TavilyFallbackSnapshot> {
+export async function captureTavilyPriceFallback(args: { profile: ItemProfile; apiKey: string | undefined; maxResultsToOpen: number; signal?: AbortSignal; getBrowserContext: () => Promise<BrowserContext> }): Promise<TavilyFallbackSnapshot> {
   const query = buildTavilyPriceQuery(args.profile);
   const snapshot: TavilyFallbackSnapshot = { version: 1, provider: "Tavily", triggered: true, query, searchUrl: "https://api.tavily.com/search", capturedAt: new Date().toISOString(), searchError: null, results: [], candidates: [], usage: null };
   if (!args.apiKey) {
@@ -79,11 +78,13 @@ export async function captureTavilyPriceFallback(args: { profile: ItemProfile; a
   }
   let rawResults: Array<{ title: string; url: string }> = [];
   try {
+    const timeoutSignal = AbortSignal.timeout(30_000);
+    const signal = args.signal ? AbortSignal.any([args.signal, timeoutSignal]) : timeoutSignal;
     const response = await fetch(snapshot.searchUrl, {
       method: "POST",
       headers: { Authorization: `Bearer ${args.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ query, search_depth: "basic", auto_parameters: false, max_results: 2, include_answer: false, include_raw_content: false, include_images: false, include_usage: true }),
-      signal: AbortSignal.timeout(30_000),
+      signal,
     });
     if (!response.ok) throw new Error(`Tavily HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
     const payload = await response.json() as TavilyResponse;
@@ -94,31 +95,29 @@ export async function captureTavilyPriceFallback(args: { profile: ItemProfile; a
     }).slice(0, Math.min(args.maxResultsToOpen, 2));
     if (!rawResults.length) snapshot.searchError = "Tavily returned no usable HTTPS search result.";
   } catch (error) {
+    if (args.signal?.aborted) throw args.signal.reason instanceof Error ? args.signal.reason : new Error("Research was cancelled.");
     snapshot.searchError = error instanceof Error ? error.message : String(error);
     return snapshot;
   }
 
   if (!rawResults.length) return snapshot;
-  const lease = await browserProvider.open({ locale: "ja-JP" });
-  try {
-    const settled = await Promise.allSettled(rawResults.map(async (result, index) => {
-      try {
-        const inspected = await inspectPage(lease.context, result.url, args.profile);
-        return { index, result, inspected, error: null };
-      } catch (error) {
-        return { index, result, inspected: null, error: error instanceof Error ? error.message : String(error) };
-      }
-    }));
-    for (const entry of settled) {
-      if (entry.status === "rejected") continue;
-      const { index, result, inspected, error } = entry.value;
-      snapshot.results.push({ rank: index + 1, title: inspected?.title || result.title, url: result.url, opened: true, pageError: error, identityMatched: inspected?.identityMatched ?? false, extractedPrice: inspected?.price ?? null });
-      if (inspected?.identityMatched && inspected.price !== null) snapshot.candidates.push({ source: "Web fallback", rank: index + 1, title: inspected.title || result.title, displayedPrice: inspected.price, url: result.url, shopName: new URL(result.url).hostname, availabilityText: inspected.text });
+  const context = await args.getBrowserContext();
+  const settled = await Promise.allSettled(rawResults.map(async (result, index) => {
+    try {
+      const inspected = await inspectPage(context, result.url, args.profile);
+      return { index, result, inspected, error: null };
+    } catch (error) {
+      return { index, result, inspected: null, error: error instanceof Error ? error.message : String(error) };
     }
-    snapshot.results.sort((a, b) => a.rank - b.rank);
-    snapshot.candidates.sort((a, b) => a.rank - b.rank);
-    return snapshot;
-  } finally {
-    await lease.close();
+  }));
+  if (args.signal?.aborted) throw args.signal.reason instanceof Error ? args.signal.reason : new Error("Research was cancelled.");
+  for (const entry of settled) {
+    if (entry.status === "rejected") continue;
+    const { index, result, inspected, error } = entry.value;
+    snapshot.results.push({ rank: index + 1, title: inspected?.title || result.title, url: result.url, opened: true, pageError: error, identityMatched: inspected?.identityMatched ?? false, extractedPrice: inspected?.price ?? null });
+    if (inspected?.identityMatched && inspected.price !== null) snapshot.candidates.push({ source: "Web fallback", rank: index + 1, title: inspected.title || result.title, displayedPrice: inspected.price, url: result.url, shopName: new URL(result.url).hostname, availabilityText: inspected.text });
   }
+  snapshot.results.sort((a, b) => a.rank - b.rank);
+  snapshot.candidates.sort((a, b) => a.rank - b.rank);
+  return snapshot;
 }
