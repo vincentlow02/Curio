@@ -1,4 +1,5 @@
 import type { AnalysisResult } from "../../core/analysis/types";
+import { MARKETPLACE_IDS } from "../../core/marketplace";
 
 export function fixtureResult(options: { collectorMode?: boolean } = {}): AnalysisResult {
   const collectorMode = options.collectorMode ?? false;
@@ -27,9 +28,9 @@ export function fixtureResult(options: { collectorMode?: boolean } = {}): Analys
     priceReference: {
       currency: "JPY", low: 8000, median: 12000, high: 16000, sampleCount: 3, disclaimer: "Online asking-price reference",
       samples: [
-        { title: "中古 PSP-3000 本体 ブラック", price: 8000, currency: "JPY", source: "Rakuten", url: "https://item.rakuten.co.jp/fixture/psp-1/", condition: "used", versionMatch: "exact", packageStatus: "with_box", includedInReferenceRange: true },
-        { title: "PSP-3000 本体 ホワイト", price: 12000, currency: "JPY", source: "Mercari", url: "https://jp.mercari.com/item/fixture-psp-2", condition: "used", versionMatch: "exact", packageStatus: "unknown", includedInReferenceRange: true },
-        { title: "PSP-3000 本体 ブルー", price: 16000, currency: "JPY", source: "Mercari", url: "https://jp.mercari.com/item/fixture-psp-3", condition: "used", versionMatch: "exact", packageStatus: "without_box", includedInReferenceRange: true },
+        { title: "中古 PSP-3000 本体 ブラック", price: 8000, currency: "JPY", source: MARKETPLACE_IDS.rakuten, url: "https://item.rakuten.co.jp/fixture/psp-1/", condition: "used", versionMatch: "exact", packageStatus: "with_box", includedInReferenceRange: true },
+        { title: "PSP-3000 本体 ホワイト", price: 12000, currency: "JPY", source: MARKETPLACE_IDS.mercari, url: "https://jp.mercari.com/item/fixture-psp-2", condition: "used", versionMatch: "exact", packageStatus: "unknown", includedInReferenceRange: true },
+        { title: "PSP-3000 本体 ブルー", price: 16000, currency: "JPY", source: MARKETPLACE_IDS.mercari, url: "https://jp.mercari.com/item/fixture-psp-3", condition: "used", versionMatch: "exact", packageStatus: "without_box", includedInReferenceRange: true },
       ],
     },
     recommendedAreas: [

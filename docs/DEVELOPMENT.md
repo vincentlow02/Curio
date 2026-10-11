@@ -68,6 +68,19 @@ tests/                       Unit and integration tests
 
 Production requests are stateless. Recent history is device-local: up to 12 records are stored in `localStorage`, while image previews are stored in IndexedDB. No database is required for the demo.
 
+### Marketplace cost metrics
+
+Research runs emit structured `curio.marketplace.cost` JSON logs and append provider/session records to `output/marketplace-cost/metrics.jsonl` when the runtime filesystem is writable. This is local, non-durable storage: it is not shared across instances and is not guaranteed to survive a serverless restart. There is no database-backed cumulative report. Browserless time units are estimated as one unit per started 30-second interval and allocated by Page count across Marketplace, Auction, and Tavily owners; a session with no attributed Pages is recorded as `Unattributed`.
+
+Run the report against the records actually present in that file:
+
+```powershell
+npm run marketplace-cost-report
+npm run marketplace-cost-report -- ./path/to/metrics.jsonl
+```
+
+The command reports `NO_RECORDED_DATA` when no records exist; it does not seed sample data. `BROWSERLESS_COST_PER_TIME_UNIT_USD` is used only when `BROWSERLESS_COST_RATE_VERIFIED=true`. HTTP rates use `MARKETPLACE_HTTP_COST_RATES_JSON`, keyed by Marketplace ID, with an explicit verified rate, for example `{"Rakuten":{"usdPerRequest":0.01,"verified":true}}`. Missing or unverified rates produce UNKNOWN estimated cost. Browserless billing is never reported as actual without a supplied billable amount; Proxy/CAPTCHA units remain null until measured.
+
 ## Local setup
 
 Requirements:

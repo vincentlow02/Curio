@@ -1,4 +1,5 @@
-import type { RakutenListingCandidate, SearchSnapshot } from "../../../price/types";
+import type { MarketplaceCandidate, SearchSnapshot } from "../../../price/types";
+import { MARKETPLACE_IDS } from "../../../core/marketplace";
 import { env } from "../../config/env";
 import { fetchRakutenItems, RAKUTEN_ITEM_SEARCH_ENDPOINT, RakutenApiError } from "./rakuten-api-client";
 import { buildMarketplaceKeyword } from "./shared/keyword";
@@ -18,8 +19,8 @@ function safeItemUrl(value: unknown): string | null {
   }
 }
 
-export function mapRakutenItems(items: unknown[], maxCards = 30): RakutenListingCandidate[] {
-  const candidates: RakutenListingCandidate[] = [];
+export function mapRakutenItems(items: unknown[], maxCards = 30): MarketplaceCandidate[] {
+  const candidates: MarketplaceCandidate[] = [];
   const seenUrls = new Set<string>();
   for (const value of items.slice(0, Math.min(Math.max(maxCards, 0), 30))) {
     if (!isRecord(value)) continue;
@@ -30,21 +31,23 @@ export function mapRakutenItems(items: unknown[], maxCards = 30): RakutenListing
     const displayedPrice = Number.isFinite(priceValue) && priceValue >= 0 ? priceValue : null;
     const availabilityText = value.availability === 0 ? "在庫なし" : value.availability === 1 ? "" : "unknown";
     const shopName = typeof value.shopName === "string" && value.shopName.trim() ? value.shopName.trim() : "unknown";
-    candidates.push({ source: "Rakuten", rank: candidates.length + 1, title, displayedPrice, url, shopName, availabilityText });
+    candidates.push({ source: MARKETPLACE_IDS.rakuten, rank: candidates.length + 1, title, displayedPrice, url, shopName, availabilityText });
     seenUrls.add(url);
   }
   return candidates;
 }
 
-async function searchRakutenApi(args: { keyword: string; maxCards: number; signal?: AbortSignal; onRequest?: () => void }): Promise<SearchSnapshot["sources"][number]> {
+async function searchRakutenApi(args: { keyword: string; maxCards: number; signal?: AbortSignal; onRequest?: () => void; onHttpRequestStarted?: () => void; onHttpRequestCompleted?: (status: number | null, elapsedMs: number, blockingRelevant?: boolean) => void }): Promise<SearchSnapshot["sources"][number]> {
   const keyword = buildMarketplaceKeyword(args.keyword);
   try {
     const response = await fetchRakutenItems(keyword, {
       ...(args.signal ? { signal: args.signal } : {}),
       ...(args.onRequest ? { onRequest: args.onRequest } : {}),
+      ...(args.onHttpRequestStarted ? { onHttpRequestStarted: args.onHttpRequestStarted } : {}),
+      ...(args.onHttpRequestCompleted ? { onHttpRequestCompleted: args.onHttpRequestCompleted } : {}),
     });
     return {
-      source: "Rakuten",
+      source: MARKETPLACE_IDS.rakuten,
       keyword,
       searchUrl: RAKUTEN_ITEM_SEARCH_ENDPOINT,
       error: null,
@@ -55,12 +58,12 @@ async function searchRakutenApi(args: { keyword: string; maxCards: number; signa
     const safeMessage = error instanceof RakutenApiError
       ? `${error.kind}: ${error.message}${error.retryAfterSeconds ? ` Retry after ${error.retryAfterSeconds} seconds.` : ""}`
       : "upstream_error: Rakuten API request failed.";
-    return { source: "Rakuten", keyword, searchUrl: RAKUTEN_ITEM_SEARCH_ENDPOINT, error: safeMessage, candidates: [] };
+    return { source: MARKETPLACE_IDS.rakuten, keyword, searchUrl: RAKUTEN_ITEM_SEARCH_ENDPOINT, error: safeMessage, candidates: [] };
   }
 }
 
 export const rakutenProvider: HttpMarketplaceProvider = {
-  source: "Rakuten",
+  source: MARKETPLACE_IDS.rakuten,
   runtime: "http",
   supportsProfile: () => true,
   search: searchRakutenApi,

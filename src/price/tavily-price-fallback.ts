@@ -3,7 +3,9 @@ import { isIP } from "node:net";
 import type { BrowserContext, Page } from "playwright-core";
 
 import type { ItemProfile } from "./item-profile";
+import { WEB_FALLBACK_SOURCE } from "../core/marketplace";
 import { buildMarketplaceKeyword } from "../server/providers/marketplaces/shared/keyword";
+import { fetchWithHttpMetrics, observeBrowserPageRequests, type ResearchCostTracker, type ProviderSearchMeter } from "../server/analysis/marketplace-cost-tracker";
 import { identityMatches } from "./identity";
 import type { TavilyFallbackSnapshot } from "./types";
 
@@ -40,8 +42,13 @@ function parsePrice(structured: number[], text: string): number | null {
   return Number.isInteger(price) && price >= 100 && price <= 10_000_000 ? price : null;
 }
 
-async function inspectPage(context: BrowserContext, url: string, profile: ItemProfile): Promise<{ title: string; text: string; price: number | null; identityMatched: boolean }> {
+async function inspectPage(context: BrowserContext, url: string, profile: ItemProfile, meter?: ProviderSearchMeter): Promise<{ title: string; text: string; price: number | null; identityMatched: boolean }> {
   const page: Page = await context.newPage();
+  meter?.pageOpened();
+  if (meter) observeBrowserPageRequests(page, {
+    onHttpRequestStarted: () => meter.requestStarted(),
+    onHttpRequestCompleted: (status, elapsedMs, blockingRelevant) => meter.requestCompleted(status, elapsedMs, blockingRelevant),
+  });
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 });
     const data = await page.evaluate(() => {
@@ -69,9 +76,12 @@ export function disabledTavilyFallback(profile: ItemProfile): TavilyFallbackSnap
   return { version: 1, provider: "Tavily", triggered: false, query: buildTavilyPriceQuery(profile), searchUrl: "https://api.tavily.com/search", capturedAt: new Date().toISOString(), searchError: null, results: [], candidates: [], usage: null };
 }
 
-export async function captureTavilyPriceFallback(args: { profile: ItemProfile; apiKey: string | undefined; maxResultsToOpen: number; signal?: AbortSignal; getBrowserContext: () => Promise<BrowserContext> }): Promise<TavilyFallbackSnapshot> {
+export async function captureTavilyPriceFallback(args: { profile: ItemProfile; apiKey: string | undefined; maxResultsToOpen: number; signal?: AbortSignal; getBrowserContext: () => Promise<BrowserContext>; costTracker?: ResearchCostTracker }): Promise<TavilyFallbackSnapshot> {
   const query = buildTavilyPriceQuery(args.profile);
   const snapshot: TavilyFallbackSnapshot = { version: 1, provider: "Tavily", triggered: true, query, searchUrl: "https://api.tavily.com/search", capturedAt: new Date().toISOString(), searchError: null, results: [], candidates: [], usage: null };
+  const meter = args.costTracker?.beginProviderSearch("Web fallback", "mixed");
+  let thrownError: unknown;
+  try {
   if (!args.apiKey) {
     snapshot.searchError = "TAVILY_API_KEY is not configured.";
     return snapshot;
@@ -80,11 +90,14 @@ export async function captureTavilyPriceFallback(args: { profile: ItemProfile; a
   try {
     const timeoutSignal = AbortSignal.timeout(30_000);
     const signal = args.signal ? AbortSignal.any([args.signal, timeoutSignal]) : timeoutSignal;
-    const response = await fetch(snapshot.searchUrl, {
+    const response = await fetchWithHttpMetrics(fetch, snapshot.searchUrl, {
       method: "POST",
       headers: { Authorization: `Bearer ${args.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ query, search_depth: "basic", auto_parameters: false, max_results: 2, include_answer: false, include_raw_content: false, include_images: false, include_usage: true }),
       signal,
+    }, {
+      onHttpRequestStarted: () => meter?.requestStarted(true),
+      onHttpRequestCompleted: (status, elapsedMs, blockingRelevant) => meter?.requestCompleted(status, elapsedMs, blockingRelevant),
     });
     if (!response.ok) throw new Error(`Tavily HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
     const payload = await response.json() as TavilyResponse;
@@ -104,7 +117,7 @@ export async function captureTavilyPriceFallback(args: { profile: ItemProfile; a
   const context = await args.getBrowserContext();
   const settled = await Promise.allSettled(rawResults.map(async (result, index) => {
     try {
-      const inspected = await inspectPage(context, result.url, args.profile);
+      const inspected = await inspectPage(context, result.url, args.profile, meter);
       return { index, result, inspected, error: null };
     } catch (error) {
       return { index, result, inspected: null, error: error instanceof Error ? error.message : String(error) };
@@ -115,9 +128,17 @@ export async function captureTavilyPriceFallback(args: { profile: ItemProfile; a
     if (entry.status === "rejected") continue;
     const { index, result, inspected, error } = entry.value;
     snapshot.results.push({ rank: index + 1, title: inspected?.title || result.title, url: result.url, opened: true, pageError: error, identityMatched: inspected?.identityMatched ?? false, extractedPrice: inspected?.price ?? null });
-    if (inspected?.identityMatched && inspected.price !== null) snapshot.candidates.push({ source: "Web fallback", rank: index + 1, title: inspected.title || result.title, displayedPrice: inspected.price, url: result.url, shopName: new URL(result.url).hostname, availabilityText: inspected.text });
+    if (inspected?.identityMatched && inspected.price !== null) snapshot.candidates.push({ source: WEB_FALLBACK_SOURCE, rank: index + 1, title: inspected.title || result.title, displayedPrice: inspected.price, url: result.url, shopName: new URL(result.url).hostname, availabilityText: inspected.text });
   }
   snapshot.results.sort((a, b) => a.rank - b.rank);
   snapshot.candidates.sort((a, b) => a.rank - b.rank);
   return snapshot;
+  } catch (error) {
+    thrownError = error;
+    throw error;
+  } finally {
+    const pageInspectionFailed = snapshot.results.length > 0 && snapshot.results.every((result) => result.pageError !== null);
+    const error = snapshot.searchError ?? (pageInspectionFailed ? "Fallback result pages could not be read." : thrownError instanceof Error ? thrownError.message : null);
+    meter?.finish({ candidates: snapshot.candidates, error });
+  }
 }

@@ -1,4 +1,5 @@
 import type { MarketplaceSource } from "../../../price/types";
+import { MARKETPLACE_IDS } from "../../../core/marketplace";
 import { env } from "../../config/env";
 import { mercariProvider } from "./mercari";
 import { rakutenProvider } from "./rakuten";
@@ -14,12 +15,12 @@ type DisabledRegistration = { id: string; status: "disabled" };
 type MarketplaceRegistration = EnabledRegistration | DisabledRegistration;
 
 const yahooShoppingRegistration: MarketplaceRegistration = env.yahooShoppingApiEnabled
-  ? { id: "Yahoo! Shopping", status: "enabled", provider: yahooShoppingProvider }
-  : { id: "Yahoo! Shopping", status: "disabled" };
+  ? { id: MARKETPLACE_IDS.yahooShopping, status: "enabled", provider: yahooShoppingProvider }
+  : { id: MARKETPLACE_IDS.yahooShopping, status: "disabled" };
 
 export const marketplaceRegistry = [
-  { id: "Rakuten", status: "enabled", provider: env.rakutenOfficialApiEnabled ? rakutenProvider : rakutenBrowserProvider },
-  { id: "Mercari", status: "enabled", provider: mercariProvider },
+  { id: MARKETPLACE_IDS.rakuten, status: "enabled", provider: env.rakutenOfficialApiEnabled ? rakutenProvider : rakutenBrowserProvider },
+  { id: MARKETPLACE_IDS.mercari, status: "enabled", provider: mercariProvider },
   yahooShoppingRegistration,
   { id: "Yahoo!フリマ", status: "disabled" },
   { id: "Rakuma", status: "disabled" },

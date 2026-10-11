@@ -2,6 +2,7 @@ node_modules/
 .env.local
 deploy/oracle/.env
 output/**/*.json
+output/**/*.jsonl
 .cache/
 *.log
 .next/

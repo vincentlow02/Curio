@@ -1,4 +1,5 @@
 import type { ItemProfile } from "./item-profile";
+import { MARKETPLACE_IDS, MARKETPLACE_SOURCE_IDS, PRICE_SOURCE_IDS, WEB_FALLBACK_SOURCE } from "../core/marketplace";
 import { classifyIdentityMatch, identityMatches } from "./identity";
 import { matchPokemonCardIdentity } from "../core/profile/pokemon-card";
 import { buildStoreSearchUrl } from "./store-verifier";
@@ -82,7 +83,7 @@ export function buildPriceResult(args: {
   const excluded: Array<{ source: PriceSource; rank: number; url: string; reason: ExclusionReason }> = [];
   const sourceSnapshots = [
     ...args.snapshot.sources,
-    ...(args.tavilyFallback.triggered ? [{ source: "Web fallback" as const, keyword: args.tavilyFallback.query, searchUrl: args.tavilyFallback.searchUrl, error: args.tavilyFallback.searchError, candidates: args.tavilyFallback.candidates }] : []),
+    ...(args.tavilyFallback.triggered ? [{ source: WEB_FALLBACK_SOURCE, keyword: args.tavilyFallback.query, searchUrl: args.tavilyFallback.searchUrl, error: args.tavilyFallback.searchError, candidates: args.tavilyFallback.candidates }] : []),
   ];
   for (const sourceSnapshot of sourceSnapshots) {
     const sourceSamples: PriceSample[] = [];
@@ -94,7 +95,7 @@ export function buildPriceResult(args: {
       else if (candidate.availabilityText === "在庫なし") reason = "out_of_stock";
       else if (SOLD_OUT.test(combined)) reason = "sold_out";
       else if (JUNK.test(candidate.title)) reason = "junk_or_broken";
-      else if (candidate.source === "Rakuten" && NEW_ITEM.test(candidate.title)) reason = "new_item";
+      else if (candidate.source === MARKETPLACE_IDS.rakuten && NEW_ITEM.test(candidate.title)) reason = "new_item";
       else if (INCOMPLETE.test(candidate.title)) reason = "incomplete_item";
       else if (ACCESSORY_OR_SOFTWARE.test(candidate.title)) reason = "accessory_or_software_only";
       else if (args.profile.pokemonCard) {
@@ -107,7 +108,7 @@ export function buildPriceResult(args: {
         else if (identityStatus === "conflict" && !identityMatches(args.profile, combined)) reason = "different_model";
       }
       if (!reason && BUNDLE.test(candidate.title)) reason = "bundle_or_lot";
-      if (!reason && candidate.source === "Rakuten" && !/中古|USED/i.test(candidate.title)) reason = "new_item";
+      if (!reason && candidate.source === MARKETPLACE_IDS.rakuten && !/中古|USED/i.test(candidate.title)) reason = "new_item";
       const dedupeKey = `${normalize(candidate.title)}|${candidate.displayedPrice ?? ""}`;
       if (!reason && seen.has(dedupeKey)) reason = "duplicate";
       if (!reason && sourceSamples.length >= args.maxSamplesPerSource) reason = "sample_limit";
@@ -124,8 +125,8 @@ export function buildPriceResult(args: {
         source: candidate.source,
         url: candidate.url,
         shopName: candidate.shopName || "unknown",
-        listingStatus: candidate.source === "Web fallback" ? "unknown" : "active",
-        condition: NEW_ITEM.test(candidate.title) ? "new" : candidate.source === "Mercari" || /中古|USED/i.test(combined) ? "used" : "unknown",
+        listingStatus: candidate.source === WEB_FALLBACK_SOURCE ? "unknown" : "active",
+        condition: NEW_ITEM.test(candidate.title) ? "new" : candidate.source === MARKETPLACE_IDS.mercari || /中古|USED/i.test(combined) ? "used" : "unknown",
         versionMatch: tokens.length > 0 ? "exact" : "similar",
         packageStatus: packageStatus(candidate.title),
         includedInReferenceRange: false,
@@ -138,7 +139,7 @@ export function buildPriceResult(args: {
   markAggregation(samples);
   const referenceSamples = samples.filter((sample) => sample.includedInReferenceRange);
   const warnings: string[] = [];
-  for (const source of ["Rakuten", "Mercari", "Yahoo! Shopping"] as const) {
+  for (const source of MARKETPLACE_SOURCE_IDS) {
     const count = samples.filter((sample) => sample.source === source).length;
     const sourceError = args.snapshot.sources.find((entry) => entry.source === source)?.error;
     if (sourceError) warnings.push(`${source} search page could not be read: ${sourceError}`);
@@ -153,6 +154,7 @@ export function buildPriceResult(args: {
   if (referenceSamples.length < 3) warnings.push("The reference range contains fewer than 3 samples and should be treated as preliminary.");
   if (args.storeSnapshot.error) warnings.push(`Store verification failed. Only area search links were retained: ${args.storeSnapshot.error}`);
   const prices = samples.map((sample) => sample.price);
+  const referenceSources = args.tavilyFallback.triggered ? PRICE_SOURCE_IDS : MARKETPLACE_SOURCE_IDS;
   return {
     result: {
       query: {
@@ -172,7 +174,7 @@ export function buildPriceResult(args: {
       samples,
       observedRange: { currency: "JPY", min: prices.length ? Math.min(...prices) : null, max: prices.length ? Math.max(...prices) : null, sampleCount: prices.length },
       referenceRange: { currency: "JPY", ...numericRange(referenceSamples), label: "Online asking-price reference", method: "median_absolute_deviation" },
-      referenceRangeBySource: (["Rakuten", "Mercari", "Yahoo! Shopping", ...(args.tavilyFallback.triggered ? ["Web fallback" as const] : [])] as PriceSource[]).map((source) => ({ source, ...numericRange(referenceSamples.filter((sample) => sample.source === source)) })),
+      referenceRangeBySource: referenceSources.map((source) => ({ source, ...numericRange(referenceSamples.filter((sample) => sample.source === source)) })),
       conditionRanges: (["used", "new", "unknown"] as const)
         .map((condition) => ({ condition, ...numericRange(samples.filter((sample) => sample.condition === condition && (condition !== "used" || sample.includedInReferenceRange))) }))
         .filter((entry) => entry.sampleCount > 0),

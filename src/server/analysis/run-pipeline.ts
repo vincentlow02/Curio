@@ -1,7 +1,10 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
+
 import type { AnalysisResult, AnalysisStage, CollectorEvidence, ToolActivity } from "../../core/analysis/types";
 import type { CollectibleCategory, DetectionResult } from "../../core/profile/types";
+import { MARKETPLACE_SOURCE_IDS, WEB_FALLBACK_SOURCE } from "../../core/marketplace";
 import { toPriceItemProfile } from "../../core/profile/to-price-profile";
 import { assertSafeRecommendations, recommendAreas, verifiedStoreSuggestions } from "../../core/recommendation/recommend";
 import { buildPriceResult } from "../../price/matcher";
@@ -11,12 +14,15 @@ import { disabledStoreSnapshot } from "../../price/store-verifier";
 import { captureTavilyPriceFallback, disabledTavilyFallback } from "../../price/tavily-price-fallback";
 import type { MarketplaceSource, SearchSnapshot } from "../../price/types";
 import { browserProvider, type BrowserLease } from "../browser/browser-provider";
+import type { BrowserSessionUsage } from "../browser/session-meter";
 import { env } from "../config/env";
 import { captureAuctionSearches, skippedAuctionSources } from "../providers/auctions/capture-auctions";
 import { detectCollectible, detectTextCollectible } from "../providers/qwen/detect";
 import { publicError } from "../security/redact-error";
 import { fixtureResult } from "./fixture-result";
 import { createResearchDeadline } from "./research-deadline";
+import { ResearchCostTracker } from "./marketplace-cost-tracker";
+import { persistMarketplaceCostRecords } from "./marketplace-cost-store";
 
 export type IdentificationWorkflowInput = { imageDataUrl: string | null; inputText: string; selectedCategory: CollectibleCategory | null; collectorMode: boolean; locale: "en" | "zh" | "ja" };
 export type IdentificationWorkflowResult = { status: "identified" | "needs_review" | "failed"; identification: DetectionResult | null; collectorEvidence: CollectorEvidence | null; toolActivity: ToolActivity[]; error: string | null };
@@ -24,8 +30,8 @@ export type ResearchWorkflowInput = { identification: DetectionResult; collector
 export type ResearchWorkflowResult = { result: AnalysisResult; toolActivity: ToolActivity[] };
 
 function upsert(activities: ToolActivity[], activity: ToolActivity): ToolActivity[] { return [...activities.filter((entry) => entry.provider !== activity.provider), activity]; }
-function emptySnapshot(keyword: string, error: string): SearchSnapshot {
-  return { version: 2, capturedAt: new Date().toISOString(), sources: (["Rakuten", "Mercari"] as const).map((source) => ({ source, keyword, searchUrl: "", error, candidates: [] })) };
+function emptySnapshot(keyword: string, error: string, sources: readonly MarketplaceSource[]): SearchSnapshot {
+  return { version: 2, capturedAt: new Date().toISOString(), sources: sources.map((source) => ({ source, keyword, searchUrl: "", error, candidates: [] })) };
 }
 
 function abortError(signal: AbortSignal): Error {
@@ -59,8 +65,10 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
   const startedAt = Date.now();
   const deadline = createResearchDeadline();
   const workflowSignal = input.signal ? AbortSignal.any([input.signal, deadline.signal]) : deadline.signal;
+  let costTracker: ResearchCostTracker | null = null;
   let browserLeasePromise: Promise<BrowserLease> | null = null;
   let browserLeaseClosePromise: Promise<void> | null = null;
+  let closedBrowserSession: BrowserSessionUsage | null = null;
   let removeBrowserAbortListeners = (): void => undefined;
   const closeBrowserLease = (): Promise<void> => {
     if (!browserLeasePromise) return Promise.resolve();
@@ -77,7 +85,7 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
   const getBrowserLease = (): Promise<BrowserLease> => {
     throwIfAborted(workflowSignal);
     if (!browserLeasePromise) {
-      browserLeasePromise = browserProvider.open({ locale: "ja-JP" }).then(async (lease) => {
+      browserLeasePromise = browserProvider.open({ locale: "ja-JP", onSessionClosed: (session) => { closedBrowserSession = session; } }).then(async (lease) => {
         if (workflowSignal.aborted) {
           await lease.close();
           throw abortError(workflowSignal);
@@ -97,10 +105,13 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
   try {
     if (env.fixtureMode) return { result: { ...fixtureResult({ collectorMode: input.collectorMode }), identification: input.identification }, toolActivity: activities };
 
+    const runCostTracker = new ResearchCostTracker(randomUUID());
+    costTracker = runCostTracker;
     const profile = toPriceItemProfile(input.identification);
     const marketplaceProviders = selectMarketplaceProviders(profile);
+    const marketplaceSources = marketplaceProviders.map(({ source }) => source);
     let marketplacePagesOpened = 0;
-    for (const source of ["Rakuten", "Mercari", "Yahoo! Shopping"] as const) {
+    for (const source of MARKETPLACE_SOURCE_IDS) {
       setActivity(marketplaceProviders.some((provider) => provider.source === source)
         ? { provider: source, status: "running", calls: 0, durationMs: null }
         : { provider: source, status: "skipped", calls: 0, durationMs: 0, resultCount: 0, validResultCount: 0 });
@@ -127,10 +138,11 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
         maxCardsPerSource: 30,
         signal: workflowSignal,
         getBrowserContext,
+        costTracker: runCostTracker,
         onBrowserPageOpened: () => { marketplacePagesOpened += 1; },
       });
       const auctionSearch = input.collectorMode
-        ? getBrowserContext().then((context) => captureAuctionSearches({ context, identification: input.identification, collectorEvidence: input.collectorEvidence }))
+        ? getBrowserContext().then((context) => captureAuctionSearches({ context, identification: input.identification, collectorEvidence: input.collectorEvidence, costTracker: runCostTracker }))
         : null;
       const marketplaceSettled = await Promise.allSettled([marketplaceSearch]);
       const auctionSettled = auctionSearch ? await Promise.allSettled([auctionSearch]) : null;
@@ -141,13 +153,13 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
         marketplaceDurationsMs = market.value.durationMsBySource;
         marketplaceCallsBySource = market.value.callsBySource;
       } else {
-        snapshot = emptySnapshot(input.identification.priceSearchKeywordJa, market?.status === "rejected" ? publicError(market.reason) : "Marketplace search failed.");
+        snapshot = emptySnapshot(input.identification.priceSearchKeywordJa, market?.status === "rejected" ? publicError(market.reason) : "Marketplace search failed.", marketplaceSources);
       }
       const auctions = auctionSettled?.[0];
       if (input.collectorMode && auctions) auctionSources = auctions.status === "fulfilled" ? auctions.value as typeof auctionSources : (["Yahoo Auctions", "Mandarake Auction"] as const).map((source) => ({ source, status: "failed" as const, candidatesSeen: 0, comparableSignals: 0, signals: [] }));
     } catch (error) {
       if (workflowSignal.aborted) throw error;
-      snapshot = emptySnapshot(input.identification.priceSearchKeywordJa, publicError(error, "The browser provider was unavailable."));
+      snapshot = emptySnapshot(input.identification.priceSearchKeywordJa, publicError(error, "The browser provider was unavailable."), marketplaceSources);
       if (input.collectorMode) auctionSources = (["Yahoo Auctions", "Mandarake Auction"] as const).map((source) => ({ source, status: "failed" as const, candidatesSeen: 0, comparableSignals: 0, signals: [] }));
     }
     for (const source of snapshot.sources) setActivity({ provider: source.source, status: source.error ? "failed" : "succeeded", calls: marketplaceCallsBySource[source.source] ?? 0, durationMs: marketplaceDurationsMs[source.source] ?? Date.now() - browserStarted, resultCount: source.candidates.length, cacheHit: false });
@@ -161,16 +173,16 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
       await emit("searching_fallback", "No comparable primary samples found. Running one controlled fallback search.");
       const tavilyStarted = Date.now();
       setActivity({ provider: "Tavily", status: "running", calls: 1, durationMs: null });
-      fallback = await captureTavilyPriceFallback({ profile, apiKey: env.tavilyApiKey, maxResultsToOpen: 2, signal: workflowSignal, getBrowserContext });
+      fallback = await captureTavilyPriceFallback({ profile, apiKey: env.tavilyApiKey, maxResultsToOpen: 2, signal: workflowSignal, getBrowserContext, costTracker: runCostTracker });
       setActivity({ provider: "Tavily", status: fallback.searchError ? "failed" : "fallback", calls: 1, durationMs: Date.now() - tavilyStarted, resultCount: fallback.candidates.length, cacheHit: false });
       nodeStarted = Date.now();
       built = buildPriceResult({ profile, snapshot, tavilyFallback: fallback, storeSnapshot: disabledStoreSnapshot(), maxCardsScannedPerSource: 30, maxSamplesPerSource: 5 });
       nodeCalculationMs += Date.now() - nodeStarted;
     } else setActivity({ provider: "Tavily", status: "skipped", calls: 0, durationMs: 0, resultCount: 0 });
 
-    for (const provider of ["Rakuten", "Mercari", "Yahoo! Shopping", "Tavily"] as const) {
+    for (const provider of [...MARKETPLACE_SOURCE_IDS, "Tavily"] as const) {
       const current = activities.find((entry) => entry.provider === provider);
-      if (current) setActivity({ ...current, validResultCount: built.result.samples.filter((sample) => sample.source === (provider === "Tavily" ? "Web fallback" : provider)).length });
+      if (current) setActivity({ ...current, validResultCount: built.result.samples.filter((sample) => sample.source === (provider === "Tavily" ? WEB_FALLBACK_SOURCE : provider)).length });
     }
     setActivity({ provider: "Node", status: "succeeded", calls: 0, durationMs: nodeCalculationMs, resultCount: built.result.samples.length, validResultCount: built.result.referenceRange.sampleCount });
     await emit("processing_prices", "Calculating the reference range in Node.js");
@@ -198,6 +210,10 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
     return { result, toolActivity: activities };
   } finally {
     await closeBrowserLease();
+    if (costTracker) {
+      const lease = await (browserLeasePromise as Promise<BrowserLease> | null)?.catch(() => null) ?? null;
+      await persistMarketplaceCostRecords(costTracker.settleBrowserSession(lease?.session ?? closedBrowserSession));
+    }
     deadline.close();
   }
 }

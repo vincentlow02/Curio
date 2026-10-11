@@ -28,15 +28,20 @@ describe("browser provider", () => {
     const closeBrowser = vi.fn().mockResolvedValue(undefined);
     const browser = { newContext: vi.fn().mockResolvedValue({ close: closeContext }), close: closeBrowser };
     mocks.connectOverCDP.mockResolvedValue(browser);
+    let now = 1000;
+    let monotonic = 1000;
     const { createBrowserProvider } = await import("../src/server/browser/browser-provider");
-    const lease = await createBrowserProvider().open();
+    const lease = await createBrowserProvider({ now: () => now, monotonicNow: () => monotonic, createSessionId: () => "session-test" }).open();
     expect(mocks.connectOverCDP).toHaveBeenCalledTimes(1);
     expect(String(mocks.connectOverCDP.mock.calls[0]?.[0])).toContain("token=test-token");
     expect(mocks.launch).not.toHaveBeenCalled();
+    now += 31_000;
+    monotonic += 31_000;
     await lease.close();
     await lease.close();
     expect(closeContext).toHaveBeenCalledTimes(1);
     expect(closeBrowser).toHaveBeenCalledTimes(1);
+    expect(lease.session).toMatchObject({ sessionId: "session-test", transport: "browserless", durationMs: 31_000, estimatedTimeUnits: 2, proxyCaptchaUnits: null, actualUnits: null, actualCostUSD: null });
   });
 
   it("closes the Browser connection if creating its context fails", async () => {
@@ -45,12 +50,17 @@ describe("browser provider", () => {
     process.env.BROWSERLESS_WS_ENDPOINT = "wss://production-sfo.browserless.io";
     process.env.BROWSERLESS_API_TOKEN = "test-token";
     const closeBrowser = vi.fn().mockResolvedValue(undefined);
-    const browser = { newContext: vi.fn().mockRejectedValue(new Error("Context creation failed")), close: closeBrowser };
+    let now = 1000;
+    let monotonic = 1000;
+    const browser = { newContext: vi.fn().mockImplementation(() => { now += 32_000; monotonic += 32_000; throw new Error("Context creation failed"); }), close: closeBrowser };
     mocks.connectOverCDP.mockResolvedValue(browser);
     const { createBrowserProvider } = await import("../src/server/browser/browser-provider");
+    const onSessionClosed = vi.fn();
 
-    await expect(createBrowserProvider().open()).rejects.toThrow("Context creation failed");
+    await expect(createBrowserProvider({ now: () => now, monotonicNow: () => monotonic, createSessionId: () => "failed-context-session" }).open({ onSessionClosed })).rejects.toThrow("Context creation failed");
 
     expect(closeBrowser).toHaveBeenCalledOnce();
+    expect(onSessionClosed).toHaveBeenCalledOnce();
+    expect(onSessionClosed.mock.calls[0]?.[0]).toMatchObject({ sessionId: "failed-context-session", durationMs: 32_000, estimatedTimeUnits: 2 });
   });
 });

@@ -3,6 +3,7 @@ import type { AuctionSignal, AuctionSource, AuctionSourceSummary, CollectorEvide
 import type { DetectionResult } from "../../../core/profile/types";
 import { toPriceItemProfile } from "../../../core/profile/to-price-profile";
 import { identityMatches, normalizeIdentity } from "../../../price/identity";
+import { observeBrowserPageRequests, type ResearchCostTracker } from "../../analysis/marketplace-cost-tracker";
 
 const LIMITS: Record<AuctionSource, number> = { "Yahoo Auctions": 5, "Mandarake Auction": 3 };
 
@@ -111,18 +112,30 @@ async function cardsFromPage(page: Page, source: AuctionSource): Promise<RawAuct
   }, { expectedHost, source });
 }
 
-async function captureSource(page: Page, source: AuctionSource, url: string, identification: DetectionResult, evidence: CollectorEvidence | null): Promise<AuctionSourceSummary> {
+async function captureSource(context: BrowserContext, source: AuctionSource, url: string, identification: DetectionResult, evidence: CollectorEvidence | null, costTracker?: ResearchCostTracker): Promise<AuctionSourceSummary> {
+  const meter = costTracker?.beginProviderSearch(source, "browser");
+  let page: Page | null = null;
+  let candidateCount = 0;
   try {
+    page = await context.newPage();
+    meter?.pageOpened();
+    if (meter) observeBrowserPageRequests(page, {
+      onHttpRequestStarted: () => meter.requestStarted(),
+      onHttpRequestCompleted: (status, elapsedMs, blockingRelevant) => meter.requestCompleted(status, elapsedMs, blockingRelevant),
+    });
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 40_000 });
     const raw = await cardsFromPage(page, source);
+    candidateCount = raw.length;
     const profile = toPriceItemProfile(identification);
     const comparable = raw.filter((card) => identityMatches(profile, `${card.title} ${card.text}`));
     const signals = comparable.slice(0, LIMITS[source]).map((card) => parseAuctionCard(source, card, identification, evidence));
+    meter?.finish({ candidateCount, validProductCount: signals.filter((signal) => signal.title.trim() && signal.currentPrice !== null && signal.currentPrice > 0 && /^https?:\/\//i.test(signal.url)).length });
     return { source, status: signals.length ? "succeeded" : "no_results", candidatesSeen: raw.length, comparableSignals: signals.length, signals };
-  } catch {
+  } catch (error) {
+    meter?.finish({ candidateCount, error: error instanceof Error ? error.message : String(error) });
     return { source, status: "failed", candidatesSeen: 0, comparableSignals: 0, signals: [] };
   } finally {
-    await page.close().catch(() => undefined);
+    await page?.close().catch(() => undefined);
   }
 }
 
@@ -130,14 +143,12 @@ export function skippedAuctionSources(): AuctionSourceSummary[] {
   return (["Yahoo Auctions", "Mandarake Auction"] as const).map((source) => ({ source, status: "skipped", candidatesSeen: 0, comparableSignals: 0, signals: [] }));
 }
 
-export async function captureAuctionSearches(args: { context: BrowserContext; identification: DetectionResult; collectorEvidence: CollectorEvidence | null }): Promise<AuctionSourceSummary[]> {
+export async function captureAuctionSearches(args: { context: BrowserContext; identification: DetectionResult; collectorEvidence: CollectorEvidence | null; costTracker?: ResearchCostTracker }): Promise<AuctionSourceSummary[]> {
   const keyword = buildAuctionKeyword(args.identification);
-  const yahoo = await args.context.newPage();
-  const mandarake = await args.context.newPage();
   const sources = ["Yahoo Auctions", "Mandarake Auction"] as const;
   const settled = await Promise.allSettled([
-    captureSource(yahoo, sources[0], buildYahooAuctionUrl(keyword), args.identification, args.collectorEvidence),
-    captureSource(mandarake, sources[1], buildMandarakeAuctionUrl(keyword), args.identification, args.collectorEvidence),
+    captureSource(args.context, sources[0], buildYahooAuctionUrl(keyword), args.identification, args.collectorEvidence, args.costTracker),
+    captureSource(args.context, sources[1], buildMandarakeAuctionUrl(keyword), args.identification, args.collectorEvidence, args.costTracker),
   ]);
   return settled.map((entry, index) => entry.status === "fulfilled"
     ? entry.value

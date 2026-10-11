@@ -1,4 +1,5 @@
 import type { AnalysisResult, ToolActivity } from "../../../core/analysis/types";
+import { MARKETPLACE_IDS, MARKETPLACE_METADATA, WEB_FALLBACK_SOURCE } from "../../../core/marketplace";
 import type { DetectionResult } from "../../../core/profile/types";
 import { uiCopy, type UiLocale } from "../locales";
 
@@ -78,9 +79,9 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
   if (locale === "zh") {
     switch (activity.provider) {
       case "Qwen": return { title: identification.pokemonCard ? "已识别精确宝可梦卡牌" : "已识别收藏品", description: `Qwen ${activity.model ?? "视觉模型"} 已识别 ${identification.itemName} 并生成日文价格搜索关键词。输入 ${activity.inputTokens ?? 0}／输出 ${activity.outputTokens ?? 0} tokens。` };
-      case "Rakuten": return { title: "已搜索乐天", description: `读取 1 个公开搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
-      case "Mercari": return { title: "已搜索 Mercari", description: `读取 1 个在售搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
-      case "Yahoo! Shopping": return { title: "已搜索 Yahoo! Shopping", description: `发出 ${activity.calls} 次商品 API 查询，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
+      case MARKETPLACE_IDS.rakuten: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuten].activityTitle.zh, description: `读取 1 个公开搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
+      case MARKETPLACE_IDS.mercari: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.mercari].activityTitle.zh, description: `读取 1 个在售搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
+      case MARKETPLACE_IDS.yahooShopping: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooShopping].activityTitle.zh, description: `发出 ${activity.calls} 次商品 API 查询，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
       case "Yahoo Auctions": return activity.status === "skipped" ? { title: "已跳过 Yahoo! 拍卖", description: "未启用收藏家模式。" } : { title: "已检查 Yahoo! 拍卖", description: `发现 ${candidates} 个候选，保留 ${valid} 条可比较的进行中拍卖信号。` };
       case "Mandarake Auction": return activity.status === "skipped" ? { title: "已跳过 Mandarake Auction", description: "未启用收藏家模式。" } : { title: "已检查 Mandarake Auction", description: `发现 ${candidates} 个候选，保留 ${valid} 条可比较信号。` };
       case "Tavily": return activity.status === "skipped" ? { title: "已跳过备用搜索", description: sampleCount > 0 ? "主要来源已有可比较样本，无需备用搜索。" : "本次运行已关闭备用搜索。" } : { title: "已使用受控备用搜索", description: `Tavily 返回 ${candidates} 个候选，保留 ${valid} 个。` };
@@ -95,9 +96,9 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
   if (locale === "ja") {
     switch (activity.provider) {
       case "Qwen": return { title: identification.pokemonCard ? "ポケモンカードを特定" : "コレクションを識別", description: `Qwen ${activity.model ?? "画像モデル"} が ${identification.itemName} を識別し、日本語の価格検索キーワードを生成しました。入力 ${activity.inputTokens ?? 0}／出力 ${activity.outputTokens ?? 0} トークン。` };
-      case "Rakuten": return { title: "楽天を検索", description: `公開検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
-      case "Mercari": return { title: "メルカリを検索", description: `販売中検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
-      case "Yahoo! Shopping": return { title: "Yahoo!ショッピングを検索", description: `商品APIを ${activity.calls} 回検索し、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
+      case MARKETPLACE_IDS.rakuten: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuten].activityTitle.ja, description: `公開検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
+      case MARKETPLACE_IDS.mercari: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.mercari].activityTitle.ja, description: `販売中検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
+      case MARKETPLACE_IDS.yahooShopping: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooShopping].activityTitle.ja, description: `商品APIを ${activity.calls} 回検索し、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
       case "Yahoo Auctions": return activity.status === "skipped" ? { title: "Yahoo!オークションをスキップ", description: "コレクターモードが無効でした。" } : { title: "Yahoo!オークションを確認", description: `候補 ${candidates} 件から比較可能な開催中情報 ${valid} 件を採用しました。` };
       case "Mandarake Auction": return activity.status === "skipped" ? { title: "Mandarake Auctionをスキップ", description: "コレクターモードが無効でした。" } : { title: "Mandarake Auctionを確認", description: `候補 ${candidates} 件から比較可能な情報 ${valid} 件を採用しました。` };
       case "Tavily": return activity.status === "skipped" ? { title: "代替検索をスキップ", description: sampleCount > 0 ? "主要情報源で比較可能なサンプルが得られたため不要でした。" : "今回の代替検索は無効でした。" } : { title: "管理された代替検索を使用", description: `Tavily の候補 ${candidates} 件から ${valid} 件を採用しました。` };
@@ -117,12 +118,12 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
           ? `Qwen ${activity.model ?? "vision model"} identified ${identification.itemName}, card number ${identification.pokemonCard.cardNumber}, set ${identification.pokemonCard.setCode}, rarity ${identification.pokemonCard.rarity}, and generated an exact Japanese search keyword. ${activity.inputTokens ?? 0} input / ${activity.outputTokens ?? 0} output tokens.`
           : `Qwen ${activity.model ?? "vision model"} identified ${identification.itemName} and generated the Japanese price-search keyword. ${activity.inputTokens ?? 0} input / ${activity.outputTokens ?? 0} output tokens.`,
       };
-    case "Rakuten":
-      return { title: "Searched Rakuten", description: `Read one public search page, found ${candidates} candidates and retained ${valid} comparable samples.` };
-    case "Mercari":
-      return { title: "Searched Mercari", description: `Read one on-sale search page, found ${candidates} candidates and retained ${valid} comparable samples.` };
-    case "Yahoo! Shopping":
-      return { title: "Searched Yahoo! Shopping", description: `Made ${activity.calls} product API queries, found ${candidates} candidates and retained ${valid} comparable samples.` };
+    case MARKETPLACE_IDS.rakuten:
+      return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuten].activityTitle.en, description: `Read one public search page, found ${candidates} candidates and retained ${valid} comparable samples.` };
+    case MARKETPLACE_IDS.mercari:
+      return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.mercari].activityTitle.en, description: `Read one on-sale search page, found ${candidates} candidates and retained ${valid} comparable samples.` };
+    case MARKETPLACE_IDS.yahooShopping:
+      return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooShopping].activityTitle.en, description: `Made ${activity.calls} product API queries, found ${candidates} candidates and retained ${valid} comparable samples.` };
     case "Yahoo Auctions":
       return activity.status === "skipped"
         ? { title: "Skipped Yahoo! Auctions", description: "Collector Mode was not enabled." }
@@ -286,14 +287,14 @@ export function ResultStage({ result, activities, locale }: ResultStageProps): R
         <summary className="!flex !items-center !justify-between !cursor-pointer !px-[2px] !py-[10px] !font-[550] list-none [&::-webkit-details-marker]:hidden">
           <span>{copy.result.viewSources}</span>
           <span className="figma-source-brand-stack flex !items-center !pr-[3px]" aria-hidden="true">
-            {result.priceReference.samples.some((sample) => sample.source === "Yahoo! Shopping") ? (
+            {result.priceReference.samples.some((sample) => sample.source === MARKETPLACE_IDS.yahooShopping) ? (
               <span className="!grid !h-[30px] !w-[30px] !place-items-center !overflow-hidden !rounded-full !border !border-solid !border-[#e5e5e5] !bg-white !text-[9px] !font-semibold !shadow-[0_1px_3px_rgba(0,0,0,0.06)]">Y!</span>
             ) : null}
             <span className="!grid !h-[30px] !w-[30px] !place-items-center !overflow-hidden !rounded-full !border !border-solid !border-[#e5e5e5] !bg-white !shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-              <img className="!block !h-[20px] !w-[20px] !object-contain" src="/brands/rakuten.ico" alt="" />
+              <img className="!block !h-[20px] !w-[20px] !object-contain" src={MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuten].logoPath ?? ""} alt="" />
             </span>
             <span className="!-ml-[7px] !grid !h-[30px] !w-[30px] !place-items-center !overflow-hidden !rounded-full !border !border-solid !border-[#e5e5e5] !bg-white !shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-              <img className="!block !h-[20px] !w-[20px] !object-contain" src="/brands/mercari.ico" alt="" />
+              <img className="!block !h-[20px] !w-[20px] !object-contain" src={MARKETPLACE_METADATA[MARKETPLACE_IDS.mercari].logoPath ?? ""} alt="" />
             </span>
           </span>
         </summary>
@@ -301,8 +302,8 @@ export function ResultStage({ result, activities, locale }: ResultStageProps): R
           {result.priceReference.samples.map((sample) => (
             <a className="!grid !min-h-[39px] !grid-cols-[70px_1fr_auto] !items-center !gap-[12px] !text-[#222] !no-underline max-[767px]:!grid-cols-[36px_minmax(0,1fr)_auto] max-[767px]:!gap-[8px] [@media(max-width:390px)]:[&&]:!grid-cols-[32px_minmax(0,1fr)] [&_span]:!text-[#777] [&_span]:!text-[11px] hover:[&_p]:!underline" href={sample.url} target="_blank" rel="noreferrer" key={`${sample.source}-${sample.url}`}>
               <span className="figma-marketplace-brand !grid !h-[28px] !w-[28px] !place-items-center !overflow-hidden !rounded-[8px] !border !border-solid !border-[#ededed] !bg-white">
-                {sample.source === "Web fallback" ? "W" : sample.source === "Yahoo! Shopping" ? "Y!" : <img className="!block !h-[20px] !w-[20px] !object-contain" src={sample.source === "Rakuten" ? "/brands/rakuten.ico" : "/brands/mercari.ico"} alt="" />}
-                <span className="sr-only">{sample.source}</span>
+                {sample.source === WEB_FALLBACK_SOURCE ? "W" : MARKETPLACE_METADATA[sample.source].marker ?? <img className="!block !h-[20px] !w-[20px] !object-contain" src={MARKETPLACE_METADATA[sample.source].logoPath ?? ""} alt="" />}
+                <span className="sr-only">{sample.source === WEB_FALLBACK_SOURCE ? sample.source : MARKETPLACE_METADATA[sample.source].displayName[locale]}</span>
               </span>
               <p className="!overflow-hidden !text-ellipsis !whitespace-nowrap max-[767px]:!text-[11px]">{sample.title}</p>
               <b className="!font-[550] [@media(max-width:390px)]:[&&]:!col-start-2">{formatYen(sample.price)}</b>

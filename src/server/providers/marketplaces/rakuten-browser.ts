@@ -1,6 +1,7 @@
 import type { Page } from "playwright-core";
 
-import type { RakutenListingCandidate } from "../../../price/types";
+import { MARKETPLACE_IDS } from "../../../core/marketplace";
+import type { MarketplaceCandidate } from "../../../price/types";
 import { captureBrowserSearch, type BrowserMarketplaceProvider } from "./shared/browser-search";
 import { buildMarketplaceKeyword } from "./shared/keyword";
 
@@ -8,9 +9,10 @@ function buildRakutenSearchUrl(keyword: string): string {
   return `https://search.rakuten.co.jp/search/mall/${encodeURIComponent(buildMarketplaceKeyword(keyword))}/`;
 }
 
-async function captureRakuten(page: Page, maxCards: number): Promise<RakutenListingCandidate[]> {
-  return page.evaluate((limit): RakutenListingCandidate[] => {
-    const results: RakutenListingCandidate[] = [];
+async function captureRakuten(page: Page, maxCards: number): Promise<MarketplaceCandidate[]> {
+  const sourceId = MARKETPLACE_IDS.rakuten;
+  return page.evaluate(({ limit, sourceId }): MarketplaceCandidate[] => {
+    const results: MarketplaceCandidate[] = [];
     const urls = new Set<string>();
     for (const anchor of [...document.querySelectorAll<HTMLAnchorElement>("a[href]")]) {
       const href = anchor.href;
@@ -28,7 +30,7 @@ async function captureRakuten(page: Page, maxCards: number): Promise<RakutenList
       const shopMatch = cardText.match(/(?:ショップ|販売店|店舗)[:：]?\s*([^|｜]{2,40})/);
       urls.add(href);
       results.push({
-        source: "Rakuten",
+        source: sourceId,
         rank: results.length + 1,
         title,
         displayedPrice: priceMatch ? Number(priceMatch[1]!.replace(/,/g, "")) : null,
@@ -39,7 +41,7 @@ async function captureRakuten(page: Page, maxCards: number): Promise<RakutenList
       if (results.length >= limit) break;
     }
     return results;
-  }, maxCards);
+  }, { limit: maxCards, sourceId });
 }
 
 export const rakutenBrowserProvider: BrowserMarketplaceProvider = {
@@ -49,12 +51,14 @@ export const rakutenBrowserProvider: BrowserMarketplaceProvider = {
   searchWithBrowser(args) {
     return captureBrowserSearch({
       context: args.context,
-      source: "Rakuten",
+      source: MARKETPLACE_IDS.rakuten,
       keyword: buildMarketplaceKeyword(args.keyword),
       searchUrl: buildRakutenSearchUrl(args.keyword),
       maxCards: args.maxCards,
       ...(args.onPageOpened ? { onPageOpened: args.onPageOpened } : {}),
       ...(args.onRequest ? { onRequest: args.onRequest } : {}),
+      ...(args.onHttpRequestStarted ? { onHttpRequestStarted: args.onHttpRequestStarted } : {}),
+      ...(args.onHttpRequestCompleted ? { onHttpRequestCompleted: args.onHttpRequestCompleted } : {}),
       capture: captureRakuten,
     });
   },

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { fetchWithHttpMetrics } from "../../analysis/marketplace-cost-tracker";
 import { env } from "../../config/env";
 
 export const YAHOO_SHOPPING_ITEM_SEARCH_ENDPOINT = "https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch";
@@ -44,6 +45,8 @@ export type YahooShoppingFetchOptions = {
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
   onRequest?: () => void;
+  onHttpRequestStarted?: () => void;
+  onHttpRequestCompleted?: (status: number | null, elapsedMs: number, blockingRelevant?: boolean) => void;
   rateLimit?: (signal?: AbortSignal) => Promise<void>;
 };
 
@@ -115,10 +118,13 @@ export async function fetchYahooShoppingItems(query: string, options: YahooShopp
   await (options.rateLimit ?? waitForYahooRateLimit)(options.signal);
   const timeoutSignal = AbortSignal.timeout(YAHOO_SHOPPING_API_TIMEOUT_MS);
   const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
-  options.onRequest?.();
   let response: Response;
   try {
-    response = await (options.fetchImpl ?? fetch)(url, { method: "GET", headers: { Accept: "application/json" }, signal });
+    response = await fetchWithHttpMetrics(options.fetchImpl ?? fetch, url, { method: "GET", headers: { Accept: "application/json" }, signal }, {
+      ...(options.onRequest ? { onRequest: options.onRequest } : {}),
+      ...(options.onHttpRequestStarted ? { onHttpRequestStarted: options.onHttpRequestStarted } : {}),
+      ...(options.onHttpRequestCompleted ? { onHttpRequestCompleted: options.onHttpRequestCompleted } : {}),
+    });
   } catch (error) {
     if (options.signal?.aborted) throw options.signal.reason instanceof Error ? options.signal.reason : new Error("Yahoo! Shopping request canceled.");
     if (signal.aborted || (error instanceof DOMException && error.name === "TimeoutError")) {

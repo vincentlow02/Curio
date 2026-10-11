@@ -1,8 +1,9 @@
 import "server-only";
 
 import type { ItemProfile } from "../../../price/item-profile";
+import { MARKETPLACE_IDS } from "../../../core/marketplace";
 import { classifyIdentityMatch } from "../../../price/identity";
-import type { RakutenListingCandidate, SearchSnapshot } from "../../../price/types";
+import type { MarketplaceCandidate, SearchSnapshot } from "../../../price/types";
 import { env } from "../../config/env";
 import { fetchYahooShoppingItems, YAHOO_SHOPPING_ITEM_SEARCH_ENDPOINT, YahooShoppingApiError, type YahooShoppingHit } from "./yahoo-shopping-api-client";
 import type { HttpMarketplaceProvider } from "./types";
@@ -25,7 +26,7 @@ export function buildYahooShoppingQueries(profile: ItemProfile): string[] {
 }
 
 type YahooCandidateEntry = {
-  candidate: RakutenListingCandidate;
+  candidate: MarketplaceCandidate;
   queryIndex: number;
   sequence: number;
 };
@@ -40,7 +41,7 @@ function safeItemUrl(value: unknown): string | null {
   }
 }
 
-function mapHit(hit: YahooShoppingHit, seenCodes: Set<string>, seenUrls: Set<string>): RakutenListingCandidate | null {
+function mapHit(hit: YahooShoppingHit, seenCodes: Set<string>, seenUrls: Set<string>): MarketplaceCandidate | null {
   const title = typeof hit.name === "string" ? hit.name.replace(/\s+/g, " ").trim() : "";
   const url = safeItemUrl(hit.url);
   if (!title || !url || hit.condition !== "used" || seenUrls.has(url)) return null;
@@ -54,7 +55,7 @@ function mapHit(hit: YahooShoppingHit, seenCodes: Set<string>, seenUrls: Set<str
   seenUrls.add(url);
   if (externalId) seenCodes.add(externalId);
   return {
-    source: "Yahoo! Shopping",
+    source: MARKETPLACE_IDS.yahooShopping,
     rank: 0,
     title,
     displayedPrice: price,
@@ -65,7 +66,7 @@ function mapHit(hit: YahooShoppingHit, seenCodes: Set<string>, seenUrls: Set<str
   };
 }
 
-function isUsableCandidate(profile: ItemProfile, candidate: RakutenListingCandidate): boolean {
+function isUsableCandidate(profile: ItemProfile, candidate: MarketplaceCandidate): boolean {
   return candidate.displayedPrice !== null
     && candidate.displayedPrice > 0
     && candidate.availabilityText !== "在庫なし"
@@ -85,12 +86,14 @@ async function searchYahooShopping(args: {
   maxCards: number;
   signal?: AbortSignal;
   onRequest?: () => void;
+  onHttpRequestStarted?: () => void;
+  onHttpRequestCompleted?: (status: number | null, elapsedMs: number, blockingRelevant?: boolean) => void;
 }): Promise<SearchSnapshot["sources"][number]> {
   const queries = buildYahooShoppingQueries(args.profile);
   const limit = Math.min(Math.max(args.maxCards, 0), 30);
   if (!queries.length || !limit) {
     return {
-      source: "Yahoo! Shopping",
+      source: MARKETPLACE_IDS.yahooShopping,
       keyword: "",
       searchUrl: YAHOO_SHOPPING_ITEM_SEARCH_ENDPOINT,
       error: "invalid_query: Yahoo! Shopping search query is empty.",
@@ -111,6 +114,8 @@ async function searchYahooShopping(args: {
       const response = await fetchYahooShoppingItems(query, {
         ...(args.signal ? { signal: args.signal } : {}),
         ...(args.onRequest ? { onRequest: args.onRequest } : {}),
+        ...(args.onHttpRequestStarted ? { onHttpRequestStarted: args.onHttpRequestStarted } : {}),
+        ...(args.onHttpRequestCompleted ? { onHttpRequestCompleted: args.onHttpRequestCompleted } : {}),
       });
       for (const hit of response.hits.slice(0, limit)) {
         const candidate = mapHit(hit, seenCodes, seenUrls);
@@ -137,7 +142,7 @@ async function searchYahooShopping(args: {
     .map(({ candidate }, index) => ({ ...candidate, rank: index + 1 }));
 
   return {
-    source: "Yahoo! Shopping",
+    source: MARKETPLACE_IDS.yahooShopping,
     keyword: queriesUsed.join(" | "),
     searchUrl: YAHOO_SHOPPING_ITEM_SEARCH_ENDPOINT,
     error,
@@ -146,7 +151,7 @@ async function searchYahooShopping(args: {
 }
 
 export const yahooShoppingProvider: HttpMarketplaceProvider = {
-  source: "Yahoo! Shopping",
+  source: MARKETPLACE_IDS.yahooShopping,
   runtime: "http",
   supportsProfile: () => env.yahooShoppingApiEnabled,
   search: searchYahooShopping,

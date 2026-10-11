@@ -1,9 +1,11 @@
-import type {
-  AnalysisResult,
-  AnalysisStage,
-  ResearchStreamEvent,
-  ToolActivity,
+import {
+  NON_MARKETPLACE_TOOL_PROVIDERS,
+  type AnalysisResult,
+  type AnalysisStage,
+  type ResearchStreamEvent,
+  type ToolActivity,
 } from "../../../core/analysis/types";
+import { MARKETPLACE_SOURCE_IDS, PRICE_SOURCE_IDS } from "../../../core/marketplace";
 import { isCollectibleCategory } from "../../../core/profile/types";
 
 export type ResearchStreamErrorKind =
@@ -50,12 +52,12 @@ const analysisStages: readonly AnalysisStage[] = [
   "completed",
   "failed",
 ];
-const toolProviders = ["Qwen", "Rakuten", "Mercari", "Yahoo! Shopping", "Yahoo Auctions", "Mandarake Auction", "Tavily", "Node", "Daytona"] as const;
+const toolProviders = [...NON_MARKETPLACE_TOOL_PROVIDERS, ...MARKETPLACE_SOURCE_IDS] as const;
 const toolStatuses = ["pending", "running", "succeeded", "failed", "skipped", "fallback"] as const;
 const verificationStatuses = ["not_run", "verified", "mismatch", "unavailable"] as const;
 const auctionSources = ["Yahoo Auctions", "Mandarake Auction"] as const;
 const auctionStatuses = ["succeeded", "no_results", "failed", "skipped"] as const;
-const priceSources = ["Rakuten", "Mercari", "Yahoo! Shopping", "Web fallback"] as const;
+const priceSources = PRICE_SOURCE_IDS;
 const conditions = ["used", "new", "unknown"] as const;
 const versionMatches = ["exact", "similar"] as const;
 const packageStatuses = ["with_box", "without_box", "unknown"] as const;

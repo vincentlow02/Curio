@@ -1,5 +1,6 @@
 import "server-only";
 
+import { fetchWithHttpMetrics } from "../../analysis/marketplace-cost-tracker";
 import { env } from "../../config/env";
 
 export const RAKUTEN_ITEM_SEARCH_ENDPOINT = "https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260701";
@@ -43,6 +44,8 @@ type FetchRakutenItemsOptions = {
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
   onRequest?: () => void;
+  onHttpRequestStarted?: () => void;
+  onHttpRequestCompleted?: (status: number | null, elapsedMs: number, blockingRelevant?: boolean) => void;
   rateLimit?: (signal?: AbortSignal) => Promise<void>;
 };
 
@@ -131,15 +134,18 @@ export async function fetchRakutenItems(
 
   const rateLimit = options.rateLimit ?? waitForRateLimit;
   await rateLimit(options.signal);
-  options.onRequest?.();
   const timeoutSignal = AbortSignal.timeout(RAKUTEN_API_TIMEOUT_MS);
   const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
   let response: Response;
   try {
-    response = await (options.fetchImpl ?? fetch)(url, {
+    response = await fetchWithHttpMetrics(options.fetchImpl ?? fetch, url, {
       method: "GET",
       headers: { accessKey, Accept: "application/json" },
       signal,
+    }, {
+      ...(options.onRequest ? { onRequest: options.onRequest } : {}),
+      ...(options.onHttpRequestStarted ? { onHttpRequestStarted: options.onHttpRequestStarted } : {}),
+      ...(options.onHttpRequestCompleted ? { onHttpRequestCompleted: options.onHttpRequestCompleted } : {}),
     });
   } catch (error) {
     if (options.signal?.aborted) throw options.signal.reason instanceof Error ? options.signal.reason : new Error("Rakuten API request was canceled.");

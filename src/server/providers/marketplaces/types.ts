@@ -7,6 +7,8 @@ export type MarketplaceSearchInput = {
   maxCards: number;
   signal?: AbortSignal;
   onRequest?: () => void;
+  onHttpRequestStarted?: () => void;
+  onHttpRequestCompleted?: (status: number | null, elapsedMs: number, blockingRelevant?: boolean) => void;
 };
 
 export type MarketplaceProviderBase = {

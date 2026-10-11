@@ -1,4 +1,7 @@
 import type { DetectionResult } from "../profile/types";
+import type { MarketplaceSource, PriceSource } from "../marketplace";
+
+export const NON_MARKETPLACE_TOOL_PROVIDERS = ["Qwen", "Yahoo Auctions", "Mandarake Auction", "Tavily", "Node", "Daytona"] as const;
 
 export type AnalysisStage =
   | "queued"
@@ -14,7 +17,7 @@ export type AnalysisStage =
   | "failed";
 
 export type ToolActivity = {
-  provider: "Qwen" | "Rakuten" | "Mercari" | "Yahoo! Shopping" | "Yahoo Auctions" | "Mandarake Auction" | "Tavily" | "Node" | "Daytona";
+  provider: MarketplaceSource | (typeof NON_MARKETPLACE_TOOL_PROVIDERS)[number];
   status: "pending" | "running" | "succeeded" | "failed" | "skipped" | "fallback";
   calls: number;
   durationMs: number | null;
@@ -37,7 +40,7 @@ type PublicPriceSample = {
   title: string;
   price: number;
   currency: "JPY";
-  source: "Rakuten" | "Mercari" | "Yahoo! Shopping" | "Web fallback";
+  source: PriceSource;
   url: string;
   condition: "used" | "new" | "unknown";
   versionMatch: "exact" | "similar";

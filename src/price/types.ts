@@ -1,8 +1,10 @@
-export type RunMode = "fixture" | "live" | "replay";
-export type MarketplaceSource = "Rakuten" | "Mercari" | "Yahoo! Shopping";
-export type PriceSource = MarketplaceSource | "Web fallback";
+import type { MarketplaceSource, PriceSource } from "../core/marketplace";
 
-export type RakutenListingCandidate = {
+export type { MarketplaceSource, PriceSource } from "../core/marketplace";
+
+export type RunMode = "fixture" | "live" | "replay";
+
+export type MarketplaceCandidate = {
   source: PriceSource;
   rank: number;
   title: string;
@@ -30,7 +32,7 @@ export type TavilyFallbackSnapshot = {
     identityMatched: boolean;
     extractedPrice: number | null;
   }>;
-  candidates: RakutenListingCandidate[];
+  candidates: MarketplaceCandidate[];
   usage: Record<string, unknown> | null;
 };
 
@@ -42,7 +44,9 @@ export type SearchSnapshot = {
     keyword: string;
     searchUrl: string;
     error: string | null;
-    candidates: RakutenListingCandidate[];
+    candidates: MarketplaceCandidate[];
+    diagnostics?: Array<Record<string, unknown>>;
+    rejectionReasons?: Array<Record<string, unknown>>;
   }>;
 };
 
