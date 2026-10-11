@@ -81,6 +81,8 @@ npm run marketplace-cost-report -- ./path/to/metrics.jsonl
 
 The command reports `NO_RECORDED_DATA` when no records exist; it does not seed sample data. `BROWSERLESS_COST_PER_TIME_UNIT_USD` is used only when `BROWSERLESS_COST_RATE_VERIFIED=true`. HTTP rates use `MARKETPLACE_HTTP_COST_RATES_JSON`, keyed by Marketplace ID, with an explicit verified rate, for example `{"Rakuten":{"usdPerRequest":0.01,"verified":true}}`. Missing or unverified rates produce UNKNOWN estimated cost. Browserless billing is never reported as actual without a supplied billable amount; Proxy/CAPTCHA units remain null until measured.
 
+Yahoo!フリマ uses one ordinary HTML search GET and parses `__NEXT_DATA__`, with a query-bound HTML parser fallback over that same response. The exact `pageProps.searchResults` JSON shape and `data-testid` HTML selectors are fixture-only assumptions; they have not been checked against a live page. The provider remains disabled unless `YAHOO_FURIMA_DATA_LICENSE_VERIFIED=true`; set this only after applicable data-use authorization is verified. Actual Yahoo!フリマ access and commercial reuse authorization are unverified.
+
 ## Local setup
 
 Requirements:

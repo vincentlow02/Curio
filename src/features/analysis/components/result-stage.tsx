@@ -82,6 +82,9 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
       case MARKETPLACE_IDS.rakuten: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuten].activityTitle.zh, description: `读取 1 个公开搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
       case MARKETPLACE_IDS.mercari: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.mercari].activityTitle.zh, description: `读取 1 个在售搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
       case MARKETPLACE_IDS.yahooShopping: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooShopping].activityTitle.zh, description: `发出 ${activity.calls} 次商品 API 查询，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
+      case MARKETPLACE_IDS.yahooFurima: return activity.status === "skipped"
+        ? { title: "已跳过 Yahoo!フリマ", description: "尚未验证数据使用授权。" }
+        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooFurima].activityTitle.zh, description: `读取 1 个公开搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
       case "Yahoo Auctions": return activity.status === "skipped" ? { title: "已跳过 Yahoo! 拍卖", description: "未启用收藏家模式。" } : { title: "已检查 Yahoo! 拍卖", description: `发现 ${candidates} 个候选，保留 ${valid} 条可比较的进行中拍卖信号。` };
       case "Mandarake Auction": return activity.status === "skipped" ? { title: "已跳过 Mandarake Auction", description: "未启用收藏家模式。" } : { title: "已检查 Mandarake Auction", description: `发现 ${candidates} 个候选，保留 ${valid} 条可比较信号。` };
       case "Tavily": return activity.status === "skipped" ? { title: "已跳过备用搜索", description: sampleCount > 0 ? "主要来源已有可比较样本，无需备用搜索。" : "本次运行已关闭备用搜索。" } : { title: "已使用受控备用搜索", description: `Tavily 返回 ${candidates} 个候选，保留 ${valid} 个。` };
@@ -99,6 +102,9 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
       case MARKETPLACE_IDS.rakuten: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuten].activityTitle.ja, description: `公開検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
       case MARKETPLACE_IDS.mercari: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.mercari].activityTitle.ja, description: `販売中検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
       case MARKETPLACE_IDS.yahooShopping: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooShopping].activityTitle.ja, description: `商品APIを ${activity.calls} 回検索し、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
+      case MARKETPLACE_IDS.yahooFurima: return activity.status === "skipped"
+        ? { title: "Yahoo!フリマをスキップ", description: "データ利用の許諾が未確認です。" }
+        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooFurima].activityTitle.ja, description: `公開検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
       case "Yahoo Auctions": return activity.status === "skipped" ? { title: "Yahoo!オークションをスキップ", description: "コレクターモードが無効でした。" } : { title: "Yahoo!オークションを確認", description: `候補 ${candidates} 件から比較可能な開催中情報 ${valid} 件を採用しました。` };
       case "Mandarake Auction": return activity.status === "skipped" ? { title: "Mandarake Auctionをスキップ", description: "コレクターモードが無効でした。" } : { title: "Mandarake Auctionを確認", description: `候補 ${candidates} 件から比較可能な情報 ${valid} 件を採用しました。` };
       case "Tavily": return activity.status === "skipped" ? { title: "代替検索をスキップ", description: sampleCount > 0 ? "主要情報源で比較可能なサンプルが得られたため不要でした。" : "今回の代替検索は無効でした。" } : { title: "管理された代替検索を使用", description: `Tavily の候補 ${candidates} 件から ${valid} 件を採用しました。` };
@@ -124,6 +130,10 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
       return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.mercari].activityTitle.en, description: `Read one on-sale search page, found ${candidates} candidates and retained ${valid} comparable samples.` };
     case MARKETPLACE_IDS.yahooShopping:
       return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooShopping].activityTitle.en, description: `Made ${activity.calls} product API queries, found ${candidates} candidates and retained ${valid} comparable samples.` };
+    case MARKETPLACE_IDS.yahooFurima:
+      return activity.status === "skipped"
+        ? { title: "Skipped Yahoo! Flea Market", description: "Data-use authorization is not verified." }
+        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooFurima].activityTitle.en, description: `Read one public search page, found ${candidates} candidates and retained ${valid} comparable samples.` };
     case "Yahoo Auctions":
       return activity.status === "skipped"
         ? { title: "Skipped Yahoo! Auctions", description: "Collector Mode was not enabled." }

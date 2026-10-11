@@ -7,6 +7,7 @@ import type { BrowserMarketplaceProvider } from "./shared/browser-search";
 import type { HttpMarketplaceProvider } from "./types";
 import { rakutenBrowserProvider } from "./rakuten-browser";
 import { yahooShoppingProvider } from "./yahoo-shopping";
+import { yahooFurimaProvider } from "./yahoo-furima";
 
 export type RegisteredMarketplaceProvider = HttpMarketplaceProvider | BrowserMarketplaceProvider;
 
@@ -18,11 +19,15 @@ const yahooShoppingRegistration: MarketplaceRegistration = env.yahooShoppingApiE
   ? { id: MARKETPLACE_IDS.yahooShopping, status: "enabled", provider: yahooShoppingProvider }
   : { id: MARKETPLACE_IDS.yahooShopping, status: "disabled" };
 
+const yahooFurimaRegistration: MarketplaceRegistration = env.yahooFurimaDataLicenseVerified
+  ? { id: MARKETPLACE_IDS.yahooFurima, status: "enabled", provider: yahooFurimaProvider }
+  : { id: MARKETPLACE_IDS.yahooFurima, status: "disabled" };
+
 export const marketplaceRegistry = [
   { id: MARKETPLACE_IDS.rakuten, status: "enabled", provider: env.rakutenOfficialApiEnabled ? rakutenProvider : rakutenBrowserProvider },
   { id: MARKETPLACE_IDS.mercari, status: "enabled", provider: mercariProvider },
   yahooShoppingRegistration,
-  { id: "Yahoo!フリマ", status: "disabled" },
+  yahooFurimaRegistration,
   { id: "Rakuma", status: "disabled" },
   { id: "Surugaya", status: "disabled" },
   { id: "BOOKOFF", status: "disabled" },

@@ -2,6 +2,7 @@ export const MARKETPLACE_IDS = {
   rakuten: "Rakuten",
   mercari: "Mercari",
   yahooShopping: "Yahoo! Shopping",
+  yahooFurima: "Yahoo!フリマ",
 } as const;
 
 export type MarketplaceSource = (typeof MARKETPLACE_IDS)[keyof typeof MARKETPLACE_IDS];
@@ -36,5 +37,11 @@ export const MARKETPLACE_METADATA = {
     activityTitle: { en: "Searched Yahoo! Shopping", zh: "已搜索 Yahoo! Shopping", ja: "Yahoo!ショッピングを検索" },
     logoPath: null,
     marker: "Y!",
+  },
+  [MARKETPLACE_IDS.yahooFurima]: {
+    displayName: { en: "Yahoo! Flea Market", zh: "Yahoo!フリマ", ja: "Yahoo!フリマ" },
+    activityTitle: { en: "Searched Yahoo! Flea Market", zh: "已搜索 Yahoo!フリマ", ja: "Yahoo!フリマを検索" },
+    logoPath: null,
+    marker: "YF",
   },
 } as const satisfies Record<MarketplaceSource, MarketplaceMetadata>;
