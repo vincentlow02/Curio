@@ -22,7 +22,7 @@
     "@radix-ui/react-dropdown-menu": "^2.1.24",
     "@radix-ui/react-select": "^2.3.7",
     "ajv": "^8.18.0",
-    "dotenv": "17.4.2",
+    "dotenv": "18.0.6",
     "geist": "^1.7.2",
     "next": "16.4.0",
     "openai": "6.47.0",
