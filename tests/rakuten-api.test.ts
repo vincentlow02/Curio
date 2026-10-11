@@ -71,7 +71,7 @@ describe("Rakuten Ichiba Item Search API client", () => {
 
     expect(candidates).toEqual([
       { source: "Rakuten", rank: 1, title: "中古 ゲームボーイアドバンス", displayedPrice: 9800, url: "https://item.rakuten.co.jp/shop/a", shopName: "Shop A", availabilityText: "" },
-      { source: "Rakuten", rank: 2, title: "中古 PSP-3000 ブラック", displayedPrice: 12500, url: "https://item.rakuten.co.jp/shop/b", shopName: "Shop B", availabilityText: "sold_out" },
+      { source: "Rakuten", rank: 2, title: "中古 PSP-3000 ブラック", displayedPrice: 12500, url: "https://item.rakuten.co.jp/shop/b", shopName: "Shop B", availabilityText: "在庫なし" },
       { source: "Rakuten", rank: 3, title: "中古 レコード", displayedPrice: 0, url: "https://item.rakuten.co.jp/shop/c", shopName: "Shop C", availabilityText: "unknown" },
       { source: "Rakuten", rank: 4, title: "中古 フィギュア", displayedPrice: null, url: "https://item.rakuten.co.jp/shop/d", shopName: "unknown", availabilityText: "" },
       { source: "Rakuten", rank: 5, title: "中古 ポケモンカード", displayedPrice: 3100, url: "https://item.rakuten.co.jp/shop/e", shopName: "Shop E", availabilityText: "unknown" },
@@ -198,16 +198,16 @@ describe("Rakuten Provider feature flag", () => {
     const getBrowserContext = vi.fn(async () => context as never);
     const fixture = fixtureResult({ collectorMode: false });
 
-    const snapshot = await coordinateMarketplaceSearches({
+    const coordinated = await coordinateMarketplaceSearches({
       profile: toPriceItemProfile(fixture.identification),
       keyword: fixture.identification.priceSearchKeywordJa,
       maxCardsPerSource: 30,
       getBrowserContext,
     });
 
-    expect(snapshot.sources.map(({ source }) => source)).toEqual(["Rakuten", "Mercari"]);
-    expect(snapshot.sources[0]).toMatchObject({ error: null, candidates: [] });
-    expect(snapshot.sources[1]).toMatchObject({ error: null, candidates: [] });
+    expect(coordinated.snapshot.sources.map(({ source }) => source)).toEqual(["Rakuten", "Mercari"]);
+    expect(coordinated.snapshot.sources[0]).toMatchObject({ error: null, candidates: [] });
+    expect(coordinated.snapshot.sources[1]).toMatchObject({ error: null, candidates: [] });
     expect(fetch).toHaveBeenCalledOnce();
     expect(getBrowserContext).toHaveBeenCalledOnce();
     expect(context.newPage).toHaveBeenCalledOnce();
@@ -231,15 +231,15 @@ describe("Rakuten Provider feature flag", () => {
     const getBrowserContext = vi.fn(async () => context as never);
     const fixture = fixtureResult({ collectorMode: false });
 
-    const snapshot = await coordinateMarketplaceSearches({
+    const coordinated = await coordinateMarketplaceSearches({
       profile: toPriceItemProfile(fixture.identification),
       keyword: fixture.identification.priceSearchKeywordJa,
       maxCardsPerSource: 30,
       getBrowserContext,
     });
 
-    expect(snapshot.sources[0]).toMatchObject({ source: "Rakuten", error: expect.stringContaining("upstream_error"), candidates: [] });
-    expect(snapshot.sources[1]).toMatchObject({ source: "Mercari", error: null, candidates: [] });
+    expect(coordinated.snapshot.sources[0]).toMatchObject({ source: "Rakuten", error: expect.stringContaining("upstream_error"), candidates: [] });
+    expect(coordinated.snapshot.sources[1]).toMatchObject({ source: "Mercari", error: null, candidates: [] });
     expect(fetch).toHaveBeenCalledOnce();
     expect(getBrowserContext).toHaveBeenCalledOnce();
     expect(context.newPage).toHaveBeenCalledOnce();

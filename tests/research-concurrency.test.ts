@@ -35,8 +35,8 @@ describe("shared research browser context", () => {
     expect(settled.every((entry) => entry.status === "fulfilled")).toBe(true);
     const marketplace = settled[0];
     if (marketplace?.status !== "fulfilled") throw new Error("Marketplace task unexpectedly rejected");
-    expect(marketplace.value.sources[0]).toMatchObject({ source: "Rakuten", candidates: [] });
-    expect(marketplace.value.sources[0]?.error).toMatch(/Rakuten unavailable/);
-    expect(marketplace.value.sources[1]).toMatchObject({ source: "Mercari", error: null, candidates: [] });
+    expect(marketplace.value.snapshot.sources[0]).toMatchObject({ source: "Rakuten", candidates: [] });
+    expect(marketplace.value.snapshot.sources[0]?.error).toMatch(/Rakuten unavailable/);
+    expect(marketplace.value.snapshot.sources[1]).toMatchObject({ source: "Mercari", error: null, candidates: [] });
   });
 });

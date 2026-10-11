@@ -53,6 +53,7 @@ export const rakutenBrowserProvider: BrowserMarketplaceProvider = {
       keyword: buildMarketplaceKeyword(args.keyword),
       searchUrl: buildRakutenSearchUrl(args.keyword),
       maxCards: args.maxCards,
+      ...(args.onPageOpened ? { onPageOpened: args.onPageOpened } : {}),
       capture: captureRakuten,
     });
   },

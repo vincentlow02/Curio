@@ -48,6 +48,7 @@ export type SearchSnapshot = {
 export type ExclusionReason =
   | "missing_price"
   | "sold_out"
+  | "out_of_stock"
   | "junk_or_broken"
   | "new_item"
   | "incomplete_item"

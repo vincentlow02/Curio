@@ -39,7 +39,10 @@ function httpProvider(source: MarketplaceSource) {
   return { source, runtime: "http", supportsProfile: () => true, search };
 }
 
-function browserMarketplace(source: MarketplaceSource, searchWithBrowser = vi.fn(async () => sourceResult(source))) {
+function browserMarketplace(source: MarketplaceSource, searchWithBrowser = vi.fn(async ({ onPageOpened }: { onPageOpened?: () => void }) => {
+  onPageOpened?.();
+  return sourceResult(source);
+})) {
   return { source, runtime: "browser", supportsProfile: () => true, searchWithBrowser };
 }
 
@@ -107,8 +110,9 @@ describe("research Browser lease lifecycle", () => {
     const apiProvider = httpProvider("Rakuten");
     const lease = createLease();
     let receivedContext: unknown;
-    const browserProvider = browserMarketplace("Mercari", vi.fn(async ({ context }: { context: unknown }) => {
+    const browserProvider = browserMarketplace("Mercari", vi.fn(async ({ context, onPageOpened }: { context: unknown; onPageOpened?: () => void }) => {
       receivedContext = context;
+      onPageOpened?.();
       return sourceResult("Mercari");
     }));
     register(apiProvider);
@@ -133,6 +137,7 @@ describe("research Browser lease lifecycle", () => {
     expect(apiProvider.search).toHaveBeenCalledOnce();
     expect(workflow.toolActivity.find((activity) => activity.provider === "Rakuten")?.status).toBe("succeeded");
     expect(workflow.toolActivity.find((activity) => activity.provider === "Mercari")?.status).toBe("failed");
+    expect(workflow.result.cost.marketplacePages).toBe(0);
   });
 
   it("closes the shared lease when a Browser provider search fails", async () => {

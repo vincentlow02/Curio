@@ -47,20 +47,21 @@ describe("marketplace provider registry", () => {
       },
     };
 
-    const snapshot = await coordinateMarketplaceSearches({
+    const coordinated = await coordinateMarketplaceSearches({
       profile,
       keyword,
       maxCardsPerSource: 30,
       getBrowserContext: async () => context as never,
     });
 
-    expect(snapshot.sources.map(({ source }) => source)).toEqual(["Rakuten", "Mercari"]);
-    expect(snapshot.sources.map(({ keyword: normalized }) => normalized)).toEqual([
+    expect(coordinated.snapshot.sources.map(({ source }) => source)).toEqual(["Rakuten", "Mercari"]);
+    expect(coordinated.snapshot.sources.map(({ keyword: normalized }) => normalized)).toEqual([
       '中古 ポケモンカード151 リザードン',
       'ポケモンカード151 リザードン',
     ]);
-    expect(snapshot.sources.map(({ candidates: found }) => found)).toEqual(candidates);
-    expect(snapshot.sources.every(({ error }) => error === null)).toBe(true);
+    expect(coordinated.snapshot.sources.map(({ candidates: found }) => found)).toEqual(candidates);
+    expect(coordinated.snapshot.sources.every(({ error }) => error === null)).toBe(true);
+    expect(Object.keys(coordinated.durationMsBySource)).toEqual(["Rakuten", "Mercari"]);
     expect(visited[0]).toMatch(/^https:\/\/search\.rakuten\.co\.jp\/search\/mall\//);
     expect(visited[1]).toContain("https://jp.mercari.com/search?keyword=");
     expect(visited[1]).toContain("&status=on_sale");

@@ -28,7 +28,7 @@ export function mapRakutenItems(items: unknown[], maxCards = 30): RakutenListing
     if (!title || !url || seenUrls.has(url)) continue;
     const priceValue = typeof value.itemPrice === "number" ? value.itemPrice : Number.NaN;
     const displayedPrice = Number.isFinite(priceValue) && priceValue >= 0 ? priceValue : null;
-    const availabilityText = value.availability === 0 ? "sold_out" : value.availability === 1 ? "" : "unknown";
+    const availabilityText = value.availability === 0 ? "在庫なし" : value.availability === 1 ? "" : "unknown";
     const shopName = typeof value.shopName === "string" && value.shopName.trim() ? value.shopName.trim() : "unknown";
     candidates.push({ source: "Rakuten", rank: candidates.length + 1, title, displayedPrice, url, shopName, availabilityText });
     seenUrls.add(url);

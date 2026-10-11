@@ -99,7 +99,7 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
 
     const profile = toPriceItemProfile(input.identification);
     const marketplaceProviders = selectMarketplaceProviders(profile);
-    const browserMarketplacePages = marketplaceProviders.filter((provider) => provider.runtime === "browser").length;
+    let marketplacePagesOpened = 0;
     for (const source of ["Rakuten", "Mercari"] as const) {
       setActivity(marketplaceProviders.some((provider) => provider.source === source)
         ? { provider: source, status: "running", calls: 1, durationMs: null }
@@ -117,9 +117,17 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
     throwIfAborted(workflowSignal);
     const browserStarted = Date.now();
     let snapshot: SearchSnapshot;
+    let marketplaceDurationsMs: Partial<Record<"Rakuten" | "Mercari", number>> = {};
     let auctionSources = skippedAuctionSources();
     try {
-      const marketplaceSearch = coordinateMarketplaceSearches({ profile, keyword: input.identification.priceSearchKeywordJa, maxCardsPerSource: 30, signal: workflowSignal, getBrowserContext });
+      const marketplaceSearch = coordinateMarketplaceSearches({
+        profile,
+        keyword: input.identification.priceSearchKeywordJa,
+        maxCardsPerSource: 30,
+        signal: workflowSignal,
+        getBrowserContext,
+        onBrowserPageOpened: () => { marketplacePagesOpened += 1; },
+      });
       const auctionSearch = input.collectorMode
         ? getBrowserContext().then((context) => captureAuctionSearches({ context, identification: input.identification, collectorEvidence: input.collectorEvidence }))
         : null;
@@ -127,7 +135,12 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
       const auctionSettled = auctionSearch ? await Promise.allSettled([auctionSearch]) : null;
       throwIfAborted(workflowSignal);
       const market = marketplaceSettled[0];
-      snapshot = market?.status === "fulfilled" ? market.value : emptySnapshot(input.identification.priceSearchKeywordJa, market?.status === "rejected" ? publicError(market.reason) : "Marketplace search failed.");
+      if (market?.status === "fulfilled") {
+        snapshot = market.value.snapshot;
+        marketplaceDurationsMs = market.value.durationMsBySource;
+      } else {
+        snapshot = emptySnapshot(input.identification.priceSearchKeywordJa, market?.status === "rejected" ? publicError(market.reason) : "Marketplace search failed.");
+      }
       const auctions = auctionSettled?.[0];
       if (input.collectorMode && auctions) auctionSources = auctions.status === "fulfilled" ? auctions.value as typeof auctionSources : (["Yahoo Auctions", "Mandarake Auction"] as const).map((source) => ({ source, status: "failed" as const, candidatesSeen: 0, comparableSignals: 0, signals: [] }));
     } catch (error) {
@@ -135,7 +148,7 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
       snapshot = emptySnapshot(input.identification.priceSearchKeywordJa, publicError(error, "The browser provider was unavailable."));
       if (input.collectorMode) auctionSources = (["Yahoo Auctions", "Mandarake Auction"] as const).map((source) => ({ source, status: "failed" as const, candidatesSeen: 0, comparableSignals: 0, signals: [] }));
     }
-    for (const source of snapshot.sources) setActivity({ provider: source.source, status: source.error ? "failed" : "succeeded", calls: 1, durationMs: Date.now() - browserStarted, resultCount: source.candidates.length, cacheHit: false });
+    for (const source of snapshot.sources) setActivity({ provider: source.source, status: source.error ? "failed" : "succeeded", calls: 1, durationMs: marketplaceDurationsMs[source.source] ?? Date.now() - browserStarted, resultCount: source.candidates.length, cacheHit: false });
     for (const source of auctionSources) setActivity({ provider: source.source, status: source.status === "failed" ? "failed" : source.status === "skipped" ? "skipped" : "succeeded", calls: source.status === "skipped" ? 0 : 1, durationMs: source.status === "skipped" ? 0 : Date.now() - browserStarted, resultCount: source.candidatesSeen, validResultCount: source.comparableSignals, cacheHit: false });
 
     let fallback = disabledTavilyFallback(profile);
@@ -178,7 +191,7 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
       recommendedAreas: areas,
       storeSuggestions: stores,
       warnings,
-      cost: { qwenCalls: qwen?.calls ?? 1, inputTokens: qwen?.inputTokens ?? 0, outputTokens: qwen?.outputTokens ?? 0, marketplacePages: browserMarketplacePages, auctionPages: input.collectorMode ? 2 : 0, tavilyCalls: fallback.triggered ? 1 : 0, daytonaCalls: 0, totalMs: Date.now() - startedAt },
+      cost: { qwenCalls: qwen?.calls ?? 1, inputTokens: qwen?.inputTokens ?? 0, outputTokens: qwen?.outputTokens ?? 0, marketplacePages: marketplacePagesOpened, auctionPages: input.collectorMode ? 2 : 0, tavilyCalls: fallback.triggered ? 1 : 0, daytonaCalls: 0, totalMs: Date.now() - startedAt },
     };
     return { result, toolActivity: activities };
   } finally {

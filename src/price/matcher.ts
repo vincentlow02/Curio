@@ -92,6 +92,7 @@ export function buildPriceResult(args: {
       let reason: ExclusionReason | null = null;
       const combined = `${candidate.title} ${candidate.availabilityText}`;
       if (candidate.displayedPrice === null || candidate.displayedPrice <= 0) reason = "missing_price";
+      else if (candidate.availabilityText === "在庫なし") reason = "out_of_stock";
       else if (SOLD_OUT.test(combined)) reason = "sold_out";
       else if (JUNK.test(candidate.title)) reason = "junk_or_broken";
       else if (candidate.source === "Rakuten" && NEW_ITEM.test(candidate.title)) reason = "new_item";

@@ -1,8 +1,13 @@
 import type { BrowserContext } from "playwright-core";
 
 import type { ItemProfile } from "../../../price/item-profile";
-import type { SearchSnapshot } from "../../../price/types";
+import type { MarketplaceSource, SearchSnapshot } from "../../../price/types";
 import { selectMarketplaceProviders } from "./selector";
+
+export type CoordinatedMarketplaceSearch = {
+  snapshot: SearchSnapshot;
+  durationMsBySource: Partial<Record<MarketplaceSource, number>>;
+};
 
 export async function coordinateMarketplaceSearches(args: {
   profile: ItemProfile;
@@ -10,7 +15,8 @@ export async function coordinateMarketplaceSearches(args: {
   maxCardsPerSource: number;
   signal?: AbortSignal;
   getBrowserContext?: () => Promise<BrowserContext>;
-}): Promise<SearchSnapshot> {
+  onBrowserPageOpened?: () => void;
+}): Promise<CoordinatedMarketplaceSearch> {
   const providers = selectMarketplaceProviders(args.profile);
   const input = {
     keyword: args.keyword,
@@ -19,19 +25,31 @@ export async function coordinateMarketplaceSearches(args: {
   };
   const browserProviders = providers.filter((provider) => provider.runtime === "browser");
   const browserContextResult = browserProviders.length && args.getBrowserContext
-    ? args.getBrowserContext().then((context) => ({ context }), (error: unknown) => ({ error }))
+    ? Promise.resolve().then(() => args.getBrowserContext!()).then((context) => ({ context }), (error: unknown) => ({ error }))
     : null;
-  const settled = await Promise.allSettled(providers.map((provider) => {
-    return provider.runtime === "browser"
+  const settled = await Promise.all(providers.map((provider) => {
+    const startedAt = performance.now();
+    const search = Promise.resolve().then(() => provider.runtime === "browser"
       ? browserContextResult
         ? browserContextResult.then((result) => {
             if ("error" in result) throw result.error;
-            return provider.searchWithBrowser({ ...input, context: result.context });
+            return provider.searchWithBrowser({
+              ...input,
+              context: result.context,
+              ...(args.onBrowserPageOpened ? { onPageOpened: args.onBrowserPageOpened } : {}),
+            });
           })
         : Promise.reject(new Error("A browser context is required by this Marketplace provider."))
-      : provider.search(input);
+      : provider.search(input));
+    const durationMs = (): number => Math.max(0, Math.round(performance.now() - startedAt));
+    return search.then(
+      (value) => ({ status: "fulfilled" as const, value, durationMs: durationMs() }),
+      (reason: unknown) => ({ status: "rejected" as const, reason, durationMs: durationMs() }),
+    );
   }));
+  const durationMsBySource: Partial<Record<MarketplaceSource, number>> = {};
   const sources: SearchSnapshot["sources"] = settled.map((entry, index) => {
+    durationMsBySource[providers[index]!.source] = entry.durationMs;
     if (entry.status === "fulfilled") return entry.value;
     const provider = providers[index]!;
     return {
@@ -42,5 +60,5 @@ export async function coordinateMarketplaceSearches(args: {
       candidates: [],
     };
   });
-  return { version: 2, capturedAt: new Date().toISOString(), sources };
+  return { snapshot: { version: 2, capturedAt: new Date().toISOString(), sources }, durationMsBySource };
 }
