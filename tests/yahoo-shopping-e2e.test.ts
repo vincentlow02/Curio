@@ -170,6 +170,54 @@ describe("Yahoo! Shopping Provider MVP fixtures", () => {
     expect(classifyIdentityMatch(profile, "リザードンex SV2a SAR 日本語版 中古")).toBe("unknown");
   });
 
+  it("supports the optional Surugaya seller_id/in_stock filters without changing the default behavior", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input));
+      expect(url.searchParams.get("query")).toBe("PSP-3000");
+      expect(url.searchParams.get("seller_id")).toBe("suruga-ya");
+      expect(url.searchParams.get("condition")).toBe("used");
+      expect(url.searchParams.get("in_stock")).toBe("true");
+      expect(url.searchParams.get("results")).toBe("20");
+      return new Response(JSON.stringify({
+        totalResultsAvailable: 1,
+        totalResultsReturned: 1,
+        hits: [{
+          name: "Sony PSP-3000 本体 中古",
+          url: "https://store.shopping.yahoo.co.jp/suruga-ya/psp-3000",
+          code: "suruga-ya:psp-3000",
+          condition: "used",
+          inStock: true,
+          price: 12000,
+          seller: { name: "駿河屋", sellerId: "suruga-ya" },
+        }],
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { fetchYahooShoppingItems, resetYahooShoppingRateLimitForTests } = await import("../src/server/providers/marketplaces/yahoo-shopping-api-client");
+    resetYahooShoppingRateLimitForTests();
+    const response = await fetchYahooShoppingItems("PSP-3000", {
+      sellerId: "suruga-ya",
+      condition: "used",
+      inStock: true,
+      results: 20,
+    });
+
+    expect(response.hits).toHaveLength(1);
+    expect(response.hits[0]).toMatchObject({
+      name: "Sony PSP-3000 本体 中古",
+      url: "https://store.shopping.yahoo.co.jp/suruga-ya/psp-3000",
+      condition: "used",
+      inStock: true,
+      price: 12000,
+      seller: { sellerId: "suruga-ya" },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the API disabled in the registry unless explicitly opted in", async () => {
     delete process.env.YAHOO_SHOPPING_API_ENABLED;
     vi.resetModules();

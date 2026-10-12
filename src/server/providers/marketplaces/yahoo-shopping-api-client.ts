@@ -48,6 +48,12 @@ export type YahooShoppingFetchOptions = {
   onHttpRequestStarted?: () => void;
   onHttpRequestCompleted?: (status: number | null, elapsedMs: number, blockingRelevant?: boolean) => void;
   rateLimit?: (signal?: AbortSignal) => Promise<void>;
+  sellerId?: string;
+  seller_id?: string;
+  condition?: string;
+  inStock?: boolean;
+  in_stock?: boolean;
+  results?: number;
 };
 
 let nextRequestAt = 0;
@@ -109,10 +115,17 @@ export async function fetchYahooShoppingItems(query: string, options: YahooShopp
   if (!normalizedQuery) throw new YahooShoppingApiError("invalid_query", "Yahoo! Shopping query is empty.");
 
   const url = new URL(YAHOO_SHOPPING_ITEM_SEARCH_ENDPOINT);
+  const sellerId = (options.sellerId ?? options.seller_id ?? "").trim();
+  const condition = (options.condition ?? "used").trim() || "used";
+  const inStock = typeof options.inStock === "boolean" ? options.inStock : typeof options.in_stock === "boolean" ? options.in_stock : undefined;
+  const results = Number.isInteger(options.results) && options.results! > 0 ? options.results! : 30;
+
   url.searchParams.set("appid", appId);
   url.searchParams.set("query", normalizedQuery);
-  url.searchParams.set("condition", "used");
-  url.searchParams.set("results", "30");
+  if (sellerId) url.searchParams.set("seller_id", sellerId);
+  url.searchParams.set("condition", condition);
+  if (typeof inStock === "boolean") url.searchParams.set("in_stock", String(inStock));
+  url.searchParams.set("results", String(results));
   url.searchParams.set("sort", "-score");
 
   await (options.rateLimit ?? waitForYahooRateLimit)(options.signal);
