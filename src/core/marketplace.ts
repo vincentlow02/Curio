@@ -3,6 +3,7 @@ export const MARKETPLACE_IDS = {
   rakuma: "Rakuma",
   mercari: "Mercari",
   yahooShopping: "Yahoo! Shopping",
+  surugayaYahooStore: "Surugaya Yahoo Store",
   yahooFurima: "Yahoo!フリマ",
 } as const;
 
@@ -44,6 +45,12 @@ export const MARKETPLACE_METADATA = {
     activityTitle: { en: "Searched Yahoo! Shopping", zh: "已搜索 Yahoo! Shopping", ja: "Yahoo!ショッピングを検索" },
     logoPath: null,
     marker: "Y!",
+  },
+  [MARKETPLACE_IDS.surugayaYahooStore]: {
+    displayName: { en: "Surugaya Yahoo Store", zh: "骏河屋 Yahoo 店", ja: "駿河屋Yahoo!店" },
+    activityTitle: { en: "Searched Surugaya Yahoo Store", zh: "已搜索骏河屋 Yahoo 店", ja: "駿河屋Yahoo!店を検索" },
+    logoPath: null,
+    marker: "S",
   },
   [MARKETPLACE_IDS.yahooFurima]: {
     displayName: { en: "Yahoo! Flea Market", zh: "Yahoo!フリマ", ja: "Yahoo!フリマ" },

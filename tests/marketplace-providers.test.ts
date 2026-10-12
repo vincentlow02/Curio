@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { fixtureResult } from "../src/server/analysis/fixture-result";
 import { MARKETPLACE_IDS, MARKETPLACE_METADATA, MARKETPLACE_SOURCE_IDS } from "../src/core/marketplace";
 import { toPriceItemProfile } from "../src/core/profile/to-price-profile";
-import { coordinateMarketplaceSearches } from "../src/server/providers/marketplaces/coordinator";
+import { coordinateMarketplaceSearches, deduplicateYahooStoreListings } from "../src/server/providers/marketplaces/coordinator";
 import { marketplaceRegistry } from "../src/server/providers/marketplaces/registry";
 import { selectMarketplaceProviders } from "../src/server/providers/marketplaces/selector";
 import { buildMercariKeyword, mercariProvider } from "../src/server/providers/marketplaces/mercari";
@@ -22,8 +22,62 @@ describe("marketplace provider registry", () => {
 
     expect(selectMarketplaceProviders(profile).map((provider) => provider.source)).toEqual(["Rakuten", "Mercari"]);
     expect(marketplaceRegistry.filter((entry) => entry.status === "disabled").map((entry) => entry.id)).toEqual([
-      "Yahoo! Shopping", "Yahoo!フリマ", "Rakuma", "Surugaya", "BOOKOFF", "HARD OFF", "2nd STREET", "Yahoo! Auctions", "Mandarake",
+      "Yahoo! Shopping", "Yahoo!フリマ", "Rakuma", "Surugaya Yahoo Store", "Surugaya", "BOOKOFF", "HARD OFF", "2nd STREET", "Yahoo! Auctions", "Mandarake",
     ]);
+  });
+
+  it("deduplicates the same Yahoo store item across the API and Surugaya providers", () => {
+    const yahooCandidate: MarketplaceCandidate = {
+      source: MARKETPLACE_IDS.yahooShopping,
+      rank: 1,
+      title: "中古 PSP-3000",
+      displayedPrice: 12000,
+      url: "https://store.shopping.yahoo.co.jp/suruga-ya/177011991001.html?tracking=api",
+      shopName: "駿河屋",
+      availabilityText: "",
+      listingCondition: "used",
+    };
+    const surugayaCandidate: MarketplaceCandidate = { ...yahooCandidate, source: MARKETPLACE_IDS.surugayaYahooStore };
+    const sources = deduplicateYahooStoreListings([
+      { source: MARKETPLACE_IDS.yahooShopping, keyword: "psp", searchUrl: "api", error: null, candidates: [yahooCandidate] },
+      {
+        source: MARKETPLACE_IDS.surugayaYahooStore,
+        keyword: "psp",
+        searchUrl: "store",
+        error: null,
+        candidates: [surugayaCandidate],
+        diagnostics: [{ kind: "listing_discovery", listings: [{ title: surugayaCandidate.title, price: 12000, url: surugayaCandidate.url, availability: "IN_STOCK" }] }],
+      },
+    ]);
+
+    expect(sources[0]?.candidates).toHaveLength(1);
+    expect(sources[1]?.candidates).toHaveLength(0);
+    expect(sources[1]?.diagnostics?.[0]?.listings).toEqual([]);
+  });
+
+  it("keeps a stock-confirmed store listing when the same API item is unpriced or availability-unknown", () => {
+    const apiCandidate: MarketplaceCandidate = {
+      source: MARKETPLACE_IDS.yahooShopping,
+      rank: 1,
+      title: "中古 PSP-3000",
+      displayedPrice: null,
+      url: "https://store.shopping.yahoo.co.jp/suruga-ya/177011991001.html?tracking=api",
+      shopName: "駿河屋",
+      availabilityText: "unknown",
+      listingCondition: "used",
+    };
+    const storeCandidate: MarketplaceCandidate = {
+      ...apiCandidate,
+      source: MARKETPLACE_IDS.surugayaYahooStore,
+      displayedPrice: 12000,
+      availabilityText: "",
+    };
+    const sources = deduplicateYahooStoreListings([
+      { source: MARKETPLACE_IDS.yahooShopping, keyword: "psp", searchUrl: "api", error: null, candidates: [apiCandidate] },
+      { source: MARKETPLACE_IDS.surugayaYahooStore, keyword: "psp", searchUrl: "store", error: null, candidates: [storeCandidate] },
+    ]);
+
+    expect(sources[1]?.candidates).toEqual([storeCandidate]);
   });
 
   it("preserves normalized queries, source ordering, and SearchSnapshot candidate data", async () => {

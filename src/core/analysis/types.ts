@@ -29,6 +29,14 @@ export type ToolActivity = {
   fallbackUsed?: boolean;
   verificationStatus?: "not_run" | "verified" | "mismatch" | "unavailable";
   cacheHit?: boolean;
+  discoveredListings?: MarketplaceDiscoveryListing[];
+};
+
+export type MarketplaceDiscoveryListing = {
+  title: string;
+  price: number;
+  url: string;
+  availability: "IN_STOCK" | "OUT_OF_STOCK" | "UNKNOWN";
 };
 
 export type ResearchStreamEvent =

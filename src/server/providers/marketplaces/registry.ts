@@ -9,6 +9,7 @@ import { rakumaProvider } from "./rakuma";
 import { rakutenBrowserProvider } from "./rakuten-browser";
 import { yahooShoppingProvider } from "./yahoo-shopping";
 import { yahooFurimaProvider } from "./yahoo-furima";
+import { surugayaYahooStoreProvider } from "./surugaya-yahoo-store";
 
 export type RegisteredMarketplaceProvider = HttpMarketplaceProvider | BrowserMarketplaceProvider;
 
@@ -28,12 +29,17 @@ const rakumaRegistration: MarketplaceRegistration = env.rakumaDataLicenseVerifie
   ? { id: MARKETPLACE_IDS.rakuma, status: "enabled", provider: rakumaProvider }
   : { id: MARKETPLACE_IDS.rakuma, status: "disabled" };
 
+const surugayaYahooStoreRegistration: MarketplaceRegistration = env.surugayaYahooStoreDataLicenseVerified
+  ? { id: MARKETPLACE_IDS.surugayaYahooStore, status: "enabled", provider: surugayaYahooStoreProvider }
+  : { id: MARKETPLACE_IDS.surugayaYahooStore, status: "disabled" };
+
 export const marketplaceRegistry = [
   { id: MARKETPLACE_IDS.rakuten, status: "enabled", provider: env.rakutenOfficialApiEnabled ? rakutenProvider : rakutenBrowserProvider },
   { id: MARKETPLACE_IDS.mercari, status: "enabled", provider: mercariProvider },
   yahooShoppingRegistration,
   yahooFurimaRegistration,
   rakumaRegistration,
+  surugayaYahooStoreRegistration,
   { id: "Surugaya", status: "disabled" },
   { id: "BOOKOFF", status: "disabled" },
   { id: "HARD OFF", status: "disabled" },

@@ -2,7 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import type { AnalysisResult, AnalysisStage, CollectorEvidence, ToolActivity } from "../../core/analysis/types";
+import type { AnalysisResult, AnalysisStage, CollectorEvidence, MarketplaceDiscoveryListing, ToolActivity } from "../../core/analysis/types";
 import type { CollectibleCategory, DetectionResult } from "../../core/profile/types";
 import { MARKETPLACE_SOURCE_IDS, WEB_FALLBACK_SOURCE } from "../../core/marketplace";
 import { toPriceItemProfile } from "../../core/profile/to-price-profile";
@@ -32,6 +32,17 @@ export type ResearchWorkflowResult = { result: AnalysisResult; toolActivity: Too
 function upsert(activities: ToolActivity[], activity: ToolActivity): ToolActivity[] { return [...activities.filter((entry) => entry.provider !== activity.provider), activity]; }
 function emptySnapshot(keyword: string, error: string, sources: readonly MarketplaceSource[]): SearchSnapshot {
   return { version: 2, capturedAt: new Date().toISOString(), sources: sources.map((source) => ({ source, keyword, searchUrl: "", error, candidates: [] })) };
+}
+
+function discoveredListingsFor(source: SearchSnapshot["sources"][number]): MarketplaceDiscoveryListing[] | undefined {
+  const discovery = source.diagnostics?.find((entry) => entry.kind === "listing_discovery");
+  if (!discovery || !Array.isArray(discovery.listings)) return undefined;
+  return discovery.listings.filter((listing): listing is MarketplaceDiscoveryListing => {
+    if (typeof listing !== "object" || listing === null || Array.isArray(listing)) return false;
+    const value = listing as Record<string, unknown>;
+    return typeof value.title === "string" && typeof value.price === "number" && Number.isFinite(value.price)
+      && typeof value.url === "string" && ["IN_STOCK", "OUT_OF_STOCK", "UNKNOWN"].includes(String(value.availability));
+  });
 }
 
 function abortError(signal: AbortSignal): Error {
@@ -162,7 +173,18 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
       snapshot = emptySnapshot(input.identification.priceSearchKeywordJa, publicError(error, "The browser provider was unavailable."), marketplaceSources);
       if (input.collectorMode) auctionSources = (["Yahoo Auctions", "Mandarake Auction"] as const).map((source) => ({ source, status: "failed" as const, candidatesSeen: 0, comparableSignals: 0, signals: [] }));
     }
-    for (const source of snapshot.sources) setActivity({ provider: source.source, status: source.error ? "failed" : "succeeded", calls: marketplaceCallsBySource[source.source] ?? 0, durationMs: marketplaceDurationsMs[source.source] ?? Date.now() - browserStarted, resultCount: source.candidates.length, cacheHit: false });
+    for (const source of snapshot.sources) {
+      const discoveredListings = discoveredListingsFor(source);
+      setActivity({
+        provider: source.source,
+        status: source.error ? "failed" : "succeeded",
+        calls: marketplaceCallsBySource[source.source] ?? 0,
+        durationMs: marketplaceDurationsMs[source.source] ?? Date.now() - browserStarted,
+        resultCount: source.candidates.length,
+        ...(discoveredListings ? { discoveredListings } : {}),
+        cacheHit: false,
+      });
+    }
     for (const source of auctionSources) setActivity({ provider: source.source, status: source.status === "failed" ? "failed" : source.status === "skipped" ? "skipped" : "succeeded", calls: source.status === "skipped" ? 0 : 1, durationMs: source.status === "skipped" ? 0 : Date.now() - browserStarted, resultCount: source.candidatesSeen, validResultCount: source.comparableSignals, cacheHit: false });
 
     let fallback = disabledTavilyFallback(profile);

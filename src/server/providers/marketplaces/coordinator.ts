@@ -1,9 +1,52 @@
 import type { BrowserContext } from "playwright-core";
 
+import { MARKETPLACE_IDS } from "../../../core/marketplace";
 import type { ItemProfile } from "../../../price/item-profile";
 import type { MarketplaceSource, SearchSnapshot } from "../../../price/types";
 import type { ResearchCostTracker } from "../../analysis/marketplace-cost-tracker";
 import { selectMarketplaceProviders } from "./selector";
+
+function yahooStoreItemKey(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.hostname !== "store.shopping.yahoo.co.jp" || !/^\/suruga-ya\/[a-z0-9_-]+\.html$/i.test(url.pathname)) return null;
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return null;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function deduplicateYahooStoreListings(sources: SearchSnapshot["sources"]): SearchSnapshot["sources"] {
+  const apiListingKeys = new Set(sources
+    .filter((source) => source.source === MARKETPLACE_IDS.yahooShopping)
+    .flatMap((source) => source.candidates
+      .filter((candidate) => candidate.listingCondition === "used"
+        && candidate.displayedPrice !== null
+        && candidate.displayedPrice > 0
+        && candidate.availabilityText !== "在庫なし"
+        && candidate.availabilityText !== "unknown")
+      .map((candidate) => yahooStoreItemKey(candidate.url))
+      .filter((key): key is string => key !== null)));
+  if (!apiListingKeys.size) return sources;
+
+  return sources.map((source) => {
+    if (source.source !== MARKETPLACE_IDS.surugayaYahooStore) return source;
+    const isDuplicate = (url: unknown): boolean => typeof url === "string" && Boolean(yahooStoreItemKey(url) && apiListingKeys.has(yahooStoreItemKey(url)!));
+    const diagnostics = source.diagnostics?.map((diagnostic) => {
+      if (!Array.isArray(diagnostic.listings)) return diagnostic;
+      return { ...diagnostic, listings: diagnostic.listings.filter((listing) => !isRecord(listing) || !isDuplicate(listing.url)) };
+    });
+    return {
+      ...source,
+      candidates: source.candidates.filter((candidate) => !isDuplicate(candidate.url)).map((candidate, index) => ({ ...candidate, rank: index + 1 })),
+      ...(diagnostics ? { diagnostics } : {}),
+    };
+  });
+}
 
 export type CoordinatedMarketplaceSearch = {
   snapshot: SearchSnapshot;
@@ -73,7 +116,7 @@ export async function coordinateMarketplaceSearches(args: {
     );
   }));
   const durationMsBySource: Partial<Record<MarketplaceSource, number>> = {};
-  const sources: SearchSnapshot["sources"] = settled.map((entry, index) => {
+  const settledSources: SearchSnapshot["sources"] = settled.map((entry, index) => {
     durationMsBySource[providers[index]!.source] = entry.durationMs;
     if (entry.status === "fulfilled") return entry.value;
     const provider = providers[index]!;
@@ -85,5 +128,6 @@ export async function coordinateMarketplaceSearches(args: {
       candidates: [],
     };
   });
+  const sources = deduplicateYahooStoreListings(settledSources);
   return { snapshot: { version: 2, capturedAt: new Date().toISOString(), sources }, durationMsBySource, callsBySource };
 }

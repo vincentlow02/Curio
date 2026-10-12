@@ -99,6 +99,14 @@ function isToolActivity(value: unknown): value is ToolActivity {
   const optionalNumbers = ["inputTokens", "outputTokens", "resultCount", "validResultCount"] as const;
   if (optionalNumbers.some((key) => value[key] !== undefined && !isFiniteNumber(value[key]))) return false;
 
+  if (value.discoveredListings !== undefined && (!Array.isArray(value.discoveredListings) || !value.discoveredListings.every((listing) =>
+    isRecord(listing)
+      && isString(listing.title)
+      && isFiniteNumber(listing.price)
+      && isString(listing.url)
+      && isOneOf(listing.availability, ["IN_STOCK", "OUT_OF_STOCK", "UNKNOWN"]),
+  ))) return false;
+
   return (value.fallbackUsed === undefined || typeof value.fallbackUsed === "boolean")
     && (value.verificationStatus === undefined || isOneOf(value.verificationStatus, verificationStatuses))
     && (value.cacheHit === undefined || typeof value.cacheHit === "boolean");

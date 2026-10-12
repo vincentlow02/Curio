@@ -26,6 +26,15 @@ function activityDuration(durationMs: number | null): string {
   return durationMs >= 1000 ? `${(durationMs / 1000).toFixed(1)}s` : `${durationMs}ms`;
 }
 
+function availabilityLabel(value: "IN_STOCK" | "OUT_OF_STOCK" | "UNKNOWN", locale: UiLocale): string {
+  const labels = {
+    en: { IN_STOCK: "In stock", OUT_OF_STOCK: "Out of stock", UNKNOWN: "Stock unknown" },
+    zh: { IN_STOCK: "有货", OUT_OF_STOCK: "缺货", UNKNOWN: "库存未知" },
+    ja: { IN_STOCK: "在庫あり", OUT_OF_STOCK: "在庫なし", UNKNOWN: "在庫不明" },
+  };
+  return labels[locale][value];
+}
+
 function areaName(name: string, locale: UiLocale): string {
   const canonical = ({ Akihabara: "秋葉原", Nakano: "中野", Ikebukuro: "池袋", Shinjuku: "新宿", Shibuya: "渋谷" } as Record<string, string>)[name] ?? name;
   const names: Record<UiLocale, Record<string, string>> = {
@@ -85,6 +94,9 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
         : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuma].activityTitle.zh, description: `读取 1 个公开搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
       case MARKETPLACE_IDS.mercari: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.mercari].activityTitle.zh, description: `读取 1 个在售搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
       case MARKETPLACE_IDS.yahooShopping: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooShopping].activityTitle.zh, description: `发出 ${activity.calls} 次商品 API 查询，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
+      case MARKETPLACE_IDS.surugayaYahooStore: return activity.status === "skipped"
+        ? { title: "已跳过骏河屋 Yahoo 店", description: "尚未验证该店铺数据的使用授权。" }
+        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.surugayaYahooStore].activityTitle.zh, description: `读取 ${activity.calls} 个 HTTP 搜索页，发现 ${candidates} 个商品，${activity.discoveredListings?.filter((listing) => listing.availability === "IN_STOCK").length ?? 0} 个确认有货；保留 ${valid} 个可比较样本。` };
       case MARKETPLACE_IDS.yahooFurima: return activity.status === "skipped"
         ? { title: "已跳过 Yahoo!フリマ", description: "尚未验证数据使用授权。" }
         : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooFurima].activityTitle.zh, description: `读取 1 个公开搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
@@ -108,6 +120,9 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
         : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuma].activityTitle.ja, description: `公開検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
       case MARKETPLACE_IDS.mercari: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.mercari].activityTitle.ja, description: `販売中検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
       case MARKETPLACE_IDS.yahooShopping: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooShopping].activityTitle.ja, description: `商品APIを ${activity.calls} 回検索し、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
+      case MARKETPLACE_IDS.surugayaYahooStore: return activity.status === "skipped"
+        ? { title: "駿河屋Yahoo!店をスキップ", description: "データ利用の許諾が未確認です。" }
+        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.surugayaYahooStore].activityTitle.ja, description: `HTTP検索ページ ${activity.calls} 件から商品 ${candidates} 件を検出し、${activity.discoveredListings?.filter((listing) => listing.availability === "IN_STOCK").length ?? 0} 件の在庫を確認しました。比較可能なサンプルは ${valid} 件です。` };
       case MARKETPLACE_IDS.yahooFurima: return activity.status === "skipped"
         ? { title: "Yahoo!フリマをスキップ", description: "データ利用の許諾が未確認です。" }
         : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooFurima].activityTitle.ja, description: `公開検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
@@ -140,6 +155,10 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
       return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.mercari].activityTitle.en, description: `Read one on-sale search page, found ${candidates} candidates and retained ${valid} comparable samples.` };
     case MARKETPLACE_IDS.yahooShopping:
       return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooShopping].activityTitle.en, description: `Made ${activity.calls} product API queries, found ${candidates} candidates and retained ${valid} comparable samples.` };
+    case MARKETPLACE_IDS.surugayaYahooStore:
+      return activity.status === "skipped"
+        ? { title: "Skipped Surugaya Yahoo Store", description: "Data-use authorization has not been verified." }
+        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.surugayaYahooStore].activityTitle.en, description: `Read ${activity.calls} HTTP search page(s), found ${candidates} listings and confirmed ${activity.discoveredListings?.filter((listing) => listing.availability === "IN_STOCK").length ?? 0} in stock; ${valid} were comparable samples.` };
     case MARKETPLACE_IDS.yahooFurima:
       return activity.status === "skipped"
         ? { title: "Skipped Yahoo! Flea Market", description: "Data-use authorization is not verified." }
@@ -352,6 +371,22 @@ export function ResultStage({ result, activities, locale }: ResultStageProps): R
                 <div className="min-w-0">
                   <b className="!block !text-[#222] !text-[12px] !font-[600]">{activityText.title}</b>
                   <p className="!mt-[3px] !mr-0 !mb-0 !ml-0 !text-[#707070] !text-[11px] !leading-[1.45]">{activityText.description}</p>
+                  {activity.provider === MARKETPLACE_IDS.surugayaYahooStore && activity.discoveredListings?.length ? (
+                    <details className="!mt-[6px] !text-[11px]">
+                      <summary className="!cursor-pointer !text-[#555]">{locale === "zh" ? `查看 ${activity.discoveredListings.length} 个发现商品` : locale === "ja" ? `検出した商品 ${activity.discoveredListings.length} 件を表示` : `View ${activity.discoveredListings.length} discovered listings`}</summary>
+                      <ul className="!m-0 !list-none !p-0">
+                        {activity.discoveredListings.map((listing) => (
+                          <li className="!border-0 !border-t !border-solid !border-[#eee] !py-[5px]" key={listing.url}>
+                            <a className="!grid !grid-cols-[minmax(0,1fr)_auto] !gap-x-[8px] !text-[#333]" href={listing.url} target="_blank" rel="noreferrer">
+                              <span className="!min-w-0">{listing.title}</span>
+                              <span>{formatYen(listing.price)}</span>
+                              <small className="!col-span-2 !text-[#777]">{availabilityLabel(listing.availability, locale)}</small>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null}
                 </div>
                 <time className="!pt-[1px] !text-[#999] !text-[10px] !whitespace-nowrap max-[767px]:!col-start-2 max-[767px]:!row-start-2 max-[767px]:!pt-0">{activityDuration(activity.durationMs)}</time>
               </li>
