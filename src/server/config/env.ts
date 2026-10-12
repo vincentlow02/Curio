@@ -19,6 +19,7 @@ export const env = {
   get rakumaDataLicenseVerified() { return process.env.RAKUMA_DATA_LICENSE_VERIFIED === "true"; },
   get yahooShoppingApiEnabled() { return process.env.YAHOO_SHOPPING_API_ENABLED === "true"; },
   get yahooShoppingAppId() { return process.env.YAHOO_SHOPPING_APP_ID?.trim() ?? ""; },
+  get janparaYahooShoppingStoreSearchEnabled() { return process.env.JANPARA_YAHOO_SHOPPING_STORE_SEARCH_ENABLED === "true"; },
   get surugayaYahooStoreDataLicenseVerified() { return process.env.SURUGAYA_YAHOO_STORE_DATA_LICENSE_VERIFIED === "true"; },
   get yahooFurimaDataLicenseVerified() { return process.env.YAHOO_FURIMA_DATA_LICENSE_VERIFIED === "true"; },
   get headless() { return process.env.PLAYWRIGHT_HEADLESS !== "false"; },
