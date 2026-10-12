@@ -191,7 +191,8 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
     let nodeStarted = Date.now();
     let built = buildPriceResult({ profile, snapshot, tavilyFallback: fallback, storeSnapshot: disabledStoreSnapshot(), maxCardsScannedPerSource: 30, maxSamplesPerSource: 5 });
     let nodeCalculationMs = Date.now() - nodeStarted;
-    if (built.result.samples.length === 0 && env.enableTavily && deadline.has(80_000)) {
+    const fallbackBlockedByAccessRestriction = built.result.samples.length === 0 && env.enableTavily && runCostTracker.hasAccessRestriction;
+    if (built.result.samples.length === 0 && env.enableTavily && !runCostTracker.hasAccessRestriction && deadline.has(80_000)) {
       await emit("searching_fallback", "No comparable primary samples found. Running one controlled fallback search.");
       const tavilyStarted = Date.now();
       setActivity({ provider: "Tavily", status: "running", calls: 1, durationMs: null });
@@ -201,6 +202,13 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
       built = buildPriceResult({ profile, snapshot, tavilyFallback: fallback, storeSnapshot: disabledStoreSnapshot(), maxCardsScannedPerSource: 30, maxSamplesPerSource: 5 });
       nodeCalculationMs += Date.now() - nodeStarted;
     } else setActivity({ provider: "Tavily", status: "skipped", calls: 0, durationMs: 0, resultCount: 0 });
+
+    for (const source of MARKETPLACE_SOURCE_IDS) {
+      const sourceSamples = built.result.samples.filter((sample) => sample.source === source);
+      runCostTracker.setProviderPricingSampleCounts(source, sourceSamples.length, sourceSamples.filter((sample) => sample.includedInReferenceRange).length);
+    }
+    const fallbackSamples = built.result.samples.filter((sample) => sample.source === WEB_FALLBACK_SOURCE);
+    runCostTracker.setProviderPricingSampleCounts(WEB_FALLBACK_SOURCE, fallbackSamples.length, fallbackSamples.filter((sample) => sample.includedInReferenceRange).length);
 
     for (const provider of [...MARKETPLACE_SOURCE_IDS, "Tavily"] as const) {
       const current = activities.find((entry) => entry.provider === provider);
@@ -214,6 +222,7 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
     assertSafeRecommendations(areas, stores);
     const reference = built.result.referenceRange;
     const warnings = [...built.result.warnings];
+    if (fallbackBlockedByAccessRestriction) warnings.push("A marketplace returned an access or rate restriction. Tavily fallback and Browserless page inspection were skipped.");
     if (input.collectorMode && auctionSources.every((source) => source.comparableSignals === 0)) warnings.push("No comparable public active-auction signals were found. No additional auction search was attempted.");
     for (const source of auctionSources.filter((entry) => entry.status === "failed")) warnings.push(`${source.source} could not be read; the other sources and marketplace range are unaffected.`);
     if (!stores.length) warnings.push("No Tokyo physical store with verified source evidence is available yet. Use the area map search and confirm before visiting.");

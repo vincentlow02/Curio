@@ -1,7 +1,7 @@
 import "server-only";
 
-import { fetchWithHttpMetrics } from "../../analysis/marketplace-cost-tracker";
 import { env } from "../../config/env";
+import { createTimeoutSignal, fetchWithHttpMetrics } from "./shared/http";
 
 export const RAKUTEN_ITEM_SEARCH_ENDPOINT = "https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260701";
 export const RAKUTEN_API_TIMEOUT_MS = 10_000;
@@ -134,8 +134,7 @@ export async function fetchRakutenItems(
 
   const rateLimit = options.rateLimit ?? waitForRateLimit;
   await rateLimit(options.signal);
-  const timeoutSignal = AbortSignal.timeout(RAKUTEN_API_TIMEOUT_MS);
-  const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
+  const signal = createTimeoutSignal(options.signal, RAKUTEN_API_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetchWithHttpMetrics(options.fetchImpl ?? fetch, url, {

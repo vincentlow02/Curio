@@ -1,7 +1,7 @@
 import "server-only";
 
-import { fetchWithHttpMetrics } from "../../analysis/marketplace-cost-tracker";
 import { env } from "../../config/env";
+import { createTimeoutSignal, fetchWithHttpMetrics } from "./shared/http";
 
 export const YAHOO_SHOPPING_ITEM_SEARCH_ENDPOINT = "https://shopping.yahooapis.jp/ShoppingWebService/V3/itemSearch";
 export const YAHOO_SHOPPING_API_TIMEOUT_MS = 10_000;
@@ -129,8 +129,7 @@ export async function fetchYahooShoppingItems(query: string, options: YahooShopp
   url.searchParams.set("sort", "-score");
 
   await (options.rateLimit ?? waitForYahooRateLimit)(options.signal);
-  const timeoutSignal = AbortSignal.timeout(YAHOO_SHOPPING_API_TIMEOUT_MS);
-  const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
+  const signal = createTimeoutSignal(options.signal, YAHOO_SHOPPING_API_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetchWithHttpMetrics(options.fetchImpl ?? fetch, url, { method: "GET", headers: { Accept: "application/json" }, signal }, {

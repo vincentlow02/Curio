@@ -6,6 +6,12 @@ import type { MarketplaceSource, SearchSnapshot } from "../../../price/types";
 import type { ResearchCostTracker } from "../../analysis/marketplace-cost-tracker";
 import { selectMarketplaceProviders } from "./selector";
 
+const DEFAULT_MAX_CONCURRENT_PROVIDERS = 4;
+
+type ProviderSearchSettlement =
+  | { status: "fulfilled"; value: SearchSnapshot["sources"][number]; durationMs: number }
+  | { status: "rejected"; reason: unknown; durationMs: number };
+
 function yahooStoreItemKey(value: string): string | null {
   try {
     const url = new URL(value);
@@ -59,6 +65,7 @@ export async function coordinateMarketplaceSearches(args: {
   keyword: string;
   maxCardsPerSource: number;
   signal?: AbortSignal;
+  maxConcurrentProviders?: number;
   getBrowserContext?: () => Promise<BrowserContext>;
   onBrowserPageOpened?: (source: MarketplaceSource) => void;
   costTracker?: ResearchCostTracker;
@@ -75,7 +82,10 @@ export async function coordinateMarketplaceSearches(args: {
     ? Promise.resolve().then(() => args.getBrowserContext!()).then((context) => ({ context }), (error: unknown) => ({ error }))
     : null;
   const callsBySource: Partial<Record<MarketplaceSource, number>> = {};
-  const settled = await Promise.all(providers.map((provider) => {
+  const settled: ProviderSearchSettlement[] = new Array(providers.length);
+  let nextProviderIndex = 0;
+  const runProvider = async (index: number): Promise<void> => {
+    const provider = providers[index]!;
     const startedAt = performance.now();
     const meter = args.costTracker?.beginProviderSearch(provider.source, provider.runtime);
     const providerInput = {
@@ -88,7 +98,8 @@ export async function coordinateMarketplaceSearches(args: {
         onHttpRequestCompleted: (status: number | null, elapsedMs: number, blockingRelevant?: boolean) => meter.requestCompleted(status, elapsedMs, blockingRelevant),
       } : {}),
     };
-    const search = Promise.resolve().then(() => provider.runtime === "browser"
+    try {
+      const value = await Promise.resolve().then(() => provider.runtime === "browser"
       ? browserContextResult
         ? browserContextResult.then((result) => {
             if ("error" in result) throw result.error;
@@ -103,17 +114,23 @@ export async function coordinateMarketplaceSearches(args: {
           })
         : Promise.reject(new Error("A browser context is required by this Marketplace provider."))
       : provider.search(providerInput));
-    const durationMs = (): number => Math.max(0, Math.round(performance.now() - startedAt));
-    return search.then(
-      (value) => {
-        meter?.finish({ candidates: value.candidates, error: value.error });
-        return { status: "fulfilled" as const, value, durationMs: durationMs() };
-      },
-      (reason: unknown) => {
-        meter?.finish({ error: reason instanceof Error ? reason.message : String(reason) });
-        return { status: "rejected" as const, reason, durationMs: durationMs() };
-      },
-    );
+      meter?.finish({ candidates: value.candidates, error: value.error });
+      settled[index] = { status: "fulfilled", value, durationMs: Math.max(0, Math.round(performance.now() - startedAt)) };
+    } catch (reason) {
+      meter?.finish({ error: reason instanceof Error ? reason.message : String(reason) });
+      settled[index] = { status: "rejected", reason, durationMs: Math.max(0, Math.round(performance.now() - startedAt)) };
+    }
+  };
+  const concurrency = Math.min(
+    providers.length,
+    Math.max(1, Math.floor(args.maxConcurrentProviders ?? DEFAULT_MAX_CONCURRENT_PROVIDERS)),
+  );
+  await Promise.all(Array.from({ length: concurrency }, async () => {
+    while (nextProviderIndex < providers.length) {
+      const index = nextProviderIndex;
+      nextProviderIndex += 1;
+      await runProvider(index);
+    }
   }));
   const durationMsBySource: Partial<Record<MarketplaceSource, number>> = {};
   const settledSources: SearchSnapshot["sources"] = settled.map((entry, index) => {

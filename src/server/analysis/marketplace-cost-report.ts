@@ -36,10 +36,13 @@ export type MarketplaceCostSummary = {
   totalApiCalls: number;
   totalCandidates: number;
   totalValidProducts: number;
+  totalPricingSamples: number | null;
+  totalReferenceSamples: number | null;
   estimatedBrowserlessUnits: number;
   estimatedUSD: number | null;
   actualUSD: number | null;
   estimatedCostPerValidProductUSD: number | null;
+  estimatedCostPerPricingSampleUSD: number | null;
 };
 
 export function buildMarketplaceCostReport(records: readonly ProviderMetricRecord[]): MarketplaceCostSummary[] {
@@ -52,6 +55,9 @@ export function buildMarketplaceCostReport(records: readonly ProviderMetricRecor
     const totalSearches = providerRecords.length;
     const totalTimeMs = providerRecords.reduce((sum, record) => sum + record.elapsedMs, 0);
     const totalValidProducts = providerRecords.reduce((sum, record) => sum + record.validProductCount, 0);
+    const hasAllPricingCounts = providerRecords.every((record) => Number.isInteger(record.pricingSampleCount) && Number.isInteger(record.referenceSampleCount));
+    const totalPricingSamples = hasAllPricingCounts ? providerRecords.reduce((sum, record) => sum + (record.pricingSampleCount ?? 0), 0) : null;
+    const totalReferenceSamples = hasAllPricingCounts ? providerRecords.reduce((sum, record) => sum + (record.referenceSampleCount ?? 0), 0) : null;
     const hasAllEstimates = providerRecords.every((record) => record.estimatedCostUSD !== null);
     const estimatedUSD = hasAllEstimates
       ? providerRecords.reduce((sum, record) => sum + record.estimatedCostUSD!, 0)
@@ -72,10 +78,15 @@ export function buildMarketplaceCostReport(records: readonly ProviderMetricRecor
       totalApiCalls: providerRecords.reduce((sum, record) => sum + record.apiRequestCount, 0),
       totalCandidates: providerRecords.reduce((sum, record) => sum + record.candidateCount, 0),
       totalValidProducts,
+      totalPricingSamples,
+      totalReferenceSamples,
       estimatedBrowserlessUnits: providerRecords.reduce((sum, record) => sum + (record.estimatedBrowserlessUnits ?? 0), 0),
       estimatedUSD,
       actualUSD,
       estimatedCostPerValidProductUSD: estimatedUSD !== null && totalValidProducts > 0 ? estimatedUSD / totalValidProducts : null,
+      estimatedCostPerPricingSampleUSD: estimatedUSD !== null && totalPricingSamples !== null && totalPricingSamples > 0
+        ? estimatedUSD / totalPricingSamples
+        : null,
     };
   });
 }

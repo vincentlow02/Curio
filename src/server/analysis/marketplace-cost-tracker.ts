@@ -2,6 +2,10 @@ import type { MarketplaceCandidate } from "../../price/types";
 import type { Page, Request } from "playwright-core";
 import { estimateBrowserlessTimeUnits } from "../browser/session-meter";
 import type { BrowserSessionUsage } from "../browser/session-meter";
+import type { HttpRequestMetricHooks } from "../providers/marketplaces/shared/http";
+
+export { fetchWithHttpMetrics } from "../providers/marketplaces/shared/http";
+export type { HttpRequestMetricHooks } from "../providers/marketplaces/shared/http";
 
 export { estimateBrowserlessTimeUnits } from "../browser/session-meter";
 
@@ -11,12 +15,6 @@ export type MetricCostStatus = "ACTUAL" | "ESTIMATED" | "UNKNOWN";
 export type MetricErrorCategory = "TIMEOUT" | "ACCESS_RESTRICTED" | "CONFIGURATION" | "NETWORK" | "UPSTREAM" | "INVALID_RESPONSE" | "OTHER";
 
 export type HttpResponseMetric = { status: number | null; elapsedMs: number; success: boolean; blockingRelevant: boolean };
-
-export type HttpRequestMetricHooks = {
-  onRequest?: () => void;
-  onHttpRequestStarted?: () => void;
-  onHttpRequestCompleted?: (status: number | null, elapsedMs: number, blockingRelevant?: boolean) => void;
-};
 
 export type ProviderMetricRecord = {
   kind: "provider_metric";
@@ -33,6 +31,8 @@ export type ProviderMetricRecord = {
   browserPageCount: number;
   candidateCount: number;
   validProductCount: number;
+  pricingSampleCount?: number | null;
+  referenceSampleCount?: number | null;
   errorCategory: MetricErrorCategory | null;
   estimatedBrowserlessUnits: number | null;
   estimatedCostUSD: number | null;
@@ -74,25 +74,6 @@ export function validProductCount(candidates: readonly MarketplaceCandidate[]): 
   }).length;
 }
 
-export async function fetchWithHttpMetrics(
-  fetchImpl: typeof fetch,
-  input: Parameters<typeof fetch>[0],
-  init: Parameters<typeof fetch>[1],
-  hooks: HttpRequestMetricHooks = {},
-): Promise<Response> {
-  const startedAt = performance.now();
-  hooks.onRequest?.();
-  hooks.onHttpRequestStarted?.();
-  try {
-    const response = await fetchImpl(input, init);
-    hooks.onHttpRequestCompleted?.(response.status, performance.now() - startedAt, true);
-    return response;
-  } catch (error) {
-    hooks.onHttpRequestCompleted?.(null, performance.now() - startedAt, true);
-    throw error;
-  }
-}
-
 function roundUsd(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
 }
@@ -132,6 +113,8 @@ export class ProviderSearchMeter {
   private readonly responses: HttpResponseMetric[] = [];
   private candidateCount = 0;
   private validCount = 0;
+  private pricingSampleCount: number | null = null;
+  private referenceSampleCount: number | null = null;
   private category: MetricErrorCategory | null = null;
   private providerStatus: ProviderMetricStatus = "EMPTY";
   private elapsed = 0;
@@ -166,10 +149,18 @@ export class ProviderSearchMeter {
     this.finalized = true;
   }
 
+  setPricingSampleCounts(pricingSampleCount: number, referenceSampleCount: number): void {
+    this.pricingSampleCount = Math.max(0, Math.floor(pricingSampleCount));
+    this.referenceSampleCount = Math.max(0, Math.min(Math.floor(referenceSampleCount), this.pricingSampleCount));
+  }
+
   get browserPageCount(): number { return this.pages; }
   get httpRequestCount(): number { return this.requests; }
   get apiRequestCount(): number { return this.apiRequests; }
   get isFinished(): boolean { return this.finalized; }
+  get hasAccessRestriction(): boolean {
+    return this.responses.some((response) => [401, 403, 407, 429].includes(response.status ?? 0));
+  }
 
   createRecord(estimatedBrowserlessUnits: number | null, estimatedCostUSD: number | null, costStatus: MetricCostStatus): ProviderMetricRecord {
     return {
@@ -187,6 +178,8 @@ export class ProviderSearchMeter {
       browserPageCount: this.pages,
       candidateCount: this.candidateCount,
       validProductCount: this.validCount,
+      pricingSampleCount: this.pricingSampleCount,
+      referenceSampleCount: this.referenceSampleCount,
       errorCategory: this.category,
       estimatedBrowserlessUnits,
       estimatedCostUSD,
@@ -224,6 +217,16 @@ export class ResearchCostTracker {
     const meter = new ProviderSearchMeter(this.researchRunId, providerId, transport, this.now, this.formatTime);
     this.meters.push(meter);
     return meter;
+  }
+
+  get hasAccessRestriction(): boolean {
+    return this.meters.some((meter) => meter.hasAccessRestriction);
+  }
+
+  setProviderPricingSampleCounts(providerId: string, pricingSampleCount: number, referenceSampleCount: number): void {
+    for (const meter of this.meters) {
+      if (meter.providerId === providerId) meter.setPricingSampleCounts(pricingSampleCount, referenceSampleCount);
+    }
   }
 
   settleBrowserSession(session: BrowserSessionUsage | null): CostMetricRecord[] {

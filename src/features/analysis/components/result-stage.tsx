@@ -1,5 +1,5 @@
 import type { AnalysisResult, ToolActivity } from "../../../core/analysis/types";
-import { MARKETPLACE_IDS, MARKETPLACE_METADATA, WEB_FALLBACK_SOURCE } from "../../../core/marketplace";
+import { MARKETPLACE_IDS, MARKETPLACE_METADATA, MARKETPLACE_SOURCE_IDS, WEB_FALLBACK_SOURCE, type MarketplaceSource } from "../../../core/marketplace";
 import type { DetectionResult } from "../../../core/profile/types";
 import { uiCopy, type UiLocale } from "../locales";
 
@@ -82,24 +82,49 @@ function auctionStatus(status: string, locale: UiLocale): string {
   return labels[locale][status] ?? status.replace("_", " ");
 }
 
+function isMarketplaceSource(provider: ToolActivity["provider"]): provider is MarketplaceSource {
+  return (MARKETPLACE_SOURCE_IDS as readonly string[]).includes(provider);
+}
+
+function marketplaceActivityCopy(activity: ToolActivity, locale: UiLocale): { title: string; description: string } {
+  const source = activity.provider as MarketplaceSource;
+  const metadata = MARKETPLACE_METADATA[source];
+  const candidates = activity.resultCount ?? 0;
+  const valid = activity.validResultCount ?? 0;
+
+  if (activity.status === "skipped") {
+    const reason = source === MARKETPLACE_IDS.rakuma || source === MARKETPLACE_IDS.yahooFurima || source === MARKETPLACE_IDS.surugayaYahooStore
+      ? { en: "Data-use authorization has not been verified.", zh: "尚未验证数据使用授权。", ja: "データ利用の許諾が未確認です。" }[locale]
+      : { en: "This source was not selected for the current run.", zh: "本次分析未选择此来源。", ja: "今回の分析では選択されませんでした。" }[locale];
+    const title = { en: `Skipped ${metadata.displayName.en}`, zh: `已跳过${metadata.displayName.zh}`, ja: `${metadata.displayName.ja}をスキップ` }[locale];
+    return { title, description: reason };
+  }
+
+  if (source === MARKETPLACE_IDS.surugayaYahooStore) {
+    const confirmedInStock = activity.discoveredListings?.filter((listing) => listing.availability === "IN_STOCK").length ?? 0;
+    const description = {
+      en: `Read ${activity.calls} HTTP search page(s), found ${candidates} listings and confirmed ${confirmedInStock} in stock; ${valid} were comparable samples.`,
+      zh: `读取 ${activity.calls} 个 HTTP 搜索页，发现 ${candidates} 个商品，${confirmedInStock} 个确认有货；保留 ${valid} 个可比较样本。`,
+      ja: `HTTP検索ページ ${activity.calls} 件から商品 ${candidates} 件を検出し、${confirmedInStock} 件の在庫を確認しました。比較可能なサンプルは ${valid} 件です。`,
+    }[locale];
+    return { title: metadata.activityTitle[locale], description };
+  }
+
+  const description = {
+    en: `Found ${candidates} listings and retained ${valid} comparable price samples across ${activity.calls} acquisition request(s).`,
+    zh: `通过 ${activity.calls} 次采集请求发现 ${candidates} 个候选，保留 ${valid} 个可比较价格样本。`,
+    ja: `${activity.calls} 回の取得処理で候補 ${candidates} 件を検出し、比較可能な価格サンプルを ${valid} 件採用しました。`,
+  }[locale];
+  return { title: metadata.activityTitle[locale], description };
+}
+
 function activityCopy(activity: ToolActivity, identification: DetectionResult, sampleCount: number, locale: UiLocale): { title: string; description: string } {
   const valid = activity.validResultCount ?? 0;
   const candidates = activity.resultCount ?? 0;
+  if (isMarketplaceSource(activity.provider)) return marketplaceActivityCopy(activity, locale);
   if (locale === "zh") {
     switch (activity.provider) {
       case "Qwen": return { title: identification.pokemonCard ? "已识别精确宝可梦卡牌" : "已识别收藏品", description: `Qwen ${activity.model ?? "视觉模型"} 已识别 ${identification.itemName} 并生成日文价格搜索关键词。输入 ${activity.inputTokens ?? 0}／输出 ${activity.outputTokens ?? 0} tokens。` };
-      case MARKETPLACE_IDS.rakuten: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuten].activityTitle.zh, description: `读取 1 个公开搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
-      case MARKETPLACE_IDS.rakuma: return activity.status === "skipped"
-        ? { title: "已跳过 Rakuma", description: "尚未验证数据使用授权。" }
-        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuma].activityTitle.zh, description: `读取 1 个公开搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
-      case MARKETPLACE_IDS.mercari: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.mercari].activityTitle.zh, description: `读取 1 个在售搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
-      case MARKETPLACE_IDS.yahooShopping: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooShopping].activityTitle.zh, description: `发出 ${activity.calls} 次商品 API 查询，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
-      case MARKETPLACE_IDS.surugayaYahooStore: return activity.status === "skipped"
-        ? { title: "已跳过骏河屋 Yahoo 店", description: "尚未验证该店铺数据的使用授权。" }
-        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.surugayaYahooStore].activityTitle.zh, description: `读取 ${activity.calls} 个 HTTP 搜索页，发现 ${candidates} 个商品，${activity.discoveredListings?.filter((listing) => listing.availability === "IN_STOCK").length ?? 0} 个确认有货；保留 ${valid} 个可比较样本。` };
-      case MARKETPLACE_IDS.yahooFurima: return activity.status === "skipped"
-        ? { title: "已跳过 Yahoo!フリマ", description: "尚未验证数据使用授权。" }
-        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooFurima].activityTitle.zh, description: `读取 1 个公开搜索页面，发现 ${candidates} 个候选，保留 ${valid} 个可比较样本。` };
       case "Yahoo Auctions": return activity.status === "skipped" ? { title: "已跳过 Yahoo! 拍卖", description: "未启用收藏家模式。" } : { title: "已检查 Yahoo! 拍卖", description: `发现 ${candidates} 个候选，保留 ${valid} 条可比较的进行中拍卖信号。` };
       case "Mandarake Auction": return activity.status === "skipped" ? { title: "已跳过 Mandarake Auction", description: "未启用收藏家模式。" } : { title: "已检查 Mandarake Auction", description: `发现 ${candidates} 个候选，保留 ${valid} 条可比较信号。` };
       case "Tavily": return activity.status === "skipped" ? { title: "已跳过备用搜索", description: sampleCount > 0 ? "主要来源已有可比较样本，无需备用搜索。" : "本次运行已关闭备用搜索。" } : { title: "已使用受控备用搜索", description: `Tavily 返回 ${candidates} 个候选，保留 ${valid} 个。` };
@@ -114,18 +139,6 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
   if (locale === "ja") {
     switch (activity.provider) {
       case "Qwen": return { title: identification.pokemonCard ? "ポケモンカードを特定" : "コレクションを識別", description: `Qwen ${activity.model ?? "画像モデル"} が ${identification.itemName} を識別し、日本語の価格検索キーワードを生成しました。入力 ${activity.inputTokens ?? 0}／出力 ${activity.outputTokens ?? 0} トークン。` };
-      case MARKETPLACE_IDS.rakuten: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuten].activityTitle.ja, description: `公開検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
-      case MARKETPLACE_IDS.rakuma: return activity.status === "skipped"
-        ? { title: "Rakumaをスキップ", description: "データ利用の許諾が未確認です。" }
-        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuma].activityTitle.ja, description: `公開検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
-      case MARKETPLACE_IDS.mercari: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.mercari].activityTitle.ja, description: `販売中検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
-      case MARKETPLACE_IDS.yahooShopping: return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooShopping].activityTitle.ja, description: `商品APIを ${activity.calls} 回検索し、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
-      case MARKETPLACE_IDS.surugayaYahooStore: return activity.status === "skipped"
-        ? { title: "駿河屋Yahoo!店をスキップ", description: "データ利用の許諾が未確認です。" }
-        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.surugayaYahooStore].activityTitle.ja, description: `HTTP検索ページ ${activity.calls} 件から商品 ${candidates} 件を検出し、${activity.discoveredListings?.filter((listing) => listing.availability === "IN_STOCK").length ?? 0} 件の在庫を確認しました。比較可能なサンプルは ${valid} 件です。` };
-      case MARKETPLACE_IDS.yahooFurima: return activity.status === "skipped"
-        ? { title: "Yahoo!フリマをスキップ", description: "データ利用の許諾が未確認です。" }
-        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooFurima].activityTitle.ja, description: `公開検索ページを1件読み、候補 ${candidates} 件から比較可能な ${valid} 件を採用しました。` };
       case "Yahoo Auctions": return activity.status === "skipped" ? { title: "Yahoo!オークションをスキップ", description: "コレクターモードが無効でした。" } : { title: "Yahoo!オークションを確認", description: `候補 ${candidates} 件から比較可能な開催中情報 ${valid} 件を採用しました。` };
       case "Mandarake Auction": return activity.status === "skipped" ? { title: "Mandarake Auctionをスキップ", description: "コレクターモードが無効でした。" } : { title: "Mandarake Auctionを確認", description: `候補 ${candidates} 件から比較可能な情報 ${valid} 件を採用しました。` };
       case "Tavily": return activity.status === "skipped" ? { title: "代替検索をスキップ", description: sampleCount > 0 ? "主要情報源で比較可能なサンプルが得られたため不要でした。" : "今回の代替検索は無効でした。" } : { title: "管理された代替検索を使用", description: `Tavily の候補 ${candidates} 件から ${valid} 件を採用しました。` };
@@ -145,24 +158,6 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
           ? `Qwen ${activity.model ?? "vision model"} identified ${identification.itemName}, card number ${identification.pokemonCard.cardNumber}, set ${identification.pokemonCard.setCode}, rarity ${identification.pokemonCard.rarity}, and generated an exact Japanese search keyword. ${activity.inputTokens ?? 0} input / ${activity.outputTokens ?? 0} output tokens.`
           : `Qwen ${activity.model ?? "vision model"} identified ${identification.itemName} and generated the Japanese price-search keyword. ${activity.inputTokens ?? 0} input / ${activity.outputTokens ?? 0} output tokens.`,
       };
-    case MARKETPLACE_IDS.rakuten:
-      return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuten].activityTitle.en, description: `Read one public search page, found ${candidates} candidates and retained ${valid} comparable samples.` };
-    case MARKETPLACE_IDS.rakuma:
-      return activity.status === "skipped"
-        ? { title: "Skipped Rakuma", description: "Data-use authorization is not verified." }
-        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.rakuma].activityTitle.en, description: `Read one public search page, found ${candidates} candidates and retained ${valid} comparable samples.` };
-    case MARKETPLACE_IDS.mercari:
-      return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.mercari].activityTitle.en, description: `Read one on-sale search page, found ${candidates} candidates and retained ${valid} comparable samples.` };
-    case MARKETPLACE_IDS.yahooShopping:
-      return { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooShopping].activityTitle.en, description: `Made ${activity.calls} product API queries, found ${candidates} candidates and retained ${valid} comparable samples.` };
-    case MARKETPLACE_IDS.surugayaYahooStore:
-      return activity.status === "skipped"
-        ? { title: "Skipped Surugaya Yahoo Store", description: "Data-use authorization has not been verified." }
-        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.surugayaYahooStore].activityTitle.en, description: `Read ${activity.calls} HTTP search page(s), found ${candidates} listings and confirmed ${activity.discoveredListings?.filter((listing) => listing.availability === "IN_STOCK").length ?? 0} in stock; ${valid} were comparable samples.` };
-    case MARKETPLACE_IDS.yahooFurima:
-      return activity.status === "skipped"
-        ? { title: "Skipped Yahoo! Flea Market", description: "Data-use authorization is not verified." }
-        : { title: MARKETPLACE_METADATA[MARKETPLACE_IDS.yahooFurima].activityTitle.en, description: `Read one public search page, found ${candidates} candidates and retained ${valid} comparable samples.` };
     case "Yahoo Auctions":
       return activity.status === "skipped"
         ? { title: "Skipped Yahoo! Auctions", description: "Collector Mode was not enabled." }

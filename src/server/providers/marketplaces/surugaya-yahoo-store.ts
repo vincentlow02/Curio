@@ -4,9 +4,9 @@ import { load } from "cheerio";
 
 import { MARKETPLACE_IDS } from "../../../core/marketplace";
 import type { MarketplaceCandidate, SearchSnapshot } from "../../../price/types";
-import { fetchWithHttpMetrics } from "../../analysis/marketplace-cost-tracker";
 import { env } from "../../config/env";
 import { buildMarketplaceKeyword } from "./shared/keyword";
+import { createTimeoutSignal, fetchWithHttpMetrics } from "./shared/http";
 import type { HttpMarketplaceProvider, MarketplaceSearchInput } from "./types";
 
 const SEARCH_ORIGIN = "https://store.shopping.yahoo.co.jp";
@@ -213,8 +213,7 @@ async function searchSurugayaYahooStore(args: MarketplaceSearchInput): Promise<S
     return emptySource(keyword, url, "configuration_error: Surugaya Yahoo Store data-use authorization is not verified.");
   }
 
-  const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-  const signal = args.signal ? AbortSignal.any([args.signal, timeoutSignal]) : timeoutSignal;
+  const signal = createTimeoutSignal(args.signal, REQUEST_TIMEOUT_MS);
   try {
     const response = await fetchWithHttpMetrics(fetch, url, {
       method: "GET",

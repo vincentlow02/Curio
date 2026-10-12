@@ -8,6 +8,7 @@ import { MARKETPLACE_IDS } from "../src/core/marketplace";
 import { buildMarketplaceCostReport, readMarketplaceCostRecords } from "../src/server/analysis/marketplace-cost-report";
 import { persistMarketplaceCostRecords } from "../src/server/analysis/marketplace-cost-store";
 import { estimateBrowserlessTimeUnits } from "../src/server/browser/session-meter";
+import { createTimeoutSignal } from "../src/server/providers/marketplaces/shared/http";
 import { fetchWithHttpMetrics, observeBrowserPageRequests, parseVerifiedHttpCostRates, ResearchCostTracker, type BrowserSessionUsage } from "../src/server/analysis/marketplace-cost-tracker";
 import type { MarketplaceCandidate } from "../src/price/types";
 import type { Page, Request, Response as PlaywrightResponse } from "playwright-core";
@@ -43,6 +44,15 @@ function browserlessSession(durationMs: number, sessionId = "session-1"): Browse
 afterEach(() => vi.restoreAllMocks());
 
 describe("Marketplace cost tracking", () => {
+  it("composes a provider timeout with caller cancellation", () => {
+    const controller = new AbortController();
+    const signal = createTimeoutSignal(controller.signal, 10_000);
+
+    expect(signal.aborted).toBe(false);
+    controller.abort(new Error("research canceled"));
+    expect(signal.aborted).toBe(true);
+  });
+
   it("records an HTTP provider request, duration, response and valid products", async () => {
     let now = 1000;
     const tracker = new ResearchCostTracker("run-http", {
@@ -81,6 +91,23 @@ describe("Marketplace cost tracking", () => {
       costStatus: "ESTIMATED",
     });
     expect(metric.kind === "provider_metric" && metric.httpResponses[0]).toMatchObject({ status: 200, success: true });
+  });
+
+  it("reports Matcher pricing and reference samples separately from valid candidates", () => {
+    const tracker = new ResearchCostTracker("run-pricing-counts", {
+      httpCostPerRequestUSD: { [MARKETPLACE_IDS.rakuten]: 0.02 },
+    });
+    const meter = tracker.beginProviderSearch(MARKETPLACE_IDS.rakuten, "http");
+    meter.requestStarted(true);
+    meter.requestCompleted(200, 4);
+    meter.finish({ candidates: [candidate(), candidate({ rank: 2, title: "Another PSP-3000 listing", url: "https://example.jp/item/psp-3000-2" })] });
+    tracker.setProviderPricingSampleCounts(MARKETPLACE_IDS.rakuten, 2, 1);
+    const records = tracker.settleBrowserSession(null);
+    const metric = records.find((record) => record.kind === "provider_metric");
+    const [summary] = buildMarketplaceCostReport(records.filter((record) => record.kind === "provider_metric"));
+
+    expect(metric).toMatchObject({ candidateCount: 2, validProductCount: 2, pricingSampleCount: 2, referenceSampleCount: 1 });
+    expect(summary).toMatchObject({ totalValidProducts: 2, totalPricingSamples: 2, totalReferenceSamples: 1, estimatedUSD: 0.02, estimatedCostPerPricingSampleUSD: 0.01 });
   });
 
   it("counts Browser Page HTTP traffic without treating subrequests as billable API calls or persisting URLs", () => {
@@ -194,6 +221,22 @@ describe("Marketplace cost tracking", () => {
     expect(records.map(({ status }) => status)).toEqual(["EMPTY", "BLOCKED"]);
     expect(records.map(({ elapsedMs }) => elapsedMs)).toEqual([70, 30]);
     expect(records.every((record) => record.actualCostUSD === null && record.costStatus === "UNKNOWN")).toBe(true);
+  });
+
+  it("exposes access and rate restrictions for pipeline fallback decisions", () => {
+    const tracker = new ResearchCostTracker("run-restriction-gate");
+    const blocked = tracker.beginProviderSearch(MARKETPLACE_IDS.mercari, "browser");
+    blocked.requestStarted();
+    blocked.requestCompleted(403, 12, false);
+    blocked.finish({ candidates: [] });
+    expect(tracker.hasAccessRestriction).toBe(true);
+
+    const clearTracker = new ResearchCostTracker("run-no-restriction");
+    const clear = clearTracker.beginProviderSearch(MARKETPLACE_IDS.rakuma, "http");
+    clear.requestStarted(true);
+    clear.requestCompleted(200, 8);
+    clear.finish({ candidates: [candidate({ source: MARKETPLACE_IDS.rakuma })] });
+    expect(clearTracker.hasAccessRestriction).toBe(false);
   });
 
   it("settles once, preserves the first result, and leaves unowned session units Unattributed", () => {

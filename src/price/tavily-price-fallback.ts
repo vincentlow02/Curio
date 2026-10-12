@@ -5,7 +5,8 @@ import type { BrowserContext, Page } from "playwright-core";
 import type { ItemProfile } from "./item-profile";
 import { WEB_FALLBACK_SOURCE } from "../core/marketplace";
 import { buildMarketplaceKeyword } from "../server/providers/marketplaces/shared/keyword";
-import { fetchWithHttpMetrics, observeBrowserPageRequests, type ResearchCostTracker, type ProviderSearchMeter } from "../server/analysis/marketplace-cost-tracker";
+import { createTimeoutSignal, fetchWithHttpMetrics } from "../server/providers/marketplaces/shared/http";
+import { observeBrowserPageRequests, type ResearchCostTracker, type ProviderSearchMeter } from "../server/analysis/marketplace-cost-tracker";
 import { identityMatches } from "./identity";
 import type { TavilyFallbackSnapshot } from "./types";
 
@@ -88,8 +89,7 @@ export async function captureTavilyPriceFallback(args: { profile: ItemProfile; a
   }
   let rawResults: Array<{ title: string; url: string }> = [];
   try {
-    const timeoutSignal = AbortSignal.timeout(30_000);
-    const signal = args.signal ? AbortSignal.any([args.signal, timeoutSignal]) : timeoutSignal;
+    const signal = createTimeoutSignal(args.signal, 30_000);
     const response = await fetchWithHttpMetrics(fetch, snapshot.searchUrl, {
       method: "POST",
       headers: { Authorization: `Bearer ${args.apiKey}`, "Content-Type": "application/json" },

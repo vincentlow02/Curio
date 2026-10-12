@@ -94,15 +94,19 @@ describe("marketplace provider registry", () => {
     };
     const candidates = [[rakutenCandidate], [mercariCandidate]];
     const visited: string[] = [];
+    let activePages = 0;
+    let maxActivePages = 0;
     let pageIndex = 0;
     const context = {
       async newPage() {
         const index = pageIndex++;
+        activePages += 1;
+        maxActivePages = Math.max(maxActivePages, activePages);
         return {
           async goto(url: string) { visited.push(url); },
           async waitForSelector() {},
           async evaluate() { return candidates[index]; },
-          async close() {},
+          async close() { activePages -= 1; },
         };
       },
     };
@@ -111,6 +115,7 @@ describe("marketplace provider registry", () => {
       profile,
       keyword,
       maxCardsPerSource: 30,
+      maxConcurrentProviders: 1,
       getBrowserContext: async () => context as never,
     });
 
@@ -122,6 +127,8 @@ describe("marketplace provider registry", () => {
     expect(coordinated.snapshot.sources.map(({ candidates: found }) => found)).toEqual(candidates);
     expect(coordinated.snapshot.sources.every(({ error }) => error === null)).toBe(true);
     expect(Object.keys(coordinated.durationMsBySource)).toEqual(["Rakuten", "Mercari"]);
+    expect(maxActivePages).toBe(1);
+    expect(activePages).toBe(0);
     expect(visited[0]).toMatch(/^https:\/\/search\.rakuten\.co\.jp\/search\/mall\//);
     expect(visited[1]).toContain("https://jp.mercari.com/search?keyword=");
     expect(visited[1]).toContain("&status=on_sale");
