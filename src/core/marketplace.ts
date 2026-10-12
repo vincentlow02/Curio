@@ -1,5 +1,6 @@
 export const MARKETPLACE_IDS = {
   rakuten: "Rakuten",
+  rakuma: "Rakuma",
   mercari: "Mercari",
   yahooShopping: "Yahoo! Shopping",
   yahooFurima: "Yahoo!フリマ",
@@ -25,6 +26,12 @@ export const MARKETPLACE_METADATA = {
     activityTitle: { en: "Searched Rakuten", zh: "已搜索乐天", ja: "楽天を検索" },
     logoPath: "/brands/rakuten.ico",
     marker: null,
+  },
+  [MARKETPLACE_IDS.rakuma]: {
+    displayName: { en: "Rakuma", zh: "Rakuma", ja: "ラクマ" },
+    activityTitle: { en: "Searched Rakuma", zh: "已搜索 Rakuma", ja: "ラクマを検索" },
+    logoPath: null,
+    marker: "R",
   },
   [MARKETPLACE_IDS.mercari]: {
     displayName: { en: "Mercari", zh: "Mercari", ja: "メルカリ" },
