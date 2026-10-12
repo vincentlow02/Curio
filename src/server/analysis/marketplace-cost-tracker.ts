@@ -31,6 +31,10 @@ export type ProviderMetricRecord = {
   browserPageCount: number;
   candidateCount: number;
   validProductCount: number;
+  validMatchingCandidateCount?: number;
+  uniqueSellerCount?: number;
+  sellerSearchRequestCountById?: Record<string, number>;
+  incrementalPricingSamplesBySellerId?: Record<string, number>;
   pricingSampleCount?: number | null;
   referenceSampleCount?: number | null;
   errorCategory: MetricErrorCategory | null;
@@ -38,6 +42,25 @@ export type ProviderMetricRecord = {
   estimatedCostUSD: number | null;
   actualCostUSD: number | null;
   costStatus: MetricCostStatus;
+  persistenceScope: "local-filesystem-nondurable";
+};
+
+export type ResearchMetricRecord = {
+  kind: "research_metric";
+  schemaVersion: 1;
+  researchRunId: string;
+  elapsedMs: number;
+  sourceSearchCount: number;
+  sourceRequestCountByProvider: Record<string, number>;
+  totalExternalRequestCount: number;
+  providerLatencyMsBySource: Record<string, number>;
+  validMatchingCandidateCount: number;
+  validPricingSampleCount: number;
+  uniqueSellerCount: number;
+  incrementalPricingSamplesBySource: Record<string, number>;
+  failedRequestCount: number;
+  blockedRequestCount: number;
+  externalRequestScope: "metered_provider_transports";
   persistenceScope: "local-filesystem-nondurable";
 };
 
@@ -60,7 +83,7 @@ export type BrowserSessionMetricRecord = {
   persistenceScope: "local-filesystem-nondurable";
 };
 
-export type CostMetricRecord = ProviderMetricRecord | BrowserSessionMetricRecord;
+export type CostMetricRecord = ProviderMetricRecord | BrowserSessionMetricRecord | ResearchMetricRecord;
 
 export function validProductCount(candidates: readonly MarketplaceCandidate[]): number {
   return candidates.filter((candidate) => {
@@ -115,6 +138,10 @@ export class ProviderSearchMeter {
   private validCount = 0;
   private pricingSampleCount: number | null = null;
   private referenceSampleCount: number | null = null;
+  private matchingCandidateCount: number | null = null;
+  private uniqueSellerCount: number | null = null;
+  private sellerSearchRequestCountById: Record<string, number> | null = null;
+  private incrementalPricingSamplesBySellerId: Record<string, number> | null = null;
   private category: MetricErrorCategory | null = null;
   private providerStatus: ProviderMetricStatus = "EMPTY";
   private elapsed = 0;
@@ -154,9 +181,27 @@ export class ProviderSearchMeter {
     this.referenceSampleCount = Math.max(0, Math.min(Math.floor(referenceSampleCount), this.pricingSampleCount));
   }
 
+  setYahooSellerMetrics(input: {
+    validMatchingCandidateCount: number;
+    uniqueSellerCount: number;
+    sellerSearchRequestCountById: Record<string, number>;
+    incrementalPricingSamplesBySellerId: Record<string, number>;
+  }): void {
+    this.matchingCandidateCount = Math.max(0, Math.floor(input.validMatchingCandidateCount));
+    this.uniqueSellerCount = Math.max(0, Math.floor(input.uniqueSellerCount));
+    this.sellerSearchRequestCountById = { ...input.sellerSearchRequestCountById };
+    this.incrementalPricingSamplesBySellerId = { ...input.incrementalPricingSamplesBySellerId };
+  }
+
   get browserPageCount(): number { return this.pages; }
   get httpRequestCount(): number { return this.requests; }
   get apiRequestCount(): number { return this.apiRequests; }
+  get elapsedMs(): number { return this.elapsed; }
+  get pricingSamples(): number | null { return this.pricingSampleCount; }
+  get referenceSamples(): number | null { return this.referenceSampleCount; }
+  get matchingCandidates(): number | null { return this.matchingCandidateCount; }
+  get uniqueSellers(): number | null { return this.uniqueSellerCount; }
+  get httpResponses(): readonly HttpResponseMetric[] { return this.responses; }
   get isFinished(): boolean { return this.finalized; }
   get hasAccessRestriction(): boolean {
     return this.responses.some((response) => [401, 403, 407, 429].includes(response.status ?? 0));
@@ -178,6 +223,10 @@ export class ProviderSearchMeter {
       browserPageCount: this.pages,
       candidateCount: this.candidateCount,
       validProductCount: this.validCount,
+      ...(this.matchingCandidateCount !== null ? { validMatchingCandidateCount: this.matchingCandidateCount } : {}),
+      ...(this.uniqueSellerCount !== null ? { uniqueSellerCount: this.uniqueSellerCount } : {}),
+      ...(this.sellerSearchRequestCountById ? { sellerSearchRequestCountById: { ...this.sellerSearchRequestCountById } } : {}),
+      ...(this.incrementalPricingSamplesBySellerId ? { incrementalPricingSamplesBySellerId: { ...this.incrementalPricingSamplesBySellerId } } : {}),
       pricingSampleCount: this.pricingSampleCount,
       referenceSampleCount: this.referenceSampleCount,
       errorCategory: this.category,
@@ -205,6 +254,8 @@ export class ResearchCostTracker {
   private readonly browserlessRate: number | null;
   private settledSessionIds = new Set<string>();
   private settledWithoutSession = false;
+  private researchElapsedMs: number | null = null;
+  private researchUniqueSellerCount: number | null = null;
 
   constructor(readonly researchRunId: string, options: CostTrackerOptions = {}) {
     this.now = options.now ?? Date.now;
@@ -227,6 +278,23 @@ export class ResearchCostTracker {
     for (const meter of this.meters) {
       if (meter.providerId === providerId) meter.setPricingSampleCounts(pricingSampleCount, referenceSampleCount);
     }
+  }
+
+  setYahooSellerMetrics(providerId: string, input: {
+    validMatchingCandidateCount: number;
+    uniqueSellerCount: number;
+    sellerSearchRequestCountById: Record<string, number>;
+    incrementalPricingSamplesBySellerId: Record<string, number>;
+  }): void {
+    for (const meter of this.meters) if (meter.providerId === providerId) meter.setYahooSellerMetrics(input);
+  }
+
+  setResearchElapsedMs(elapsedMs: number): void {
+    this.researchElapsedMs = Math.max(0, Math.round(elapsedMs));
+  }
+
+  setResearchUniqueSellerCount(count: number): void {
+    this.researchUniqueSellerCount = Math.max(0, Math.floor(count));
   }
 
   settleBrowserSession(session: BrowserSessionUsage | null): CostMetricRecord[] {
@@ -280,7 +348,52 @@ export class ResearchCostTracker {
       providerAllocations: allocations,
       persistenceScope: "local-filesystem-nondurable",
     } : null;
-    return sessionRecord ? [...providerRecords, sessionRecord] : providerRecords;
+    const records: CostMetricRecord[] = sessionRecord ? [...providerRecords, sessionRecord] : providerRecords;
+    if (this.researchElapsedMs !== null) records.push(this.createResearchRecord());
+    return records;
+  }
+
+  private createResearchRecord(): ResearchMetricRecord {
+    const sourceRequestCountByProvider: Record<string, number> = {};
+    const providerLatencyMsBySource: Record<string, number> = {};
+    const incrementalPricingSamplesBySource: Record<string, number> = {};
+    let totalExternalRequestCount = 0;
+    let validMatchingCandidateCount = 0;
+    let validPricingSampleCount = 0;
+    let uniqueSellerCount = 0;
+    let failedRequestCount = 0;
+    let blockedRequestCount = 0;
+    for (const meter of this.meters) {
+      sourceRequestCountByProvider[meter.providerId] = (sourceRequestCountByProvider[meter.providerId] ?? 0) + meter.apiRequestCount + meter.browserPageCount;
+      providerLatencyMsBySource[meter.providerId] = (providerLatencyMsBySource[meter.providerId] ?? 0) + meter.elapsedMs;
+      incrementalPricingSamplesBySource[meter.providerId] = (incrementalPricingSamplesBySource[meter.providerId] ?? 0) + (meter.pricingSamples ?? 0);
+      totalExternalRequestCount += meter.httpRequestCount;
+      validMatchingCandidateCount += meter.matchingCandidates ?? meter.pricingSamples ?? 0;
+      validPricingSampleCount += meter.referenceSamples ?? 0;
+      uniqueSellerCount += meter.uniqueSellers ?? 0;
+      for (const response of meter.httpResponses) {
+        if (!response.success) failedRequestCount += 1;
+        if ([401, 403, 407, 429].includes(response.status ?? 0)) blockedRequestCount += 1;
+      }
+    }
+    return {
+      kind: "research_metric",
+      schemaVersion: 1,
+      researchRunId: this.researchRunId,
+      elapsedMs: this.researchElapsedMs ?? 0,
+      sourceSearchCount: this.meters.length,
+      sourceRequestCountByProvider,
+      totalExternalRequestCount,
+      providerLatencyMsBySource,
+      validMatchingCandidateCount,
+      validPricingSampleCount,
+      uniqueSellerCount: this.researchUniqueSellerCount ?? uniqueSellerCount,
+      incrementalPricingSamplesBySource,
+      failedRequestCount,
+      blockedRequestCount,
+      externalRequestScope: "metered_provider_transports",
+      persistenceScope: "local-filesystem-nondurable",
+    };
   }
 
   private estimateProviderCost(meter: ProviderSearchMeter, browserUnits: number | null): { value: number | null; status: MetricCostStatus } {

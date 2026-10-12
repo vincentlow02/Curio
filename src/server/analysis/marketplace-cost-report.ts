@@ -36,6 +36,12 @@ export type MarketplaceCostSummary = {
   totalApiCalls: number;
   totalCandidates: number;
   totalValidProducts: number;
+  totalValidMatchingCandidates: number;
+  totalUniqueSellers: number;
+  totalIncrementalPricingSamples: number;
+  incrementalPricingSamplesBySellerId: Record<string, number>;
+  totalFailedRequests: number;
+  totalBlockedRequests: number;
   totalPricingSamples: number | null;
   totalReferenceSamples: number | null;
   estimatedBrowserlessUnits: number;
@@ -55,6 +61,12 @@ export function buildMarketplaceCostReport(records: readonly ProviderMetricRecor
     const totalSearches = providerRecords.length;
     const totalTimeMs = providerRecords.reduce((sum, record) => sum + record.elapsedMs, 0);
     const totalValidProducts = providerRecords.reduce((sum, record) => sum + record.validProductCount, 0);
+    const incrementalPricingSamplesBySellerId: Record<string, number> = {};
+    for (const record of providerRecords) {
+      for (const [sellerId, count] of Object.entries(record.incrementalPricingSamplesBySellerId ?? {})) {
+        incrementalPricingSamplesBySellerId[sellerId] = (incrementalPricingSamplesBySellerId[sellerId] ?? 0) + count;
+      }
+    }
     const hasAllPricingCounts = providerRecords.every((record) => Number.isInteger(record.pricingSampleCount) && Number.isInteger(record.referenceSampleCount));
     const totalPricingSamples = hasAllPricingCounts ? providerRecords.reduce((sum, record) => sum + (record.pricingSampleCount ?? 0), 0) : null;
     const totalReferenceSamples = hasAllPricingCounts ? providerRecords.reduce((sum, record) => sum + (record.referenceSampleCount ?? 0), 0) : null;
@@ -78,6 +90,12 @@ export function buildMarketplaceCostReport(records: readonly ProviderMetricRecor
       totalApiCalls: providerRecords.reduce((sum, record) => sum + record.apiRequestCount, 0),
       totalCandidates: providerRecords.reduce((sum, record) => sum + record.candidateCount, 0),
       totalValidProducts,
+      totalValidMatchingCandidates: providerRecords.reduce((sum, record) => sum + (record.validMatchingCandidateCount ?? 0), 0),
+      totalUniqueSellers: providerRecords.reduce((sum, record) => sum + (record.uniqueSellerCount ?? 0), 0),
+      totalIncrementalPricingSamples: Object.values(incrementalPricingSamplesBySellerId).reduce((sum, count) => sum + count, 0),
+      incrementalPricingSamplesBySellerId,
+      totalFailedRequests: providerRecords.reduce((sum, record) => sum + record.httpResponses.filter((response) => !response.success).length, 0),
+      totalBlockedRequests: providerRecords.reduce((sum, record) => sum + record.httpResponses.filter((response) => [401, 403, 407, 429].includes(response.status ?? 0)).length, 0),
       totalPricingSamples,
       totalReferenceSamples,
       estimatedBrowserlessUnits: providerRecords.reduce((sum, record) => sum + (record.estimatedBrowserlessUnits ?? 0), 0),
@@ -96,5 +114,5 @@ function isCostMetricRecord(value: unknown): value is CostMetricRecord {
   const record = value as Record<string, unknown>;
   return record.schemaVersion === 1
     && typeof record.researchRunId === "string"
-    && (record.kind === "provider_metric" || record.kind === "browser_session_metric");
+    && (record.kind === "provider_metric" || record.kind === "browser_session_metric" || record.kind === "research_metric");
 }

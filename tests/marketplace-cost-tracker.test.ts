@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MARKETPLACE_IDS } from "../src/core/marketplace";
 import { buildMarketplaceCostReport, readMarketplaceCostRecords } from "../src/server/analysis/marketplace-cost-report";
-import { persistMarketplaceCostRecords } from "../src/server/analysis/marketplace-cost-store";
+import { persistMarketplaceCostRecords, yahooSellerContributionRatesFromJsonl } from "../src/server/analysis/marketplace-cost-store";
 import { estimateBrowserlessTimeUnits } from "../src/server/browser/session-meter";
 import { createTimeoutSignal } from "../src/server/providers/marketplaces/shared/http";
 import { fetchWithHttpMetrics, observeBrowserPageRequests, parseVerifiedHttpCostRates, ResearchCostTracker, type BrowserSessionUsage } from "../src/server/analysis/marketplace-cost-tracker";
@@ -102,12 +102,42 @@ describe("Marketplace cost tracking", () => {
     meter.requestCompleted(200, 4);
     meter.finish({ candidates: [candidate(), candidate({ rank: 2, title: "Another PSP-3000 listing", url: "https://example.jp/item/psp-3000-2" })] });
     tracker.setProviderPricingSampleCounts(MARKETPLACE_IDS.rakuten, 2, 1);
+    tracker.setYahooSellerMetrics(MARKETPLACE_IDS.rakuten, {
+      validMatchingCandidateCount: 2,
+      uniqueSellerCount: 2,
+      sellerSearchRequestCountById: { shopA: 1 },
+      incrementalPricingSamplesBySellerId: { shopA: 2 },
+    });
+    tracker.setResearchElapsedMs(250);
+    tracker.setResearchUniqueSellerCount(2);
     const records = tracker.settleBrowserSession(null);
     const metric = records.find((record) => record.kind === "provider_metric");
+    const research = records.find((record) => record.kind === "research_metric");
     const [summary] = buildMarketplaceCostReport(records.filter((record) => record.kind === "provider_metric"));
 
     expect(metric).toMatchObject({ candidateCount: 2, validProductCount: 2, pricingSampleCount: 2, referenceSampleCount: 1 });
-    expect(summary).toMatchObject({ totalValidProducts: 2, totalPricingSamples: 2, totalReferenceSamples: 1, estimatedUSD: 0.02, estimatedCostPerPricingSampleUSD: 0.01 });
+    expect(metric).toMatchObject({ validMatchingCandidateCount: 2, uniqueSellerCount: 2, incrementalPricingSamplesBySellerId: { shopA: 2 } });
+    expect(research).toMatchObject({
+      elapsedMs: 250,
+      sourceSearchCount: 1,
+      sourceRequestCountByProvider: { [MARKETPLACE_IDS.rakuten]: 1 },
+      totalExternalRequestCount: 1,
+      validMatchingCandidateCount: 2,
+      validPricingSampleCount: 1,
+      uniqueSellerCount: 2,
+      failedRequestCount: 0,
+      blockedRequestCount: 0,
+    });
+    expect(summary).toMatchObject({ totalValidProducts: 2, totalValidMatchingCandidates: 2, totalUniqueSellers: 2, totalIncrementalPricingSamples: 2, incrementalPricingSamplesBySellerId: { shopA: 2 }, totalPricingSamples: 2, totalReferenceSamples: 1, estimatedUSD: 0.02, estimatedCostPerPricingSampleUSD: 0.01 });
+  });
+
+  it("derives historical Yahoo seller ranking from verified request and sample contribution counts", async () => {
+    const contents = [
+      JSON.stringify({ kind: "provider_metric", providerId: "Yahoo! Shopping", sellerSearchRequestCountById: { sellerA: 4, sellerB: 2 }, incrementalPricingSamplesBySellerId: { sellerA: 3, sellerB: 4 } }),
+      JSON.stringify({ kind: "provider_metric", providerId: "Rakuten", sellerSearchRequestCountById: { ignored: 1 }, incrementalPricingSamplesBySellerId: { ignored: 10 } }),
+    ].join("\n");
+
+    expect(yahooSellerContributionRatesFromJsonl(contents)).toEqual({ sellerA: 0.75, sellerB: 2 });
   });
 
   it("counts Browser Page HTTP traffic without treating subrequests as billable API calls or persisting URLs", () => {
@@ -277,13 +307,17 @@ describe("Marketplace cost tracking", () => {
       meter.requestStarted(true);
       meter.requestCompleted(200, 10);
       meter.finish({ candidates: [candidate({ source: MARKETPLACE_IDS.rakuten })] });
+      tracker.setResearchElapsedMs(40);
+      tracker.setResearchUniqueSellerCount(1);
       const records = tracker.settleBrowserSession(null);
       await persistMarketplaceCostRecords(records, (jsonl) => appendFile(path, jsonl, "utf8"));
       const loaded = await readMarketplaceCostRecords(path);
       const rows = buildMarketplaceCostReport(loaded.filter((record) => record.kind === "provider_metric"));
+      const research = loaded.find((record) => record.kind === "research_metric");
 
-      expect(log).toHaveBeenCalledTimes(1);
+      expect(log).toHaveBeenCalledTimes(2);
       expect(rows[0]).toMatchObject({ totalSearches: 1, totalHttpRequests: 1, totalApiCalls: 1, totalCandidates: 1, totalValidProducts: 1, estimatedUSD: 0.02, actualUSD: null });
+      expect(research).toMatchObject({ elapsedMs: 40, totalExternalRequestCount: 1, uniqueSellerCount: 1 });
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

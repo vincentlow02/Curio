@@ -13,6 +13,8 @@ const previousEnv = {
   yahooEnabled: process.env.YAHOO_SHOPPING_API_ENABLED,
   yahooAppId: process.env.YAHOO_SHOPPING_APP_ID,
   janparaStoreSearchEnabled: process.env.JANPARA_YAHOO_SHOPPING_STORE_SEARCH_ENABLED,
+  yahooSearchMode: process.env.YAHOO_SHOPPING_SEARCH_MODE,
+  yahooMaxSellerSearches: process.env.YAHOO_SHOPPING_MAX_SELLER_SEARCHES,
   fixtureMode: process.env.WEB_USE_FIXTURE,
   tavilyEnabled: process.env.ENABLE_TAVILY_PRICE_FALLBACK,
 };
@@ -55,6 +57,7 @@ beforeEach(() => {
   delete process.env.JANPARA_YAHOO_SHOPPING_STORE_SEARCH_ENABLED;
   process.env.WEB_USE_FIXTURE = "false";
   process.env.ENABLE_TAVILY_PRICE_FALLBACK = "false";
+  process.env.YAHOO_SHOPPING_SEARCH_MODE = "all-relevant";
   yahooE2eMocks.openBrowser.mockReset();
   vi.resetModules();
 });
@@ -64,6 +67,8 @@ afterEach(() => {
     YAHOO_SHOPPING_API_ENABLED: previousEnv.yahooEnabled,
     YAHOO_SHOPPING_APP_ID: previousEnv.yahooAppId,
     JANPARA_YAHOO_SHOPPING_STORE_SEARCH_ENABLED: previousEnv.janparaStoreSearchEnabled,
+    YAHOO_SHOPPING_SEARCH_MODE: previousEnv.yahooSearchMode,
+    YAHOO_SHOPPING_MAX_SELLER_SEARCHES: previousEnv.yahooMaxSellerSearches,
     WEB_USE_FIXTURE: previousEnv.fixtureMode,
     ENABLE_TAVILY_PRICE_FALLBACK: previousEnv.tavilyEnabled,
   })) {
@@ -76,10 +81,17 @@ afterEach(() => {
 });
 
 describe("Yahoo! Shopping Provider MVP fixtures", () => {
-  it("uses one precise plus at most one relaxed used query and carries candidates through Pricing and NDJSON without Browser", async () => {
+  it("uses one all-site query and only the seller searches needed to reach the Matcher target", async () => {
+    process.env.YAHOO_SHOPPING_SEARCH_MODE = "optimized";
+    const sofmapHits = relaxedHits.map((hit) => ({
+      ...hit,
+      url: `https://store.shopping.yahoo.co.jp/u-sofmap/${hit.code}.html`,
+      code: `u-sofmap:${hit.code}`,
+      seller: { name: "ソフマップ中古専門店", sellerId: "u-sofmap" },
+    }));
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
-      const query = new URL(String(input)).searchParams.get("query");
-      return query === "PSP-3000 本体" ? result(exactHits) : result(relaxedHits);
+      const url = new URL(String(input));
+      return url.searchParams.get("seller_id") === "u-sofmap" ? result(sofmapHits) : result(exactHits);
     });
     vi.stubGlobal("fetch", fetchMock);
     const { yahooShoppingProvider } = await import("../src/server/providers/marketplaces/yahoo-shopping");
@@ -113,21 +125,110 @@ describe("Yahoo! Shopping Provider MVP fixtures", () => {
       toolActivity: Array<{ provider: string; status: string; calls: number; resultCount?: number; validResultCount?: number }>;
     };
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     const requests = fetchMock.mock.calls.map(([input]) => new URL(String(input)));
     expect(requests.map((url) => url.searchParams.get("query"))).toEqual([
       "PSP-3000 本体",
-      "Sony PSP-3000",
       "PSP-3000 本体",
     ]);
-    expect(requests.map((url) => url.searchParams.get("seller_id"))).toEqual([null, null, "u-sofmap"]);
+    expect(requests.map((url) => url.searchParams.get("seller_id"))).toEqual([null, "u-sofmap"]);
     expect(requests.every((url) => url.searchParams.get("condition") === "used" && url.searchParams.get("results") === "30")).toBe(true);
     expect(yahooE2eMocks.openBrowser).not.toHaveBeenCalled();
     expect(completed.result.cost.marketplacePages).toBe(0);
-    expect(completed.result.priceReference.samples.map(({ price }) => price)).toEqual([10_000, 12_000, 11_000, 13_000, 14_000]);
+    expect(completed.result.priceReference.samples.map(({ price }) => price)).toEqual([12_000, 11_000, 13_000, 14_000, 10_000]);
     expect(completed.result.priceReference.samples.every(({ source }) => source === "Yahoo! Shopping")).toBe(true);
     expect(completed.result.priceReference).toMatchObject({ low: 10_000, median: 12_000, high: 14_000, sampleCount: 5 });
-    expect(completed.toolActivity.find(({ provider }) => provider === "Yahoo! Shopping")).toMatchObject({ status: "succeeded", calls: 3, resultCount: 10, validResultCount: 5 });
+    expect(completed.toolActivity.find(({ provider }) => provider === "Yahoo! Shopping")).toMatchObject({ status: "succeeded", calls: 2, resultCount: 10, validResultCount: 5 });
+  }, 15_000);
+
+  it("keeps searching after raw hits fail the Matcher and stops at the configured seller budget", async () => {
+    process.env.YAHOO_SHOPPING_SEARCH_MODE = "optimized";
+    process.env.YAHOO_SHOPPING_MAX_SELLER_SEARCHES = "2";
+    const invalidHits = [
+      { ...exactHits[0], condition: "new" },
+      { ...exactHits[0], code: "missing-price", price: null },
+      { ...exactHits[0], code: "bundle", name: "Sony PSP-3000 本体 中古 ゲームソフト 5本セット" },
+      { ...exactHits[0], code: "wrong-model", name: "Sony PSP-2000 本体 中古 ブラック" },
+    ];
+    const sofmapHit = {
+      name: "Sony PSP-3000 本体 中古 ホワイト",
+      url: "https://store.shopping.yahoo.co.jp/u-sofmap/psp-3000-white.html",
+      code: "u-sofmap:psp-3000-white",
+      condition: "used",
+      inStock: true,
+      price: 12000,
+      seller: { name: "ソフマップ中古専門店", sellerId: "u-sofmap" },
+    };
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input));
+      if (url.searchParams.has("seller_id")) return result([sofmapHit]);
+      return result(invalidHits);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { yahooShoppingProvider } = await import("../src/server/providers/marketplaces/yahoo-shopping");
+    const { resetYahooShoppingRateLimitForTests } = await import("../src/server/providers/marketplaces/yahoo-shopping-api-client");
+    resetYahooShoppingRateLimitForTests();
+    const snapshot = await yahooShoppingProvider.search({ profile: toPriceItemProfile(identification()), keyword: "ignored", maxCards: 30 });
+    const sellerIds = fetchMock.mock.calls.map(([input]) => new URL(String(input)).searchParams.get("seller_id")).filter(Boolean);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sellerIds).toEqual(["u-sofmap"]);
+    expect(snapshot.diagnostics?.[0]).toMatchObject({ incrementalPricingSamplesBySellerId: { "u-sofmap": 1 } });
+  }, 15_000);
+
+  it("does not bypass a Yahoo authorization gate with seller searches", async () => {
+    process.env.YAHOO_SHOPPING_SEARCH_MODE = "optimized";
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response("{}", { status: 403 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { yahooShoppingProvider } = await import("../src/server/providers/marketplaces/yahoo-shopping");
+    const { resetYahooShoppingRateLimitForTests } = await import("../src/server/providers/marketplaces/yahoo-shopping-api-client");
+    resetYahooShoppingRateLimitForTests();
+    const snapshot = await yahooShoppingProvider.search({ profile: toPriceItemProfile(identification()), keyword: "ignored", maxCards: 30 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(snapshot.error).toContain("HTTP 403");
+  });
+
+  it("limits optimized fashion profiles to two distinct related sellers", async () => {
+    process.env.YAHOO_SHOPPING_SEARCH_MODE = "optimized";
+    process.env.YAHOO_SHOPPING_MAX_SELLER_SEARCHES = "2";
+    const fetchMock = vi.fn<typeof fetch>(async () => result([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { yahooShoppingProvider } = await import("../src/server/providers/marketplaces/yahoo-shopping");
+    const profile = toPriceItemProfile({
+      ...identification(),
+      itemName: "Yohji Yamamoto Pour Homme Jacket",
+      version: "Yohji Yamamoto",
+      priceSearchKeywordJa: "Yohji Yamamoto ジャケット 古着 中古",
+    });
+    await yahooShoppingProvider.search({ profile, keyword: "ignored", maxCards: 30 });
+    const sellerIds = fetchMock.mock.calls.map(([input]) => new URL(String(input)).searchParams.get("seller_id")).filter(Boolean);
+
+    expect(sellerIds).toHaveLength(2);
+    expect(new Set(sellerIds).size).toBe(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  }, 15_000);
+
+  it("marks the Yahoo price signal preliminary when its request budget cannot meet the sample target", async () => {
+    process.env.YAHOO_SHOPPING_SEARCH_MODE = "optimized";
+    const fetchMock = vi.fn<typeof fetch>(async () => result([]));
+    vi.stubGlobal("fetch", fetchMock);
+    const { yahooShoppingProvider } = await import("../src/server/providers/marketplaces/yahoo-shopping");
+    vi.doMock("../src/server/providers/marketplaces/registry", () => ({
+      marketplaceRegistry: [{ id: "Yahoo! Shopping", status: "enabled", provider: yahooShoppingProvider }],
+    }));
+    vi.resetModules();
+    const { resetYahooShoppingRateLimitForTests } = await import("../src/server/providers/marketplaces/yahoo-shopping-api-client");
+    resetYahooShoppingRateLimitForTests();
+    const { researchCollectible } = await import("../src/server/analysis/run-pipeline");
+
+    const resultValue = await researchCollectible({ identification: identification(), collectorMode: false, collectorEvidence: null });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(resultValue.result.warnings).toContain("Yahoo! Shopping reached its available search budget with 0 of 5 target reference samples; treat its price signal as preliminary.");
   }, 15_000);
 
   it("distinguishes missing model identity from an explicit model conflict", () => {
@@ -277,7 +378,7 @@ describe("Yahoo! Shopping Provider MVP fixtures", () => {
       availabilityText: "",
       listingCondition: "used",
     });
-    expect(snapshot.candidates[0]?.url).toBe(janparaHit.url);
+    expect(snapshot.candidates[0]?.url).toBe("https://store.shopping.yahoo.co.jp/janpara/psp-3000-black.html");
   });
 
   it("does not query or price Janpara while its conservative local search switch is off", async () => {
@@ -298,7 +399,7 @@ describe("Yahoo! Shopping Provider MVP fixtures", () => {
     const profile = toPriceItemProfile(identification());
     const snapshot = await yahooShoppingProvider.search({ profile, keyword: "ignored", maxCards: 30 });
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls.some(([input]) => new URL(String(input)).searchParams.get("seller_id") === "janpara")).toBe(false);
     expect(snapshot.candidates).toHaveLength(0);
   });
@@ -419,7 +520,7 @@ describe("Yahoo! Shopping Provider MVP fixtures", () => {
       availabilityText: "",
       listingCondition: "used",
     });
-  });
+  }, 20_000);
 
   it("keeps identical-URL quotes from different sellers distinct in the Yahoo provider", async () => {
     const sellerA = { ...exactHits[0], url: "https://store.shopping.yahoo.co.jp/shared/item.html", seller: { name: "Seller A", sellerId: "seller-a" } };
@@ -502,7 +603,7 @@ describe("Yahoo! Shopping Provider MVP fixtures", () => {
     await yahooShoppingProvider.search({ profile, keyword: "ignored", maxCards: 30 });
 
     expect(fetchMock.mock.calls.some(([input]) => new URL(String(input)).searchParams.get("seller_id") === "u-sofmap")).toBe(false);
-  });
+  }, 20_000);
 
   it("searches Kitamura for Canon EOS profiles and deduplicates URL query variants", async () => {
     const cameraHit = {
@@ -587,6 +688,216 @@ describe("Yahoo! Shopping Provider MVP fixtures", () => {
     expect(snapshot.candidates).toHaveLength(1);
     expect(snapshot.candidates[0]?.title).toBe(lensHit.name);
   });
+
+  it("searches BRAND OFF once for Louis Vuitton, Rolex, and Cartier profiles", async () => {
+    const profiles = [
+      {
+        itemName: "Louis Vuitton Monogram Shoulder Bag M45254",
+        version: "M45254",
+        priceSearchKeywordJa: "Louis Vuitton Monogram Shoulder Bag M45254 中古",
+        matchToken: "Louis Vuitton",
+        title: "LOUIS VUITTON Monogram Shoulder Bag M45254 2004年製 中古",
+        url: "https://store.shopping.yahoo.co.jp/brandoff/lv-m45254.html?from=all",
+        price: 148000,
+      },
+      {
+        itemName: "Rolex Datejust 36 126234",
+        version: "126234",
+        priceSearchKeywordJa: "Rolex Datejust 36 126234 Oystersteel 中古",
+        matchToken: "Rolex",
+        title: "ROLEX Datejust 36 126234 Oystersteel White Gold Bezel 2021 中古",
+        url: "https://store.shopping.yahoo.co.jp/brandoff/rolex-126234.html?from=all",
+        price: 1280000,
+      },
+      {
+        itemName: "Cartier Love Ring 750WG",
+        version: "52",
+        priceSearchKeywordJa: "Cartier Love Ring 750WG 52号 中古",
+        matchToken: "Cartier",
+        title: "Cartier LOVE Ring 750WG 52号 中古",
+        url: "https://store.shopping.yahoo.co.jp/brandoff/cartier-love-ring.html?from=all",
+        price: 198000,
+      },
+    ];
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input));
+      if (url.searchParams.get("seller_id") !== "brandoff") return result([]);
+      expect(url.searchParams.get("condition")).toBe("used");
+      expect(url.searchParams.get("in_stock")).toBe("true");
+      expect(url.searchParams.get("results")).toBe("30");
+      const query = url.searchParams.get("query") ?? "";
+      const item = profiles.find(({ matchToken }) => query.includes(matchToken)) ?? profiles[0]!;
+      const listing = {
+        name: item.title,
+        url: item.url,
+        code: item.itemName,
+        condition: "used",
+        inStock: true,
+        price: item.price,
+        seller: { name: "ブランドオフ Yahoo!店", sellerId: "brandoff" },
+      };
+      return result([
+        listing,
+        { ...listing, url: `${new URL(listing.url).origin}${new URL(listing.url).pathname}?from=store` },
+        { ...listing, url: "https://store.shopping.yahoo.co.jp/brandoff/wrong-seller.html", seller: { name: "Other seller", sellerId: "other" } },
+        { ...listing, url: "https://store.shopping.yahoo.co.jp/other/item.html" },
+        { ...listing, url: "https://store.shopping.yahoo.co.jp/brandoff/sold.html", inStock: false },
+        { ...listing, url: "https://store.shopping.yahoo.co.jp/brandoff/new.html", condition: "new" },
+        { ...listing, url: "https://store.shopping.yahoo.co.jp/brandoff/no-price.html", price: 0 },
+      ]);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { yahooShoppingProvider, YAHOO_SHOPPING_STORES } = await import("../src/server/providers/marketplaces/yahoo-shopping");
+    const observedStoreRequests: URL[] = [];
+    for (const item of profiles) {
+      const profile = toPriceItemProfile({ ...identification(), ...item });
+      const snapshot = await yahooShoppingProvider.search({ profile, keyword: "ignored", maxCards: 30 });
+      const storeRequests = fetchMock.mock.calls
+        .map(([input]) => new URL(String(input)))
+        .filter((url) => url.searchParams.get("seller_id") === "brandoff");
+      expect(storeRequests).toHaveLength(observedStoreRequests.length + 1);
+      observedStoreRequests.push(storeRequests.at(-1)!);
+      expect(snapshot.candidates).toHaveLength(1);
+      expect(snapshot.candidates[0]).toMatchObject({
+        source: "Yahoo! Shopping",
+        title: item.title,
+        shopName: "ブランドオフ Yahoo!店",
+        displayedPrice: item.price,
+        url: item.url,
+        listingCondition: "used",
+        availabilityText: "",
+      });
+    }
+
+    expect(YAHOO_SHOPPING_STORES.brandOff).toEqual({
+      storeId: "brandoff",
+      storeName: "ブランドオフ",
+      channel: "yahoo-shopping",
+      sellerId: "brandoff",
+      categories: ["luxury_bags", "bags", "watches", "jewelry", "fashion", "shoes", "accessories"],
+    });
+    expect(observedStoreRequests).toHaveLength(3);
+  }, 60_000);
+
+  it("does not query BRAND OFF for PSP-3000 or Canon EOS profiles", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => result([]));
+    vi.stubGlobal("fetch", fetchMock);
+    const { yahooShoppingProvider } = await import("../src/server/providers/marketplaces/yahoo-shopping");
+    const profiles = [
+      { itemName: "Sony PSP-3000", version: "PSP-3000", priceSearchKeywordJa: "PSP-3000 本体 中古" },
+      { itemName: "Canon EOS R5", version: "EOS R5", priceSearchKeywordJa: "Canon EOS R5 ボディ 中古" },
+    ];
+
+    for (const item of profiles) {
+      const firstRequestIndex = fetchMock.mock.calls.length;
+      const profile = toPriceItemProfile({ ...identification(), ...item });
+      await yahooShoppingProvider.search({ profile, keyword: "ignored", maxCards: 30 });
+      const brandOffRequests = fetchMock.mock.calls.slice(firstRequestIndex)
+        .filter(([input]) => new URL(String(input)).searchParams.get("seller_id") === "brandoff");
+      expect(brandOffRequests, item.itemName).toHaveLength(0);
+    }
+  }, 30_000);
+
+  it("searches Map Camera once for Canon, NIKKOR, and FUJIFILM profiles", async () => {
+    const hits = [
+      {
+        name: "Canon EOS R5 ボディ RFマウント 中古 Aランク",
+        url: "https://store.shopping.yahoo.co.jp/ymapcamera/canon-eos-r5.html?from=all",
+        code: "canon-eos-r5-body-rf-a",
+        condition: "used",
+        inStock: true,
+        price: 398000,
+      },
+      {
+        name: "Nikon NIKKOR Z 24-70mm f/2.8 S Zマウント 中古 ABランク",
+        url: "https://store.shopping.yahoo.co.jp/ymapcamera/nikkor-z-24-70.html?from=all",
+        code: "nikkor-z-24-70-f28-s-z-ab",
+        condition: "used",
+        inStock: true,
+        price: 218000,
+      },
+      {
+        name: "FUJIFILM X-T5 ボディ ブラック 中古 美品",
+        url: "https://store.shopping.yahoo.co.jp/ymapcamera/fujifilm-x-t5.html?from=all",
+        code: "fujifilm-x-t5-body-black",
+        condition: "used",
+        inStock: true,
+        price: 198000,
+      },
+    ];
+    const profiles = [
+      { itemName: "Canon EOS R5", version: "EOS R5 body", priceSearchKeywordJa: "Canon EOS R5 ボディ RFマウント 中古", hitIndex: 0 },
+      { itemName: "Nikon NIKKOR Z 24-70mm f/2.8 S", version: "Z mount", priceSearchKeywordJa: "Nikon NIKKOR Z 24-70mm f/2.8 S Zマウント 中古", hitIndex: 1 },
+      { itemName: "FUJIFILM X-T5", version: "X-T5 body", priceSearchKeywordJa: "FUJIFILM X-T5 ボディ ブラック 中古", hitIndex: 2 },
+    ];
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input));
+      if (url.searchParams.get("seller_id") !== "ymapcamera") return result([]);
+      expect(url.searchParams.get("condition")).toBe("used");
+      expect(url.searchParams.get("in_stock")).toBe("true");
+      expect(url.searchParams.get("results")).toBe("30");
+      const query = url.searchParams.get("query") ?? "";
+      const profileIndex = profiles.findIndex(({ itemName }) => query.includes(itemName.split(" ")[0] ?? ""));
+      const hit = hits[profileIndex >= 0 ? profileIndex : 0]!;
+      const withSeller = { ...hit, seller: { name: "マップカメラ Yahoo!店", sellerId: "ymapcamera" } };
+      return result([
+        withSeller,
+        { ...withSeller, url: `${new URL(withSeller.url).origin}${new URL(withSeller.url).pathname}?from=store` },
+      ]);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { yahooShoppingProvider, YAHOO_SHOPPING_STORES } = await import("../src/server/providers/marketplaces/yahoo-shopping");
+    const observedSellerRequests: URL[] = [];
+    for (const item of profiles) {
+      const profile = toPriceItemProfile({ ...identification(), ...item });
+      const snapshot = await yahooShoppingProvider.search({ profile, keyword: "ignored", maxCards: 30 });
+      const sellerRequests = fetchMock.mock.calls
+        .map(([input]) => new URL(String(input)))
+        .filter((url) => url.searchParams.get("seller_id") === "ymapcamera");
+      expect(sellerRequests).toHaveLength(observedSellerRequests.length + 1);
+      observedSellerRequests.push(sellerRequests.at(-1)!);
+      expect(snapshot.candidates).toHaveLength(1);
+      expect(snapshot.candidates[0]).toMatchObject({
+        source: "Yahoo! Shopping",
+        title: hits[item.hitIndex]!.name,
+        shopName: "マップカメラ Yahoo!店",
+        displayedPrice: hits[item.hitIndex]!.price,
+        url: hits[item.hitIndex]!.url,
+        listingCondition: "used",
+        availabilityText: "",
+      });
+    }
+
+    expect(YAHOO_SHOPPING_STORES.mapCamera).toEqual({
+      storeId: "ymapcamera",
+      storeName: "マップカメラ",
+      channel: "yahoo-shopping",
+      sellerId: "ymapcamera",
+      categories: ["cameras", "camera_lenses", "photography_equipment"],
+    });
+    expect(observedSellerRequests).toHaveLength(3);
+  }, 45_000);
+
+  it("does not query Map Camera for PSP gaming or Yohji fashion profiles", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => result([]));
+    vi.stubGlobal("fetch", fetchMock);
+    const { yahooShoppingProvider } = await import("../src/server/providers/marketplaces/yahoo-shopping");
+    const profiles = [
+      { itemName: "Sony PSP-3000", version: "PSP-3000", priceSearchKeywordJa: "PSP-3000 本体 中古" },
+      { itemName: "Yohji Yamamoto POUR HOMME coat", version: "Vintage", priceSearchKeywordJa: "Yohji Yamamoto POUR HOMME vintage coat 古着" },
+    ];
+
+    for (const item of profiles) {
+      const firstRequestIndex = fetchMock.mock.calls.length;
+      const profile = toPriceItemProfile({ ...identification(), ...item });
+      await yahooShoppingProvider.search({ profile, keyword: "ignored", maxCards: 30 });
+      const mapCameraRequests = fetchMock.mock.calls.slice(firstRequestIndex)
+        .filter(([input]) => new URL(String(input)).searchParams.get("seller_id") === "ymapcamera");
+      expect(mapCameraRequests, item.itemName).toHaveLength(0);
+    }
+  }, 30_000);
 
   it("does not query Kitamura for luxury bags or PSP gaming profiles", async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => result([]));
@@ -773,7 +1084,88 @@ describe("Yahoo! Shopping Provider MVP fixtures", () => {
       listingCondition: "used",
       availabilityText: "",
     });
-  });
+  }, 20_000);
+
+  it("searches Kindal for designer fashion and keeps the original listing details", async () => {
+    const kindalHit = {
+      name: "COMME des GARCONS HOMME PLUS wool jacket size 3 2000s vintage",
+      url: "https://store.shopping.yahoo.co.jp/kindal/cdg-homme-plus-jacket.html?from=all",
+      code: "cdg-homme-plus-jacket-size-3",
+      condition: "used",
+      inStock: true,
+      price: 38500,
+      seller: { name: "カインドオル Yahoo!店", sellerId: "kindal" },
+    };
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input));
+      if (url.searchParams.get("seller_id") === "kindal") {
+        expect(url.searchParams.get("condition")).toBe("used");
+        expect(url.searchParams.get("in_stock")).toBe("true");
+        expect(url.searchParams.get("results")).toBe("30");
+        return result([
+          kindalHit,
+          { ...kindalHit, url: "https://store.shopping.yahoo.co.jp/kindal/cdg-homme-plus-jacket.html?from=store" },
+          { ...kindalHit, url: "https://store.shopping.yahoo.co.jp/kindal/wrong-seller.html", seller: { name: "Other seller", sellerId: "other" } },
+          { ...kindalHit, url: "https://store.shopping.yahoo.co.jp/other/item.html" },
+          { ...kindalHit, url: "https://store.shopping.yahoo.co.jp/kindal/sold.html", inStock: false },
+          { ...kindalHit, url: "https://store.shopping.yahoo.co.jp/kindal/new.html", condition: "new" },
+          { ...kindalHit, url: "https://store.shopping.yahoo.co.jp/kindal/no-price.html", price: 0 },
+        ]);
+      }
+      return result([kindalHit]);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { yahooShoppingProvider, YAHOO_SHOPPING_STORES } = await import("../src/server/providers/marketplaces/yahoo-shopping");
+    const profile = toPriceItemProfile({
+      ...identification(),
+      itemName: "COMME des GARCONS HOMME PLUS wool jacket",
+      version: "size 3 2000s vintage",
+      priceSearchKeywordJa: "COMME des GARCONS HOMME PLUS wool jacket size 3 2000s vintage 中古",
+    });
+    const snapshot = await yahooShoppingProvider.search({ profile, keyword: "ignored", maxCards: 30 });
+    const requests = fetchMock.mock.calls.map(([input]) => new URL(String(input)));
+    const storeRequests = requests.filter((url) => url.searchParams.get("seller_id") === "kindal");
+
+    expect(YAHOO_SHOPPING_STORES.kindal).toEqual({
+      storeId: "kindal",
+      storeName: "カインドオル",
+      channel: "yahoo-shopping",
+      sellerId: "kindal",
+      categories: ["designer_fashion", "vintage_clothing", "fashion", "shoes", "bags", "accessories"],
+    });
+    expect(storeRequests).toHaveLength(1);
+    expect(storeRequests[0]?.searchParams.get("query")).toBe("COMME des GARCONS HOMME PLUS wool jacket size 3 2000s vintage");
+    expect(snapshot.candidates).toHaveLength(1);
+    expect(snapshot.candidates[0]).toMatchObject({
+      source: "Yahoo! Shopping",
+      title: kindalHit.name,
+      shopName: "カインドオル Yahoo!店",
+      displayedPrice: 38500,
+      url: kindalHit.url,
+      listingCondition: "used",
+      availabilityText: "",
+    });
+  }, 30_000);
+
+  it("does not make Kindal-specific requests for PSP or Canon camera profiles", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => result([]));
+    vi.stubGlobal("fetch", fetchMock);
+    const { yahooShoppingProvider } = await import("../src/server/providers/marketplaces/yahoo-shopping");
+    const profiles = [
+      { itemName: "Sony PSP-3000", version: "PSP-3000", priceSearchKeywordJa: "PSP-3000 本体 中古" },
+      { itemName: "Canon EOS R6 Mark II", version: "EOS R6 Mark II", priceSearchKeywordJa: "Canon EOS R6 Mark II ボディ 中古" },
+    ];
+
+    for (const item of profiles) {
+      const firstRequestIndex = fetchMock.mock.calls.length;
+      const profile = toPriceItemProfile({ ...identification(), ...item });
+      await yahooShoppingProvider.search({ profile, keyword: "ignored", maxCards: 30 });
+      const kindalRequests = fetchMock.mock.calls.slice(firstRequestIndex)
+        .filter(([input]) => new URL(String(input)).searchParams.get("seller_id") === "kindal");
+      expect(kindalRequests, item.itemName).toHaveLength(0);
+    }
+  }, 30_000);
 
   it("keeps the API disabled in the registry unless explicitly opted in", async () => {
     delete process.env.YAHOO_SHOPPING_API_ENABLED;

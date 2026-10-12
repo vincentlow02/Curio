@@ -3,12 +3,12 @@ import "server-only";
 import type { ItemProfile } from "../../../price/item-profile";
 import { MARKETPLACE_IDS } from "../../../core/marketplace";
 import { classifyIdentityMatch } from "../../../price/identity";
+import { countComparableMarketplaceSamples } from "../../../price/matcher";
 import type { MarketplaceCandidate, SearchSnapshot } from "../../../price/types";
+import { readYahooSellerContributionRates } from "../../analysis/marketplace-cost-store";
 import { env } from "../../config/env";
 import { fetchYahooShoppingItems, YAHOO_SHOPPING_ITEM_SEARCH_ENDPOINT, YahooShoppingApiError, type YahooShoppingHit } from "./yahoo-shopping-api-client";
 import type { HttpMarketplaceProvider, MarketplaceSearchInput } from "./types";
-
-const MIN_MATCHED_CANDIDATES = 5;
 
 type YahooShoppingStoreCategory = "electronics" | "smartphones" | "cameras" | "camera_lenses" | "photography_equipment" | "computers" | "gaming" | "watches" | "jewelry" | "luxury_bags" | "fashion" | "designer_fashion" | "vintage_clothing" | "shoes" | "bags" | "outdoor" | "sports" | "accessories" | "home_goods";
 
@@ -35,6 +35,13 @@ export const YAHOO_SHOPPING_STORES = {
     sellerId: "komehyo",
     categories: ["watches", "jewelry", "luxury_bags", "fashion"],
   },
+  brandOff: {
+    storeId: "brandoff",
+    storeName: "ブランドオフ",
+    channel: "yahoo-shopping",
+    sellerId: "brandoff",
+    categories: ["luxury_bags", "bags", "watches", "jewelry", "fashion", "shoes", "accessories"],
+  },
   secondStreet: {
     storeId: "ssol-shopping",
     storeName: "2nd STREET",
@@ -56,12 +63,26 @@ export const YAHOO_SHOPPING_STORES = {
     sellerId: "emedama",
     categories: ["cameras", "camera_lenses", "photography_equipment"],
   },
+  mapCamera: {
+    storeId: "ymapcamera",
+    storeName: "マップカメラ",
+    channel: "yahoo-shopping",
+    sellerId: "ymapcamera",
+    categories: ["cameras", "camera_lenses", "photography_equipment"],
+  },
   ragtag: {
     storeId: "ragtagonlineshop",
     storeName: "RAGTAG",
     channel: "yahoo-shopping",
     sellerId: "ragtagonlineshop",
     categories: ["designer_fashion", "vintage_clothing", "shoes", "accessories", "bags"],
+  },
+  kindal: {
+    storeId: "kindal",
+    storeName: "カインドオル",
+    channel: "yahoo-shopping",
+    sellerId: "kindal",
+    categories: ["designer_fashion", "vintage_clothing", "fashion", "shoes", "bags", "accessories"],
   },
 } as const satisfies Record<string, YahooShoppingStoreConfig>;
 
@@ -173,14 +194,14 @@ function mapHit(hit: YahooShoppingHit, seenCodes: Set<string>, seenUrls: Set<str
   const url = safeItemUrl(hit.url);
   if (!title.trim() || !url || hit.condition !== "used" || (store && !isStoreListing(hit, store))) return null;
   const sellerId = typeof hit.seller?.sellerId === "string" ? hit.seller.sellerId.trim() : "";
-  const listingKey = urlKey(url, sellerId);
+  const apiSellerName = typeof hit.seller?.name === "string" && hit.seller.name.trim() ? hit.seller.name : "";
+  const listingKey = urlKey(url, sellerId || apiSellerName.trim().toLowerCase());
   if (seenUrls.has(listingKey)) return null;
   const code = typeof hit.code === "string" ? hit.code.trim() : "";
   const externalId = code ? `${sellerId}:${code}` : "";
   if (externalId && seenCodes.has(externalId)) return null;
 
   const price = typeof hit.price === "number" && Number.isFinite(hit.price) && hit.price >= 0 ? hit.price : null;
-  const apiSellerName = typeof hit.seller?.name === "string" && hit.seller.name.trim() ? hit.seller.name : "";
   const shopName = apiSellerName || store?.storeName || "unknown";
   seenUrls.add(listingKey);
   if (externalId) seenCodes.add(externalId);
@@ -191,6 +212,7 @@ function mapHit(hit: YahooShoppingHit, seenCodes: Set<string>, seenUrls: Set<str
     displayedPrice: price,
     url,
     shopName,
+    ...(sellerId ? { sellerId } : {}),
     availabilityText: hit.inStock === false ? "在庫なし" : hit.inStock === true ? "" : "unknown",
     listingCondition: "used",
   };
@@ -218,18 +240,14 @@ async function searchYahooShoppingStore(
     .filter((candidate): candidate is MarketplaceCandidate => candidate !== null);
 }
 
-function isUsableCandidate(profile: ItemProfile, candidate: MarketplaceCandidate): boolean {
-  return candidate.displayedPrice !== null
-    && candidate.displayedPrice > 0
-    && candidate.availabilityText !== "在庫なし"
-    && candidate.availabilityText !== "unknown"
-    && candidate.listingCondition === "used"
-    && classifyIdentityMatch(profile, candidate.title) === "match";
-}
-
 function safeError(error: unknown): string {
   if (error instanceof YahooShoppingApiError) return `${error.kind}: ${error.message}`;
   return "upstream_error: Yahoo! Shopping search failed.";
+}
+
+function stopsSearchAfterFailure(error: unknown): boolean {
+  return error instanceof YahooShoppingApiError
+    && (error.kind === "rate_limited" || /HTTP (?:401|403|407)\b/.test(error.message));
 }
 
 async function searchYahooShopping(args: {
@@ -257,10 +275,13 @@ async function searchYahooShopping(args: {
   const seenCodes = new Set<string>();
   const seenUrls = new Set<string>();
   const queriesUsed: string[] = [];
+  const sellerSearchRequestCountById: Record<string, number> = {};
+  const incrementalPricingSamplesBySellerId: Record<string, number> = {};
   let error: string | null = null;
-  const target = Math.min(MIN_MATCHED_CANDIDATES, limit);
+  let stopSellerSearches = false;
+  const target = Math.min(env.yahooShoppingTargetPricingSamples, limit);
 
-  for (const [queryIndex, query] of queries.slice(0, 2).entries()) {
+  for (const [queryIndex, query] of queries.slice(0, 1).entries()) {
     queriesUsed.push(query);
     try {
       const response = await fetchYahooShoppingItems(query, {
@@ -271,29 +292,43 @@ async function searchYahooShopping(args: {
       });
       for (const hit of response.hits.slice(0, limit)) {
         const store = configuredStoreForHit(hit);
-        if (store && (!isStoreSearchEnabled(store) || isProfileRelevantToStore(args.profile, store))) continue;
+        if (store && !isStoreSearchEnabled(store)) continue;
         const candidate = mapHit(hit, seenCodes, seenUrls, store);
         if (candidate) entries.push({ candidate, queryIndex, sequence: entries.length });
       }
     } catch (caught) {
       if (args.signal?.aborted) throw args.signal.reason instanceof Error ? args.signal.reason : new Error("Yahoo! Shopping search canceled.");
       error = safeError(caught);
+      stopSellerSearches = stopsSearchAfterFailure(caught);
       break;
     }
 
-    const matchedCount = entries.filter(({ candidate }) => isUsableCandidate(args.profile, candidate)).length;
-    if (matchedCount >= target || queryIndex === 1) break;
   }
 
-  if (queries[0]) {
-    for (const store of Object.values(YAHOO_SHOPPING_STORES)) {
-      if (!isStoreSearchEnabled(store) || !isProfileRelevantToStore(args.profile, store)) continue;
+  if (queries[0] && !stopSellerSearches) {
+    const relevantStores = Object.values(YAHOO_SHOPPING_STORES).filter((store) =>
+      isStoreSearchEnabled(store) && isProfileRelevantToStore(args.profile, store),
+    );
+    const history = await readYahooSellerContributionRates();
+    const rankedStores = relevantStores
+      .map((store, index) => ({ store, index }))
+      .sort((left, right) => (history[right.store.sellerId] ?? 0) - (history[left.store.sellerId] ?? 0) || left.index - right.index)
+      .map(({ store }) => store);
+    const storesToSearch = env.yahooShoppingSearchAllRelevantStores ? rankedStores : rankedStores.slice(0, env.yahooShoppingMaxSellerSearches);
+    for (const store of storesToSearch) {
+      const matchedCount = countComparableMarketplaceSamples(args.profile, MARKETPLACE_IDS.yahooShopping, entries.map(({ candidate }) => candidate), target);
+      if (!env.yahooShoppingSearchAllRelevantStores && matchedCount >= target) break;
+      sellerSearchRequestCountById[store.sellerId] = (sellerSearchRequestCountById[store.sellerId] ?? 0) + 1;
       try {
+        const previousMatchedCount = matchedCount;
         const storeCandidates = await searchYahooShoppingStore(queries[0], store, args, seenCodes, seenUrls);
         for (const candidate of storeCandidates) entries.push({ candidate, queryIndex: -1, sequence: entries.length });
+        const nextMatchedCount = countComparableMarketplaceSamples(args.profile, MARKETPLACE_IDS.yahooShopping, entries.map(({ candidate }) => candidate), target);
+        incrementalPricingSamplesBySellerId[store.sellerId] = Math.max(0, nextMatchedCount - previousMatchedCount);
       } catch (caught) {
         if (args.signal?.aborted) throw args.signal.reason instanceof Error ? args.signal.reason : new Error("Yahoo! Shopping search canceled.");
         error ??= safeError(caught);
+        if (stopsSearchAfterFailure(caught)) break;
       }
     }
   }
@@ -314,6 +349,7 @@ async function searchYahooShopping(args: {
     searchUrl: YAHOO_SHOPPING_ITEM_SEARCH_ENDPOINT,
     error,
     candidates,
+    diagnostics: [{ kind: "yahoo_search_metrics", sellerSearchRequestCountById, incrementalPricingSamplesBySellerId }],
   };
 }
 

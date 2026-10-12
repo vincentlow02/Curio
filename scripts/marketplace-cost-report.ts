@@ -7,7 +7,8 @@ const resolvedPath = marketplaceMetricsPath(path);
 try {
   const records = await readMarketplaceCostRecords(resolvedPath);
   const providerRecords = records.filter((record) => record.kind === "provider_metric");
-  if (!providerRecords.length) {
+  const researchRuns = records.filter((record) => record.kind === "research_metric");
+  if (!providerRecords.length && !researchRuns.length) {
     console.log(JSON.stringify({ status: "NO_RECORDED_DATA", path: resolvedPath, persistenceScope: "local-filesystem-nondurable", marketplaces: [] }, null, 2));
   } else {
     const marketplaces = buildMarketplaceCostReport(providerRecords).map((row) => ({
@@ -16,7 +17,7 @@ try {
       actualUSD: row.actualUSD ?? "N/A",
       estimatedCostPerValidProductUSD: row.estimatedCostPerValidProductUSD ?? "N/A",
     }));
-    console.log(JSON.stringify({ status: "RECORDED_DATA", path: resolvedPath, persistenceScope: "local-filesystem-nondurable", marketplaces }, null, 2));
+    console.log(JSON.stringify({ status: "RECORDED_DATA", path: resolvedPath, persistenceScope: "local-filesystem-nondurable", marketplaces, researchRuns }, null, 2));
   }
 } catch (error) {
   if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {

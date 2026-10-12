@@ -1,10 +1,11 @@
 import type { ItemProfile } from "./item-profile";
-import { MARKETPLACE_IDS, MARKETPLACE_SOURCE_IDS, PRICE_SOURCE_IDS, WEB_FALLBACK_SOURCE } from "../core/marketplace";
+import { MARKETPLACE_IDS, MARKETPLACE_SOURCE_IDS, PRICE_SOURCE_IDS, WEB_FALLBACK_SOURCE, type MarketplaceSource } from "../core/marketplace";
 import { classifyIdentityMatch, identityMatches } from "./identity";
 import { matchPokemonCardIdentity } from "../core/profile/pokemon-card";
 import { buildStoreSearchUrl } from "./store-verifier";
 import type {
   ExclusionReason,
+  MarketplaceCandidate,
   TavilyFallbackSnapshot,
   NumericRange,
   PriceSource,
@@ -109,7 +110,10 @@ export function buildPriceResult(args: {
       }
       if (!reason && BUNDLE.test(candidate.title)) reason = "bundle_or_lot";
       if (!reason && candidate.source === MARKETPLACE_IDS.rakuten && !/中古|USED/i.test(candidate.title)) reason = "new_item";
-      const dedupeKey = `${normalize(candidate.title)}|${candidate.displayedPrice ?? ""}`;
+      const sellerIdentity = candidate.source === MARKETPLACE_IDS.yahooShopping
+        ? normalize(candidate.sellerId || candidate.shopName)
+        : "";
+      const dedupeKey = `${normalize(candidate.title)}|${candidate.displayedPrice ?? ""}|${sellerIdentity}`;
       if (!reason && seen.has(dedupeKey)) reason = "duplicate";
       if (!reason && sourceSamples.length >= args.maxSamplesPerSource) reason = "sample_limit";
       if (reason) {
@@ -124,6 +128,7 @@ export function buildPriceResult(args: {
         currency: "JPY",
         source: candidate.source,
         url: candidate.url,
+        ...(candidate.sellerId ? { sellerId: candidate.sellerId } : {}),
         shopName: candidate.shopName || "unknown",
         listingStatus: candidate.source === WEB_FALLBACK_SOURCE ? "unknown" : "active",
         condition: NEW_ITEM.test(candidate.title) ? "new" : candidate.source === MARKETPLACE_IDS.mercari || /中古|USED/i.test(combined) ? "used" : "unknown",
@@ -182,4 +187,20 @@ export function buildPriceResult(args: {
     },
     excluded,
   };
+}
+
+export function countComparableMarketplaceSamples(profile: ItemProfile, source: MarketplaceSource, candidates: readonly MarketplaceCandidate[], maxSamples: number): number {
+  const result = buildPriceResult({
+    profile,
+    snapshot: {
+      version: 2,
+      capturedAt: "",
+      sources: [{ source, keyword: "", searchUrl: "", error: null, candidates: [...candidates] }],
+    },
+    tavilyFallback: { version: 1, provider: "Tavily", triggered: false, query: "", searchUrl: "", capturedAt: "", searchError: null, results: [], candidates: [], usage: null },
+    storeSnapshot: { version: 1, enabled: false, query: "", searchUrl: "", capturedAt: "", error: null, stores: [] },
+    maxCardsScannedPerSource: 30,
+    maxSamplesPerSource: maxSamples,
+  });
+  return result.result.referenceRange.sampleCount;
 }

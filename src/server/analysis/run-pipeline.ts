@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import type { AnalysisResult, AnalysisStage, CollectorEvidence, MarketplaceDiscoveryListing, ToolActivity } from "../../core/analysis/types";
 import type { CollectibleCategory, DetectionResult } from "../../core/profile/types";
-import { MARKETPLACE_SOURCE_IDS, WEB_FALLBACK_SOURCE } from "../../core/marketplace";
+import { MARKETPLACE_IDS, MARKETPLACE_SOURCE_IDS, WEB_FALLBACK_SOURCE } from "../../core/marketplace";
 import { toPriceItemProfile } from "../../core/profile/to-price-profile";
 import { assertSafeRecommendations, recommendAreas, verifiedStoreSuggestions } from "../../core/recommendation/recommend";
 import { buildPriceResult } from "../../price/matcher";
@@ -32,6 +32,13 @@ export type ResearchWorkflowResult = { result: AnalysisResult; toolActivity: Too
 function upsert(activities: ToolActivity[], activity: ToolActivity): ToolActivity[] { return [...activities.filter((entry) => entry.provider !== activity.provider), activity]; }
 function emptySnapshot(keyword: string, error: string, sources: readonly MarketplaceSource[]): SearchSnapshot {
   return { version: 2, capturedAt: new Date().toISOString(), sources: sources.map((source) => ({ source, keyword, searchUrl: "", error, candidates: [] })) };
+}
+
+function numericRecord(value: unknown): Record<string, number> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, number] =>
+    typeof entry[1] === "number" && Number.isFinite(entry[1]) && entry[1] >= 0,
+  ));
 }
 
 function discoveredListingsFor(source: SearchSnapshot["sources"][number]): MarketplaceDiscoveryListing[] | undefined {
@@ -207,6 +214,18 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
       const sourceSamples = built.result.samples.filter((sample) => sample.source === source);
       runCostTracker.setProviderPricingSampleCounts(source, sourceSamples.length, sourceSamples.filter((sample) => sample.includedInReferenceRange).length);
     }
+    const yahooSamples = built.result.samples.filter((sample) => sample.source === MARKETPLACE_IDS.yahooShopping);
+    const yahooSource = snapshot.sources.find((source) => source.source === MARKETPLACE_IDS.yahooShopping);
+    const yahooSearchMetrics = yahooSource?.diagnostics?.find((entry) => entry.kind === "yahoo_search_metrics");
+    runCostTracker.setResearchUniqueSellerCount(new Set(built.result.samples
+      .map((sample) => `${sample.source}|${sample.sellerId || sample.shopName}`)
+      .filter((seller) => !seller.endsWith("|"))).size);
+    runCostTracker.setYahooSellerMetrics(MARKETPLACE_IDS.yahooShopping, {
+      validMatchingCandidateCount: yahooSamples.length,
+      uniqueSellerCount: new Set(yahooSamples.map((sample) => sample.sellerId || sample.shopName).filter(Boolean)).size,
+      sellerSearchRequestCountById: numericRecord(yahooSearchMetrics?.sellerSearchRequestCountById),
+      incrementalPricingSamplesBySellerId: numericRecord(yahooSearchMetrics?.incrementalPricingSamplesBySellerId),
+    });
     const fallbackSamples = built.result.samples.filter((sample) => sample.source === WEB_FALLBACK_SOURCE);
     runCostTracker.setProviderPricingSampleCounts(WEB_FALLBACK_SOURCE, fallbackSamples.length, fallbackSamples.filter((sample) => sample.includedInReferenceRange).length);
 
@@ -222,6 +241,10 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
     assertSafeRecommendations(areas, stores);
     const reference = built.result.referenceRange;
     const warnings = [...built.result.warnings];
+    const yahooReferenceSamples = yahooSamples.filter((sample) => sample.includedInReferenceRange).length;
+    if (yahooSource && yahooReferenceSamples < env.yahooShoppingTargetPricingSamples) {
+      warnings.push(`Yahoo! Shopping reached its available search budget with ${yahooReferenceSamples} of ${env.yahooShoppingTargetPricingSamples} target reference samples; treat its price signal as preliminary.`);
+    }
     if (fallbackBlockedByAccessRestriction) warnings.push("A marketplace returned an access or rate restriction. Tavily fallback and Browserless page inspection were skipped.");
     if (input.collectorMode && auctionSources.every((source) => source.comparableSignals === 0)) warnings.push("No comparable public active-auction signals were found. No additional auction search was attempted.");
     for (const source of auctionSources.filter((entry) => entry.status === "failed")) warnings.push(`${source.source} could not be read; the other sources and marketplace range are unaffected.`);
@@ -242,6 +265,7 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
   } finally {
     await closeBrowserLease();
     if (costTracker) {
+      costTracker.setResearchElapsedMs(Date.now() - startedAt);
       const lease = await (browserLeasePromise as Promise<BrowserLease> | null)?.catch(() => null) ?? null;
       await persistMarketplaceCostRecords(costTracker.settleBrowserSession(lease?.session ?? closedBrowserSession));
     }

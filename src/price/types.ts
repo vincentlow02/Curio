@@ -11,6 +11,7 @@ export type MarketplaceCandidate = {
   displayedPrice: number | null;
   url: string;
   shopName: string;
+  sellerId?: string;
   availabilityText: string;
   listingCondition?: "used" | "new" | "unknown";
 };
@@ -72,6 +73,7 @@ export type PriceSample = {
   currency: "JPY";
   source: PriceSource;
   url: string;
+  sellerId?: string;
   shopName: string;
   listingStatus: "active" | "unknown";
   condition: "used" | "new" | "unknown";
