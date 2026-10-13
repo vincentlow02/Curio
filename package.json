@@ -9,7 +9,6 @@
     "build": "next build && node scripts/copy-playwright-resources.cjs",
     "start": "next start",
     "analyze": "tsx scripts/analyze-image.ts",
-    "price-reference": "tsx scripts/price-reference.ts",
     "marketplace-cost-report": "tsx scripts/marketplace-cost-report.ts",
     "typecheck": "tsc --noEmit",
     "typecheck:strict": "tsc --noEmit --noUnusedLocals --noUnusedParameters",

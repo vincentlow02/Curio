@@ -175,23 +175,7 @@ Image identification:
 npm run analyze -- ./test-data/sample-item.jpg
 ```
 
-Offline price fixture:
-
-```powershell
-npm run price-reference -- --fixture --input ./fixtures/price-reference/input.json
-```
-
-Live public marketplace research:
-
-```powershell
-npm run price-reference -- --live --input ./output/item-profile.json
-```
-
-Replay an existing snapshot without browsing again:
-
-```powershell
-npm run price-reference -- --replay <runId>
-```
+The standalone `price-reference` CLI has been retired. Price research now runs through the analysis workflow and its Marketplace Provider tests.
 
 Generated output and local runtime snapshots are ignored by Git.
 
