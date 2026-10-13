@@ -210,12 +210,12 @@ describe("marketplace provider registry", () => {
     expect(result.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ source: "api_response" })]));
   });
 
-  it("extracts Mercari titles from card labels, alt text, link labels, title attributes, then text", async () => {
+  it("prefers real Mercari listing text over image descriptions and records missing images", async () => {
     const makeAttribute = (attribute: string, value: string) => ({ getAttribute: (name: string) => name === attribute ? value : null });
     const fixtureCards = [
-      { title: "Sony PSP-3000 from role label", role: "Sony PSP-3000 from role label", alt: "lower priority alt", imageUrl: "https://static.mercdn.net/item/detail/orig/photos/example.jpg", linkLabel: "lower priority link", titleAttribute: "lower priority title", text: "¥12,000" },
-      { title: "Sony PSP-3000 from image alt", alt: "Sony PSP-3000 from image alt", linkLabel: "lower priority link", titleAttribute: "lower priority title", text: "¥13,000" },
-      { title: "Sony PSP-3000 from link label", linkLabel: "Sony PSP-3000 from link label", titleAttribute: "lower priority title", text: "¥14,000" },
+      { title: "Sony PSP-3000 本体 ブラック", role: "Sony PSP-3000 本体 ブラックのサムネイル", alt: "Sony PSP-3000 本体 ブラックのサムネイル", imageUrl: "https://static.mercdn.net/item/detail/orig/photos/example.jpg", text: "Sony PSP-3000 本体 ブラック ¥12,000" },
+      { title: "Sony PSP-3000 from image alt", alt: "Sony PSP-3000 from image alt", linkLabel: "Sony PSP-3000 のサムネイル", titleAttribute: "Sony PSP-3000 商品のサムネイル", text: "¥13,000" },
+      { title: "Sony PSP-3000 from link label", linkLabel: "Sony PSP-3000 from link label", text: "¥14,000" },
       { title: "Sony PSP-3000 from title attribute", titleAttribute: "Sony PSP-3000 from title attribute", text: "¥15,000" },
       { title: "Sony PSP-3000 from card text", text: "Sony PSP-3000 from card text ¥16,000" },
     ];
@@ -272,6 +272,10 @@ describe("marketplace provider registry", () => {
         { imageUrl: "https://static.mercdn.net/item/detail/orig/photos/example.jpg", listingCondition: "unknown", availabilityStatus: "unknown" },
         ...fixtureCards.slice(1).map(() => ({ imageUrl: null, listingCondition: "unknown", availabilityStatus: "unknown" })),
       ]);
+      expect(result.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({ title: "Sony PSP-3000 本体 ブラック", titleSource: "card text", imageStatus: "available" }),
+        expect.objectContaining({ title: "Sony PSP-3000 from image alt", titleSource: "img alt", imageStatus: "no_image_element" }),
+      ]));
       expect(visited).toHaveLength(1);
       expect(visited[0]).toContain("jp.mercari.com/search?");
     } finally {

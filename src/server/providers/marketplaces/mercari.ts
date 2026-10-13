@@ -131,24 +131,27 @@ async function captureMercari(page: Page, maxCards: number, apiItems: unknown[] 
       } catch {
         imageUrl = null;
       }
+      const imageStatus = !imageElement ? "no_image_element" : !rawImageUrl ? "empty_image_source" : imageUrl ? "available" : "invalid_image_url";
       const roleImageAriaLabel = cardNode?.querySelector('[role="img"][aria-label]')?.getAttribute("aria-label") ?? anchor.querySelector('[role="img"][aria-label]')?.getAttribute("aria-label") ?? null;
       const imageAlt = cardNode?.querySelector("img[alt]")?.getAttribute("alt") ?? anchor.querySelector("img[alt]")?.getAttribute("alt") ?? null;
       const anchorAriaLabel = anchor.getAttribute("aria-label") ?? cardNode?.querySelector("a[aria-label]")?.getAttribute("aria-label") ?? null;
       const cardTitleAttribute = cardNode?.querySelector("[title]")?.getAttribute("title") ?? null;
       const anchorTitleAttribute = anchor.getAttribute("title");
       const titleFields = [
-        ["role-img aria-label", roleImageAriaLabel],
-        ["img alt", imageAlt],
-        ["anchor aria-label", anchorAriaLabel],
-        ["title attribute", cardTitleAttribute ?? anchorTitleAttribute],
         ["card text", cardText],
         ["anchor text", anchorText],
+        ["title attribute", cardTitleAttribute ?? anchorTitleAttribute],
+        ["anchor aria-label", anchorAriaLabel],
+        ["role-img aria-label", roleImageAriaLabel],
+        ["img alt", imageAlt],
       ];
       let title = "";
       let titleSource = "none";
       for (const [source, value] of titleFields) {
         const cleaned = (value || "").replace(/^現在\s*/i, "").replace(/^¥\s*[\d,]+\s*/, "").replace(/^[\d,]+\s*円\s*/, "").replace(/\s*(?:¥\s*[\d,]+|[\d,]+\s*円)\s*$/, "").trim();
-        if (cleaned.length >= 4 && !/^(商品画像|商品画像を表示|item image|product image|image)$/i.test(cleaned)) {
+        const imageDescription = (source !== "card text" && source !== "anchor text")
+          && (/(?:の)?サムネイル(?:画像)?$/i.test(cleaned) || /^(商品画像|商品画像を表示|item image|product image|image)$/i.test(cleaned));
+        if (cleaned.length >= 4 && !imageDescription) {
           title = cleaned;
           titleSource = source as string;
           break;
@@ -164,6 +167,7 @@ async function captureMercari(page: Page, maxCards: number, apiItems: unknown[] 
           ariaLabel: anchorAriaLabel,
           imageAlt,
           titleAttribute: cardTitleAttribute ?? anchorTitleAttribute,
+          imageStatus,
           priceFound: priceMatch !== null,
         });
         continue;
@@ -190,6 +194,7 @@ async function captureMercari(page: Page, maxCards: number, apiItems: unknown[] 
           ariaLabel: anchorAriaLabel,
           imageAlt,
           titleAttribute: cardTitleAttribute ?? anchorTitleAttribute,
+          imageStatus,
           anchorText,
           cardText,
         });

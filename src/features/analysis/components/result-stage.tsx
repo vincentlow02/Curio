@@ -182,6 +182,7 @@ function activityCopy(activity: ToolActivity, identification: DetectionResult, s
 
 export function ResultStage({ result, activities, locale }: ResultStageProps): React.ReactElement {
   const copy = uiCopy[locale];
+  const singleReferenceSample = result.priceReference.samples.find((sample) => sample.includedInReferenceRange);
 
   return (
     <section className="figma-agent-answer !flex !w-[720px] !max-w-[calc(100%-68px)] !ml-[34px] !flex-col !gap-[22px] max-[767px]:!w-full max-[767px]:!max-w-none max-[767px]:!ml-0 max-[767px]:!gap-[18px]">
@@ -230,20 +231,35 @@ export function ResultStage({ result, activities, locale }: ResultStageProps): R
           </div>
           <b className="!rounded-[7px] !bg-[#f1f1f1] !px-[8px] !py-[5px] !text-[10px] !tracking-[0.08em]">JPY</b>
         </header>
-        <div className="figma-agent-price-range !grid !grid-cols-[repeat(3,1fr)] max-[767px]:!grid-cols-[1fr]">
-          <div className="!flex !min-h-[88px] !flex-col !gap-[7px] !border-r !border-r-solid !border-[#ededed] !px-[18px] !py-[17px] last:!border-r-0 max-[767px]:!min-h-[68px] max-[767px]:!border-r-0 max-[767px]:!border-b-solid max-[767px]:!border-b max-[767px]:!px-[15px] max-[767px]:!py-[13px] last:max-[767px]:!border-b-0">
-            <span className="!text-[#777] !text-[11px]">{copy.result.low}</span>
-            <strong className="!text-[23px] !leading-none !font-[550] !tracking-[-0.5px]">{formatYen(result.priceReference.low)}</strong>
+        {result.priceReference.sampleCount === 1 ? (
+          <div className="figma-agent-price-range !grid !grid-cols-[1fr]">
+            <div className="!flex !min-h-[88px] !flex-col !gap-[7px] !px-[18px] !py-[17px] max-[767px]:!min-h-[68px] max-[767px]:!px-[15px] max-[767px]:!py-[13px]">
+              <span className="!text-[#777] !text-[11px]">{copy.result.singleSamplePrice}</span>
+              <strong className="!text-[23px] !leading-none !font-[550]">{formatYen(singleReferenceSample?.price ?? result.priceReference.median)}</strong>
+              {singleReferenceSample ? <a className="!text-[11px] !text-[#555] [overflow-wrap:anywhere] hover:underline" href={singleReferenceSample.url} target="_blank" rel="noreferrer">{singleReferenceSample.title}</a> : null}
+            </div>
           </div>
-          <div className="is-median !flex !min-h-[88px] !flex-col !gap-[7px] !border-r !border-r-solid !border-[#ededed] !bg-[#fafafa] !px-[18px] !py-[17px] last:!border-r-0 max-[767px]:!min-h-[68px] max-[767px]:!border-r-0 max-[767px]:!border-b-solid max-[767px]:!border-b max-[767px]:!px-[15px] max-[767px]:!py-[13px] last:max-[767px]:!border-b-0">
-            <span className="!text-[#777] !text-[11px]">{copy.result.typical}</span>
-            <strong className="!text-[23px] !leading-none !font-[550] !tracking-[-0.5px]">{formatYen(result.priceReference.median)}</strong>
+        ) : (
+          <div className="figma-agent-price-range !grid !grid-cols-[repeat(3,1fr)] max-[767px]:!grid-cols-[1fr]">
+            <div className="!flex !min-h-[88px] !flex-col !gap-[7px] !border-r !border-r-solid !border-[#ededed] !px-[18px] !py-[17px] last:!border-r-0 max-[767px]:!min-h-[68px] max-[767px]:!border-r-0 max-[767px]:!border-b-solid max-[767px]:!border-b max-[767px]:!px-[15px] max-[767px]:!py-[13px] last:max-[767px]:!border-b-0">
+              <span className="!text-[#777] !text-[11px]">{copy.result.low}</span>
+              <strong className="!text-[23px] !leading-none !font-[550] !tracking-[-0.5px]">{formatYen(result.priceReference.low)}</strong>
+            </div>
+            <div className="is-median !flex !min-h-[88px] !flex-col !gap-[7px] !border-r !border-r-solid !border-[#ededed] !bg-[#fafafa] !px-[18px] !py-[17px] last:!border-r-0 max-[767px]:!min-h-[68px] max-[767px]:!border-r-0 max-[767px]:!border-b-solid max-[767px]:!border-b max-[767px]:!px-[15px] max-[767px]:!py-[13px] last:max-[767px]:!border-b-0">
+              <span className="!text-[#777] !text-[11px]">{copy.result.typical}</span>
+              <strong className="!text-[23px] !leading-none !font-[550] !tracking-[-0.5px]">{formatYen(result.priceReference.median)}</strong>
+            </div>
+            <div className="!flex !min-h-[88px] !flex-col !gap-[7px] !border-r !border-r-solid !border-[#ededed] !px-[18px] !py-[17px] last:!border-r-0 max-[767px]:!min-h-[68px] max-[767px]:!border-r-0 max-[767px]:!border-b-solid max-[767px]:!border-b max-[767px]:!px-[15px] max-[767px]:!py-[13px] last:max-[767px]:!border-b-0">
+              <span className="!text-[#777] !text-[11px]">{copy.result.high}</span>
+              <strong className="!text-[23px] !leading-none !font-[550] !tracking-[-0.5px]">{formatYen(result.priceReference.high)}</strong>
+            </div>
           </div>
-          <div className="!flex !min-h-[88px] !flex-col !gap-[7px] !border-r !border-r-solid !border-[#ededed] !px-[18px] !py-[17px] last:!border-r-0 max-[767px]:!min-h-[68px] max-[767px]:!border-r-0 max-[767px]:!border-b-solid max-[767px]:!border-b max-[767px]:!px-[15px] max-[767px]:!py-[13px] last:max-[767px]:!border-b-0">
-            <span className="!text-[#777] !text-[11px]">{copy.result.high}</span>
-            <strong className="!text-[23px] !leading-none !font-[550] !tracking-[-0.5px]">{formatYen(result.priceReference.high)}</strong>
-          </div>
-        </div>
+        )}
+        {result.priceReference.sampleCount < 3 ? (
+          <p role="note" className="!m-0 !border-t !border-solid !border-[#ededed] !bg-[#fffaf0] !px-[18px] !py-[10px] !text-[#704f13] !text-[11px]">
+            {copy.result.preliminaryWarning(result.priceReference.sampleCount)}
+          </p>
+        ) : null}
         <p className="figma-agent-result-note !border-t !border-t-solid !border-[#ededed] !px-[18px] !py-[11px] !text-[#777] !text-[11px]">
           {copy.result.basedOn(result.priceReference.sampleCount)}
         </p>
