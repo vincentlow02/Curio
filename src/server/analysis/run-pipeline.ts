@@ -7,6 +7,7 @@ import type { CollectibleCategory, DetectionResult } from "../../core/profile/ty
 import { MARKETPLACE_IDS, MARKETPLACE_SOURCE_IDS, WEB_FALLBACK_SOURCE } from "../../core/marketplace";
 import { toPriceItemProfile } from "../../core/profile/to-price-profile";
 import { assertSafeRecommendations, recommendAreas, verifiedStoreSuggestions } from "../../core/recommendation/recommend";
+import { buildDiscoveryResults } from "../../price/discovery";
 import { buildPriceResult } from "../../price/matcher";
 import { coordinateMarketplaceSearches } from "../providers/marketplaces/coordinator";
 import { selectMarketplaceProviders } from "../providers/marketplaces/selector";
@@ -195,6 +196,7 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
     for (const source of auctionSources) setActivity({ provider: source.source, status: source.status === "failed" ? "failed" : source.status === "skipped" ? "skipped" : "succeeded", calls: source.status === "skipped" ? 0 : 1, durationMs: source.status === "skipped" ? 0 : Date.now() - browserStarted, resultCount: source.candidatesSeen, validResultCount: source.comparableSignals, cacheHit: false });
 
     let fallback = disabledTavilyFallback(profile);
+    const discoveryListings = buildDiscoveryResults(profile, snapshot);
     let nodeStarted = Date.now();
     let built = buildPriceResult({ profile, snapshot, tavilyFallback: fallback, storeSnapshot: disabledStoreSnapshot(), maxCardsScannedPerSource: 30, maxSamplesPerSource: 5 });
     let nodeCalculationMs = Date.now() - nodeStarted;
@@ -255,6 +257,7 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
       collectorMode: input.collectorMode,
       collectorEvidence: input.collectorMode ? input.collectorEvidence : null,
       auctionSources,
+      discoveryListings,
       priceReference: { currency: "JPY", low: reference.low, median: reference.median, high: reference.high, sampleCount: reference.sampleCount, samples: built.result.samples.map(({ title, price, currency, source, url, condition, versionMatch, packageStatus, includedInReferenceRange }) => ({ title, price, currency, source, url, condition, versionMatch, packageStatus, includedInReferenceRange })), disclaimer: "Online asking-price reference" },
       recommendedAreas: areas,
       storeSuggestions: stores,

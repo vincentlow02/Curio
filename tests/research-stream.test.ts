@@ -110,6 +110,61 @@ describe("research stream", () => {
     await expect(collectEvents(createStream([encode(JSON.stringify(event))]))).resolves.toEqual([event]);
   });
 
+  it("accepts an optional Discovery list and retains old completed payload compatibility", async () => {
+    const oldEvent = completedEvent();
+    const currentEvent = completedEvent();
+    currentEvent.result.discoveryListings = [{
+      source: "Mercari",
+      title: "Sony PSP-3000",
+      url: "https://jp.mercari.com/item/psp-3000",
+      imageUrl: null,
+      price: null,
+      currency: "JPY",
+      shopName: null,
+      availability: "unknown",
+      condition: "unknown",
+      matchConfidence: "exact",
+      damaged: false,
+    }];
+
+    await expect(collectEvents(createStream([encode(JSON.stringify(oldEvent))]))).resolves.toEqual([oldEvent]);
+    await expect(collectEvents(createStream([encode(JSON.stringify(currentEvent))]))).resolves.toEqual([currentEvent]);
+  });
+
+  it("rejects unsafe or oversized Discovery payloads", () => {
+    const unsafe = completedEvent();
+    unsafe.result.discoveryListings = [{
+      source: "Mercari",
+      title: "PSP",
+      url: "javascript:alert(1)",
+      imageUrl: null,
+      price: null,
+      currency: "JPY",
+      shopName: null,
+      availability: "available",
+      condition: "used",
+      matchConfidence: "exact",
+      damaged: false,
+    }];
+    expect(validateResearchStreamEvent(unsafe).kind).toBe("invalid-required-field");
+
+    const oversized = completedEvent();
+    oversized.result.discoveryListings = Array.from({ length: 25 }, (_, index) => ({
+      source: "Mercari" as const,
+      title: `PSP ${index}`,
+      url: `https://jp.mercari.com/item/${index}`,
+      imageUrl: null,
+      price: null,
+      currency: "JPY" as const,
+      shopName: null,
+      availability: "unknown" as const,
+      condition: "unknown" as const,
+      matchConfidence: "possible" as const,
+      damaged: false,
+    }));
+    expect(validateResearchStreamEvent(oversized).kind).toBe("invalid-required-field");
+  });
+
   it("accepts optional activity fields when omitted or supplied with valid values", async () => {
     const event = stageEvent("Searching");
     event.toolActivity = [

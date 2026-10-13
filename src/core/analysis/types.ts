@@ -39,6 +39,22 @@ export type MarketplaceDiscoveryListing = {
   availability: "IN_STOCK" | "OUT_OF_STOCK" | "UNKNOWN";
 };
 
+export const MAX_DISCOVERY_LISTINGS = 24;
+
+export type MarketplaceDiscoveryResult = {
+  source: MarketplaceSource;
+  title: string;
+  url: string;
+  imageUrl: string | null;
+  price: number | null;
+  currency: "JPY";
+  shopName: string | null;
+  availability: "available" | "sold_out" | "unknown";
+  condition: "used" | "new" | "unknown";
+  matchConfidence: "exact" | "possible";
+  damaged: boolean;
+};
+
 export type ResearchStreamEvent =
   | { type: "stage"; status: AnalysisStage; message: string; toolActivity: ToolActivity[] }
   | { type: "completed"; status: "completed"; result: AnalysisResult; toolActivity: ToolActivity[] }
@@ -104,6 +120,7 @@ export type AnalysisResult = {
   collectorMode: boolean;
   collectorEvidence: CollectorEvidence | null;
   auctionSources: AuctionSourceSummary[];
+  discoveryListings?: MarketplaceDiscoveryResult[];
   priceReference: {
     currency: "JPY";
     low: number | null;

@@ -1,7 +1,9 @@
 import {
   NON_MARKETPLACE_TOOL_PROVIDERS,
+  MAX_DISCOVERY_LISTINGS,
   type AnalysisResult,
   type AnalysisStage,
+  type MarketplaceDiscoveryResult,
   type ResearchStreamEvent,
   type ToolActivity,
 } from "../../../core/analysis/types";
@@ -170,6 +172,33 @@ function isAuctionSourceSummary(value: unknown): boolean {
     && value.signals.every(isAuctionSignal);
 }
 
+function isMarketplaceDiscoveryResult(value: unknown): value is MarketplaceDiscoveryResult {
+  if (!isRecord(value)
+    || !isOneOf(value.source, MARKETPLACE_SOURCE_IDS)
+    || !isString(value.title)
+    || !value.title.trim()
+    || !isString(value.url)
+    || !isSafeHttpsUrl(value.url)
+    || !(value.imageUrl === null || (isString(value.imageUrl) && isSafeHttpsUrl(value.imageUrl)))
+    || !isNullableNumber(value.price)
+    || (value.price !== null && value.price <= 0)
+    || value.currency !== "JPY"
+    || !(value.shopName === null || isString(value.shopName))
+    || !isOneOf(value.availability, ["available", "sold_out", "unknown"])
+    || !isOneOf(value.condition, conditions)
+    || !isOneOf(value.matchConfidence, ["exact", "possible"])) return false;
+  return typeof value.damaged === "boolean";
+}
+
+function isSafeHttpsUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && Boolean(url.hostname) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
 function isPriceSample(value: unknown): boolean {
   return isRecord(value)
     && isString(value.title)
@@ -190,6 +219,9 @@ function isAnalysisResult(value: unknown): value is AnalysisResult {
     || !isCollectorEvidence(value.collectorEvidence)
     || !Array.isArray(value.auctionSources)
     || !value.auctionSources.every(isAuctionSourceSummary)
+    || (value.discoveryListings !== undefined && (!Array.isArray(value.discoveryListings)
+      || value.discoveryListings.length > MAX_DISCOVERY_LISTINGS
+      || !value.discoveryListings.every(isMarketplaceDiscoveryResult)))
     || !isRecord(value.priceReference)
     || value.priceReference.currency !== "JPY"
     || !isNullableNumber(value.priceReference.low)

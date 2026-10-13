@@ -105,6 +105,11 @@ describe("Yahoo! Shopping Provider MVP fixtures", () => {
     const { researchCollectible } = await import("../src/server/analysis/run-pipeline");
     const directResult = await researchCollectible({ identification: detection, collectorMode: false, collectorEvidence: null });
     expect(directResult.result.priceReference).toMatchObject({ low: 10_000, median: 12_000, high: 14_000, sampleCount: 5 });
+    expect(directResult.result.discoveryListings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ title: "Sony PSP-3000 本体 中古 価格未掲載", price: null, availability: "available", matchConfidence: "exact" }),
+      expect.objectContaining({ title: "Sony PSP-3000 本体 中古 在庫切れ", availability: "sold_out", matchConfidence: "exact" }),
+    ]));
+    expect(directResult.result.discoveryListings?.some(({ title }) => title.includes("PSP-2000"))).toBe(false);
     expect(yahooE2eMocks.openBrowser).not.toHaveBeenCalled();
     fetchMock.mockClear();
     resetYahooShoppingRateLimitForTests();
@@ -121,7 +126,7 @@ describe("Yahoo! Shopping Provider MVP fixtures", () => {
     expect(events.every((event) => validateResearchStreamEvent(event).kind === "valid")).toBe(true);
     expect(events.at(-1), JSON.stringify(events.at(-1))).toMatchObject({ type: "completed" });
     const completed = events.at(-1) as {
-      result: { priceReference: { low: number; median: number; high: number; sampleCount: number; samples: Array<{ source: string; price: number; url: string }> }; cost: { marketplacePages: number } };
+      result: { discoveryListings: Array<{ title: string; price: number | null; availability: string; matchConfidence: string }>; priceReference: { low: number; median: number; high: number; sampleCount: number; samples: Array<{ source: string; price: number; url: string }> }; cost: { marketplacePages: number } };
       toolActivity: Array<{ provider: string; status: string; calls: number; resultCount?: number; validResultCount?: number }>;
     };
 
@@ -138,6 +143,7 @@ describe("Yahoo! Shopping Provider MVP fixtures", () => {
     expect(completed.result.priceReference.samples.map(({ price }) => price)).toEqual([12_000, 11_000, 13_000, 14_000, 10_000]);
     expect(completed.result.priceReference.samples.every(({ source }) => source === "Yahoo! Shopping")).toBe(true);
     expect(completed.result.priceReference).toMatchObject({ low: 10_000, median: 12_000, high: 14_000, sampleCount: 5 });
+    expect(completed.result.discoveryListings.length).toBeGreaterThan(0);
     expect(completed.toolActivity.find(({ provider }) => provider === "Yahoo! Shopping")).toMatchObject({ status: "succeeded", calls: 2, resultCount: 10, validResultCount: 5 });
   }, 15_000);
 
