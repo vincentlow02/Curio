@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { fixtureResult } from "../src/server/analysis/fixture-result";
 import { MARKETPLACE_IDS, MARKETPLACE_METADATA, MARKETPLACE_SOURCE_IDS } from "../src/core/marketplace";
 import { toPriceItemProfile } from "../src/core/profile/to-price-profile";
+import { buildPriceResult } from "../src/price/matcher";
+import { disabledStoreSnapshot } from "../src/price/store-verifier";
+import { disabledTavilyFallback } from "../src/price/tavily-price-fallback";
 import { coordinateMarketplaceSearches, deduplicateYahooStoreListings } from "../src/server/providers/marketplaces/coordinator";
 import { marketplaceRegistry } from "../src/server/providers/marketplaces/registry";
 import { selectMarketplaceProviders } from "../src/server/providers/marketplaces/selector";
@@ -90,7 +93,8 @@ describe("marketplace provider registry", () => {
     };
     const mercariCandidate: MarketplaceCandidate = {
       source: "Mercari", rank: 1, title: "リザードン", displayedPrice: 11000,
-      url: "https://jp.mercari.com/item/example", shopName: "individual_seller", availabilityText: "",
+      url: "https://jp.mercari.com/item/example", shopName: "individual_seller", imageUrl: null,
+      availabilityText: "", listingCondition: "unknown", availabilityStatus: "unknown",
     };
     const candidates = [[rakutenCandidate], [mercariCandidate]];
     const visited: string[] = [];
@@ -199,13 +203,17 @@ describe("marketplace provider registry", () => {
     expect(fallbackWaits).toBe(0);
     expect(result.candidates.map(({ title }) => title)).toEqual(["リザードン", "ポケモンカード リザードン"]);
     expect(result.candidates.map(({ displayedPrice }) => displayedPrice)).toEqual([12000, 999]);
+    expect(result.candidates.map(({ imageUrl, listingCondition, availabilityStatus }) => ({ imageUrl, listingCondition, availabilityStatus }))).toEqual([
+      { imageUrl: null, listingCondition: "unknown", availabilityStatus: "available" },
+      { imageUrl: null, listingCondition: "unknown", availabilityStatus: "available" },
+    ]);
     expect(result.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ source: "api_response" })]));
   });
 
   it("extracts Mercari titles from card labels, alt text, link labels, title attributes, then text", async () => {
     const makeAttribute = (attribute: string, value: string) => ({ getAttribute: (name: string) => name === attribute ? value : null });
     const fixtureCards = [
-      { title: "Sony PSP-3000 from role label", role: "Sony PSP-3000 from role label", alt: "lower priority alt", linkLabel: "lower priority link", titleAttribute: "lower priority title", text: "¥12,000" },
+      { title: "Sony PSP-3000 from role label", role: "Sony PSP-3000 from role label", alt: "lower priority alt", imageUrl: "https://static.mercdn.net/item/detail/orig/photos/example.jpg", linkLabel: "lower priority link", titleAttribute: "lower priority title", text: "¥12,000" },
       { title: "Sony PSP-3000 from image alt", alt: "Sony PSP-3000 from image alt", linkLabel: "lower priority link", titleAttribute: "lower priority title", text: "¥13,000" },
       { title: "Sony PSP-3000 from link label", linkLabel: "Sony PSP-3000 from link label", titleAttribute: "lower priority title", text: "¥14,000" },
       { title: "Sony PSP-3000 from title attribute", titleAttribute: "Sony PSP-3000 from title attribute", text: "¥15,000" },
@@ -216,6 +224,7 @@ describe("marketplace provider registry", () => {
       const values: Record<string, { getAttribute: (name: string) => string | null }> = {};
       if (fixture.role) values['[role="img"][aria-label]'] = makeAttribute("aria-label", fixture.role);
       if (fixture.alt) values["img[alt]"] = makeAttribute("alt", fixture.alt);
+      if (fixture.imageUrl) values.img = { currentSrc: fixture.imageUrl, src: fixture.imageUrl, getAttribute: (name: string) => name === "src" ? fixture.imageUrl! : null };
       if (fixture.linkLabel) attributes["aria-label"] = fixture.linkLabel;
       if (fixture.titleAttribute) values["[title]"] = makeAttribute("title", fixture.titleAttribute);
       const card = {
@@ -259,11 +268,47 @@ describe("marketplace provider registry", () => {
       expect(result.candidates.map(({ title }) => title)).toEqual(fixtureCards.map(({ title }) => title));
       expect(result.candidates.map(({ displayedPrice }) => displayedPrice)).toEqual([12000, 13000, 14000, 15000, 16000]);
       expect(result.candidates.map(({ url }) => url)).toEqual(anchors.map(({ href }) => href));
+      expect(result.candidates.map(({ imageUrl, listingCondition, availabilityStatus }) => ({ imageUrl, listingCondition, availabilityStatus }))).toEqual([
+        { imageUrl: "https://static.mercdn.net/item/detail/orig/photos/example.jpg", listingCondition: "unknown", availabilityStatus: "unknown" },
+        ...fixtureCards.slice(1).map(() => ({ imageUrl: null, listingCondition: "unknown", availabilityStatus: "unknown" })),
+      ]);
       expect(visited).toHaveLength(1);
       expect(visited[0]).toContain("jp.mercari.com/search?");
     } finally {
       if (previousDocument) Object.defineProperty(globalThis, "document", previousDocument);
       else Reflect.deleteProperty(globalThis, "document");
     }
+  });
+
+  it("keeps legacy candidates compatible and does not confuse unknown availability with sold-out", () => {
+    const fixture = fixtureResult({ collectorMode: false });
+    const profile = toPriceItemProfile(fixture.identification);
+    const base: MarketplaceCandidate = {
+      source: MARKETPLACE_IDS.mercari,
+      rank: 1,
+      title: "中古 PSP-3000 本体 A",
+      displayedPrice: 10000,
+      url: "https://jp.mercari.com/item/a",
+      shopName: "individual_seller",
+      availabilityText: "",
+    };
+    const legacyCandidate = { ...base, rank: 1, url: "https://jp.mercari.com/item/legacy" };
+    const unknownCandidate = { ...base, rank: 2, title: "中古 PSP-3000 本体 B", url: "https://jp.mercari.com/item/unknown", availabilityStatus: "unknown" as const };
+    const soldOutCandidate = { ...base, rank: 3, title: "中古 PSP-3000 本体 C", url: "https://jp.mercari.com/item/sold", availabilityStatus: "sold_out" as const };
+    const result = buildPriceResult({
+      profile,
+      snapshot: { version: 2, capturedAt: "fixture", sources: [{ source: MARKETPLACE_IDS.mercari, keyword: "PSP-3000", searchUrl: "https://jp.mercari.com/search", error: null, candidates: [legacyCandidate, unknownCandidate, soldOutCandidate] }] },
+      tavilyFallback: disabledTavilyFallback(profile),
+      storeSnapshot: disabledStoreSnapshot(),
+      maxCardsScannedPerSource: 30,
+      maxSamplesPerSource: 5,
+    });
+
+    expect(result.result.samples.map(({ rank, listingStatus }) => ({ rank, listingStatus }))).toEqual([
+      { rank: 1, listingStatus: "active" },
+      { rank: 2, listingStatus: "unknown" },
+    ]);
+    expect(result.excluded).toContainEqual({ source: MARKETPLACE_IDS.mercari, rank: 3, url: "https://jp.mercari.com/item/sold", reason: "sold_out" });
+    expect(result.result.referenceRange.sampleCount).toBe(2);
   });
 });

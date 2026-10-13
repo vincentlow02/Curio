@@ -2,6 +2,11 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 import { MARKETPLACE_IDS } from "../src/core/marketplace";
+import { toPriceItemProfile } from "../src/core/profile/to-price-profile";
+import { fixtureResult } from "../src/server/analysis/fixture-result";
+import { buildPriceResult } from "../src/price/matcher";
+import { disabledStoreSnapshot } from "../src/price/store-verifier";
+import { disabledTavilyFallback } from "../src/price/tavily-price-fallback";
 import { ResearchCostTracker } from "../src/server/analysis/marketplace-cost-tracker";
 import { parseRakumaSearchPage, rakumaProvider } from "../src/server/providers/marketplaces/rakuma";
 
@@ -96,10 +101,25 @@ describe("Rakuma provider", () => {
       });
       meter.finish({ candidates: result.candidates, error: result.error });
       const metric = tracker.settleBrowserSession(null).find((record) => record.kind === "provider_metric");
+      const profile = toPriceItemProfile(fixtureResult().identification);
+      const priced = buildPriceResult({
+        profile,
+        snapshot: { version: 2, capturedAt: "fixture", sources: [result] },
+        tavilyFallback: disabledTavilyFallback(profile),
+        storeSnapshot: disabledStoreSnapshot(),
+        maxCardsScannedPerSource: 30,
+        maxSamplesPerSource: 5,
+      });
 
       expect(fetchCalls).toBe(1);
       expect(result.candidates).toHaveLength(2);
       expect(metric).toMatchObject({ providerId: MARKETPLACE_IDS.rakuma, httpRequestCount: 1, apiRequestCount: 1, candidateCount: 2, browserPageCount: 0, estimatedBrowserlessUnits: null, estimatedCostUSD: null, actualCostUSD: null, costStatus: "UNKNOWN" });
+      expect(priced.result.samples.map(({ title, price, currency, url, condition, includedInReferenceRange, aggregationExclusionReason }) => ({ title, price, currency, url, condition, includedInReferenceRange, aggregationExclusionReason }))).toEqual([
+        { title: "PSP-3000 fixture listing one", price: 15800, currency: "JPY", url: "https://item.fril.jp/10000000000000000000000000000001", condition: "unknown", includedInReferenceRange: false, aggregationExclusionReason: "unknown_condition" },
+        { title: "PSP-3000 fixture listing two", price: 6600, currency: "JPY", url: "https://item.fril.jp/10000000000000000000000000000002", condition: "unknown", includedInReferenceRange: false, aggregationExclusionReason: "unknown_condition" },
+      ]);
+      expect(priced.result.observedRange).toMatchObject({ min: 6600, max: 15800, sampleCount: 2 });
+      expect(priced.result.referenceRange).toMatchObject({ low: null, median: null, high: null, sampleCount: 0 });
     } finally {
       globalThis.fetch = originalFetch;
       if (originalAuthorization === undefined) delete process.env.RAKUMA_DATA_LICENSE_VERIFIED;

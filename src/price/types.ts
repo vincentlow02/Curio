@@ -12,8 +12,10 @@ export type MarketplaceCandidate = {
   url: string;
   shopName: string;
   sellerId?: string;
+  imageUrl?: string | null;
   availabilityText: string;
   listingCondition?: "used" | "new" | "unknown";
+  availabilityStatus?: "available" | "sold_out" | "unknown";
 };
 
 export type TavilyFallbackSnapshot = {

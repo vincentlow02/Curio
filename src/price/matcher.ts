@@ -93,6 +93,7 @@ export function buildPriceResult(args: {
       let reason: ExclusionReason | null = null;
       const combined = `${candidate.title} ${candidate.availabilityText}`;
       if (candidate.displayedPrice === null || candidate.displayedPrice <= 0) reason = "missing_price";
+      else if (candidate.availabilityStatus === "sold_out") reason = "sold_out";
       else if (candidate.availabilityText === "在庫なし") reason = "out_of_stock";
       else if (SOLD_OUT.test(combined)) reason = "sold_out";
       else if (JUNK.test(candidate.title)) reason = "junk_or_broken";
@@ -130,7 +131,7 @@ export function buildPriceResult(args: {
         url: candidate.url,
         ...(candidate.sellerId ? { sellerId: candidate.sellerId } : {}),
         shopName: candidate.shopName || "unknown",
-        listingStatus: candidate.source === WEB_FALLBACK_SOURCE ? "unknown" : "active",
+        listingStatus: candidate.source === WEB_FALLBACK_SOURCE || candidate.availabilityStatus === "unknown" ? "unknown" : "active",
         condition: NEW_ITEM.test(candidate.title) ? "new" : candidate.source === MARKETPLACE_IDS.mercari || /中古|USED/i.test(combined) ? "used" : "unknown",
         versionMatch: tokens.length > 0 ? "exact" : "similar",
         packageStatus: packageStatus(candidate.title),

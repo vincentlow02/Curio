@@ -57,7 +57,10 @@ function normalizeMercariApiCandidates(items: unknown[], maxCards: number): { ca
       displayedPrice: price,
       url: `https://jp.mercari.com/item/${id}`,
       shopName: "individual_seller",
+      imageUrl: null,
       availabilityText: "",
+      listingCondition: "unknown",
+      availabilityStatus: "available",
     });
     if (diagnostics.length < 2) {
       diagnostics.push({
@@ -119,6 +122,15 @@ async function captureMercari(page: Page, maxCards: number, apiItems: unknown[] 
         }
       }
       const priceMatch = cardText.match(/(?:¥\s*|^)([1-9]\d{0,2}(?:,\d{3})+|[1-9]\d{2,})(?:\s*円)?/);
+      const imageElement = cardNode?.querySelector<HTMLImageElement>("img") ?? anchor.querySelector<HTMLImageElement>("img");
+      const rawImageUrl = imageElement?.currentSrc || imageElement?.src || null;
+      let imageUrl: string | null = null;
+      try {
+        const parsedImageUrl = rawImageUrl ? new URL(rawImageUrl) : null;
+        if (parsedImageUrl?.protocol === "https:" && !parsedImageUrl.username && !parsedImageUrl.password) imageUrl = parsedImageUrl.href;
+      } catch {
+        imageUrl = null;
+      }
       const roleImageAriaLabel = cardNode?.querySelector('[role="img"][aria-label]')?.getAttribute("aria-label") ?? anchor.querySelector('[role="img"][aria-label]')?.getAttribute("aria-label") ?? null;
       const imageAlt = cardNode?.querySelector("img[alt]")?.getAttribute("alt") ?? anchor.querySelector("img[alt]")?.getAttribute("alt") ?? null;
       const anchorAriaLabel = anchor.getAttribute("aria-label") ?? cardNode?.querySelector("a[aria-label]")?.getAttribute("aria-label") ?? null;
@@ -163,7 +175,10 @@ async function captureMercari(page: Page, maxCards: number, apiItems: unknown[] 
         displayedPrice: priceMatch ? Number(priceMatch[1]!.replace(/,/g, "")) : null,
         url: href,
         shopName: "individual_seller",
+        imageUrl,
         availabilityText: "",
+        listingCondition: "unknown",
+        availabilityStatus: "unknown",
       });
       if (results.length >= limit) break;
       if (diagnostics.length < 2) {
