@@ -44,6 +44,28 @@ describe("browser provider", () => {
     expect(lease.session).toMatchObject({ sessionId: "session-test", transport: "browserless", durationMs: 31_000, estimatedTimeUnits: 2, proxyCaptchaUnits: null, actualUnits: null, actualCostUSD: null });
   });
 
+  it("connects to a generic CDP endpoint without a token", async () => {
+    process.env.VERCEL = "1";
+    process.env.BROWSER_PROVIDER = "browserless";
+    process.env.BROWSERLESS_WS_ENDPOINT = "http://127.0.0.1:9222";
+    delete process.env.BROWSERLESS_API_TOKEN;
+    const closeContext = vi.fn().mockResolvedValue(undefined);
+    const closeBrowser = vi.fn().mockResolvedValue(undefined);
+    const browser = { newContext: vi.fn().mockResolvedValue({ close: closeContext }), close: closeBrowser };
+    mocks.connectOverCDP.mockResolvedValue(browser);
+    const { createBrowserProvider } = await import("../src/server/browser/browser-provider");
+    const { liveReadiness } = await import("../src/server/config/env");
+
+    const lease = await createBrowserProvider().open();
+
+    expect(mocks.connectOverCDP).toHaveBeenCalledWith("http://127.0.0.1:9222/", { timeout: 10_000 });
+    expect(lease.session.transport).toBe("browserless");
+    expect(liveReadiness().browser).toBe(true);
+    await lease.close();
+    expect(closeContext).toHaveBeenCalledOnce();
+    expect(closeBrowser).toHaveBeenCalledOnce();
+  });
+
   it("closes the Browser connection if creating its context fails", async () => {
     process.env.VERCEL = "1";
     process.env.BROWSER_PROVIDER = "browserless";

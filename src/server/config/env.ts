@@ -50,7 +50,7 @@ export function liveReadiness(): Record<string, boolean> {
     qwenTextModel: Boolean(env.qwenTextModel),
     daytona: true, // Retained for backward-compatible health response shape.
     tavily: !env.enableTavily || Boolean(env.tavilyApiKey),
-    browser: env.browserProvider === "local" ? process.env.VERCEL !== "1" : Boolean(env.browserlessWsEndpoint && env.browserlessApiToken),
+    browser: env.browserProvider === "local" ? process.env.VERCEL !== "1" : Boolean(env.browserlessWsEndpoint),
   };
 }
 

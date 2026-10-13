@@ -149,6 +149,8 @@ ENABLE_TAVILY_PRICE_FALLBACK=true
 TAVILY_API_KEY=
 ```
 
+`BROWSER_PROVIDER=local` uses locally installed Playwright Chromium and is unavailable on Vercel. `BROWSER_PROVIDER=browserless` uses Playwright CDP with `BROWSERLESS_WS_ENDPOINT`; this can point to Browserless Cloud, a self-hosted Browserless instance, or another reachable Chromium CDP endpoint. `BROWSERLESS_API_TOKEN` is appended as a `token` query parameter when non-empty and may be left blank when the endpoint does not require it. Keep Browserless Cloud's existing endpoint and token configuration unchanged when using that service.
+
 All remaining limits and timeouts are documented in `.env.example`.
 
 Keys that have appeared in chat, screenshots, logs, or shared documents must be revoked before deployment.

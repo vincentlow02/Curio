@@ -17,10 +17,10 @@ export type BrowserProvider = {
   open(options?: { locale?: string; onSessionClosed?: (session: BrowserSessionUsage) => void }): Promise<BrowserLease>;
 };
 
-function browserlessUrl(endpoint: string, token: string): string {
+function browserlessUrl(endpoint: string, token?: string): string {
   const url = new URL(endpoint);
   url.protocol = url.protocol === "https:" ? "wss:" : url.protocol;
-  url.searchParams.set("token", token);
+  if (token) url.searchParams.set("token", token);
   return url.toString();
 }
 
@@ -68,13 +68,13 @@ export function createBrowserProvider(options: { now?: () => number; monotonicNo
       const locale = options.locale ?? "ja-JP";
       const timeoutMs = env.browserSessionTimeoutSeconds * 1000;
       if (env.browserProvider === "browserless") {
-        if (!env.browserlessWsEndpoint || !env.browserlessApiToken) {
-          throw new Error("Browserless is not configured for the production browser provider.");
+        if (!env.browserlessWsEndpoint) {
+          throw new Error("The remote CDP endpoint is not configured for the browser provider.");
         }
         const startedAt = now();
         const startedAtMonotonic = monotonicNow();
         const session: BrowserSessionUsage = { sessionId: createSessionId(), transport: "browserless", startedAt: new Date(startedAt).toISOString(), endedAt: null, durationMs: null, estimatedTimeUnits: null, proxyCaptchaUnits: null, actualUnits: null, actualCostUSD: null };
-        const browser = await chromium.connectOverCDP(browserlessUrl(env.browserlessWsEndpoint, env.browserlessApiToken), { timeout: 10_000 });
+        const browser = await chromium.connectOverCDP(browserlessUrl(env.browserlessWsEndpoint, env.browserlessApiToken || undefined), { timeout: 10_000 });
         return openLease(browser, locale, timeoutMs, session, now, monotonicNow, startedAtMonotonic, options.onSessionClosed);
       }
       if (process.env.VERCEL === "1") {

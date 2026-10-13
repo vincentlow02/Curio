@@ -1,6 +1,6 @@
 # Curio architecture
 
-Curio is a stateless Next.js application. Vercel runs the interface and API routes; Browserless runs production Chromium. Local development uses the same browser-provider interface with local Chromium.
+Curio is a stateless Next.js application. Vercel runs the interface and API routes; a remote Chromium CDP endpoint runs production browser work. Local development uses the same browser-provider interface with local Chromium.
 
 ```text
 User browser
@@ -41,7 +41,7 @@ There is no database, message broker, server-side session store, or production b
 `src/server/browser/browser-provider.ts` is the only infrastructure-aware browser module. The research workflow owns one lazy lease accessor and closes the lease on completion, failure, cancellation, or deadline. The Marketplace coordinator requests a context only for Browser-backed providers; HTTP providers do not depend on Playwright.
 
 - Local mode calls `chromium.launch()`.
-- Browserless mode calls `chromium.connectOverCDP()`.
+- Remote CDP mode calls `chromium.connectOverCDP()` and supports Browserless Cloud, self-hosted Browserless, or another reachable Chromium CDP endpoint; token authentication is optional.
 - Vercel refuses to fall back to local Chromium.
 - A lease is limited to 55 seconds and its idempotent `close()` closes the context and connection.
 - Browser Marketplace providers receive a `BrowserContext`; shared browser-search helpers create and close their pages. HTTP Marketplace providers have no Browser context in their contract.
