@@ -55,6 +55,7 @@ export type ExclusionReason =
   | "new_item"
   | "incomplete_item"
   | "accessory_or_software_only"
+  | "different_product_type"
   | "different_model"
   | "unconfirmed_card_identity"
   | "bundle_or_lot"

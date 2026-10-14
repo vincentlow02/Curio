@@ -1,5 +1,5 @@
 import type { ItemProfile } from "./item-profile";
-import { classifyIdentityMatch, identityMatches } from "./identity";
+import { classifyIdentityMatch, identityMatches, matchProductType } from "./identity";
 import { matchPokemonCardIdentity } from "../core/profile/pokemon-card";
 import { buildStoreSearchUrl } from "./store-verifier";
 import type {
@@ -17,8 +17,9 @@ const SOLD_OUT = /売り切れ|売切れ|販売終了|在庫なし|sold_out/i;
 const JUNK = /ジャンク|故障|動作不良|動作未確認|通電のみ|部品取り|訳あり|訳アリ|アウトレット/i;
 const NEW_ITEM = /新品|未使用|未開封/i;
 const INCOMPLETE = /裏蓋なし|背面蓋なし|欠品|電池なし|バッテリーなし/i;
-const ACCESSORY_OR_SOFTWARE = /ソフトのみ|ゲームソフト|UMD|ケースのみ|充電器のみ|バッテリーのみ|液晶|交換部品|パーツ|保護カバー|収納ケース/i;
-const BUNDLE = /まとめ売り|まとめて|\d+台セット|本体セット|すぐ(?:に)?遊べるセット|ソフト.*セット|バリュー[・\s-]?パック|ソフトプレゼント|カセット|ソフト\s*\d+本|充電器.*ケース付き|メモリースティック付|モンハンセット/i;
+const ACCESSORY_ONLY = /ケースのみ|説明書のみ|充電器のみ|バッテリーのみ|液晶のみ|交換部品|パーツのみ|保護カバーのみ|収納ケースのみ/i;
+const BUNDLE = /まとめ売り|まとめて|\d+台セット|本体セット|すぐ(?:に)?遊べるセット|ソフト.*セット|バリュー[・\s-]?パック|ソフトプレゼント|カセット.*セット|カセット\s*\d+本|ソフト\s*\d+本|充電器.*ケース付き|メモリースティック付|モンハンセット/i;
+
 function normalize(value: string): string {
   return value.normalize("NFKC").toUpperCase().replace(/[^A-Z0-9一-龠ぁ-んァ-ヶ]/g, "");
 }
@@ -30,7 +31,7 @@ function modelTokens(profile: ItemProfile): string[] {
 
 function packageStatus(title: string): PriceSample["packageStatus"] {
   if (/箱付き|箱付|完品|元箱/i.test(title)) return "with_box";
-  if (/本体のみ|箱なし|箱無し/i.test(title)) return "without_box";
+  if (/本体のみ|ソフトのみ|カセットのみ|ディスクのみ|箱なし|箱無し/i.test(title)) return "without_box";
   return "unknown";
 }
 
@@ -96,7 +97,8 @@ export function buildPriceResult(args: {
       else if (JUNK.test(candidate.title)) reason = "junk_or_broken";
       else if (candidate.source === "Rakuten" && NEW_ITEM.test(candidate.title)) reason = "new_item";
       else if (INCOMPLETE.test(candidate.title)) reason = "incomplete_item";
-      else if (ACCESSORY_OR_SOFTWARE.test(candidate.title)) reason = "accessory_or_software_only";
+      else if (matchProductType(args.profile, combined) === "conflict") reason = "different_product_type";
+      else if (ACCESSORY_ONLY.test(candidate.title) && args.profile.productType !== "accessory") reason = "accessory_or_software_only";
       else if (args.profile.pokemonCard) {
         const cardMatch = matchPokemonCardIdentity(args.profile.pokemonCard, combined);
         if (cardMatch === "ambiguous") reason = "unconfirmed_card_identity";

@@ -7,21 +7,25 @@ import OpenAI from "openai";
 import { assertDetectionResult, type DetectionResult } from "../src/core/profile/types";
 
 type QwenConfig = { apiKey: string; baseURL: string; model: string };
+type QwenChatCompletionParams = OpenAI.ChatCompletionCreateParamsNonStreaming & { enable_thinking: false };
 const MIME_TYPES: Readonly<Record<string, string>> = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };
 const PROJECT_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const OUTPUT_PATH = resolve(PROJECT_ROOT, "output", "item-profile.json");
 const COST_PATH = resolve(PROJECT_ROOT, "output", "item-profile-cost.json");
 const CACHE_ROOT = resolve(PROJECT_ROOT, ".cache", "identification");
-const PROMPT_VERSION = "detection-four-fields-v1";
+const PROMPT_VERSION = "detection-product-type-v2";
 
 const PROMPT = `分析图片中的收藏品，只返回 JSON，不要解释，不要 Markdown。
-只允许返回以下四个字段，不得增加字段：
+只允许返回以下五个字段，不得增加字段：
 {
   "itemName": "string or unknown",
   "version": "string or unknown",
+  "productType": "game_software | game_hardware | trading_card | figure | character_goods | book | record | cd | music_memorabilia | electronics | accessory | other | unknown",
   "priceSearchKeywordJa": "one precise Japanese marketplace price-search phrase",
   "category": "Toys & Character Collectibles | Cards & Game Collectibles | Records & Music Collectibles | unknown"
 }
+
+productType 表示作为交易主体的实体类型。游戏卡带/光盘是 game_software，游戏主机是 game_hardware，攻略本/公式ガイド是 book，空盒/说明书/充电器等单独配件是 accessory。无法可靠判断时返回 unknown。
 
 分类必须按 PRIMARY COLLECTIBLE TYPE：
 - Toys & Character Collectibles：designer toys、手办、ソフビ、角色周边。
@@ -29,7 +33,7 @@ const PROMPT = `分析图片中的收藏品，只返回 JSON，不要解释，�
 - Records & Music Collectibles：黑胶、CD、磁带、海报、音乐纪念品。
 
 优先读取 Logo、商品名、型号、编号和包装文字。不确定的名称或版本写 unknown，不得捏造。
-priceSearchKeywordJa 只保留商品名称、明确型号或版本和「中古」，不得加入东京、店铺或专门店。
+priceSearchKeywordJa 只保留商品名称、与 productType 一致的明确型号或介质和「中古」，不得加入东京、店铺或专门店。
 无法可靠分类时 category 返回 unknown。只返回 JSON。`;
 
 class AppError extends Error { constructor(message: string) { super(message); this.name = "AppError"; } }
@@ -75,7 +79,15 @@ async function detect(dataUrl: string, options: QwenConfig): Promise<{ result: D
   const client = new OpenAI({ apiKey: options.apiKey, baseURL: options.baseURL, timeout: 120_000, maxRetries: 0 });
   let response;
   try {
-    response = await client.chat.completions.create({ model: options.model, messages: [{ role: "user", content: [{ type: "text", text: PROMPT }, { type: "image_url", image_url: { url: dataUrl } }] }], response_format: { type: "json_object" }, temperature: 0, max_tokens: 300 });
+    const request = {
+      model: options.model,
+      messages: [{ role: "user", content: [{ type: "text", text: PROMPT }, { type: "image_url", image_url: { url: dataUrl } }] }],
+      response_format: { type: "json_object" },
+      temperature: 0,
+      enable_thinking: false,
+      max_tokens: 300,
+    } satisfies QwenChatCompletionParams;
+    response = await client.chat.completions.create(request);
   } catch (error) {
     const status = error instanceof OpenAI.APIError && error.status ? `HTTP ${error.status}：` : "";
     throw new AppError(`Qwen API 调用失败：${status}${error instanceof Error ? error.message : String(error)}`);

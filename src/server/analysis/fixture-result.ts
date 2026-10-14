@@ -23,7 +23,7 @@ export function fixtureResult(options: { collectorMode?: boolean } = {}): Analys
       { source: "Yahoo Auctions", status: "skipped", candidatesSeen: 0, comparableSignals: 0, signals: [] },
       { source: "Mandarake Auction", status: "skipped", candidatesSeen: 0, comparableSignals: 0, signals: [] },
     ],
-    identification: { itemName: "ソニー PSP-3000", version: "PSP-3000", priceSearchKeywordJa: "PSP-3000 本体 中古", category: "Cards & Game Collectibles" },
+    identification: { itemName: "ソニー PSP-3000", version: "PSP-3000", productType: "game_hardware", priceSearchKeywordJa: "PSP-3000 本体 中古", category: "Cards & Game Collectibles" },
     priceReference: {
       currency: "JPY", low: 8000, median: 12000, high: 16000, sampleCount: 3, disclaimer: "Online asking-price reference",
       samples: [

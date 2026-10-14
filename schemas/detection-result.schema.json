@@ -12,6 +12,9 @@
   "properties": {
     "itemName": { "type": "string", "minLength": 1 },
     "version": { "type": "string", "minLength": 1 },
+    "productType": {
+      "enum": ["game_software", "game_hardware", "trading_card", "figure", "character_goods", "book", "record", "cd", "music_memorabilia", "electronics", "accessory", "other", "unknown"]
+    },
     "priceSearchKeywordJa": { "type": "string", "minLength": 1 },
     "category": {
       "enum": [

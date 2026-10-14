@@ -4,7 +4,7 @@ import type {
   ResearchStreamEvent,
   ToolActivity,
 } from "../../../core/analysis/types";
-import { isCollectibleCategory } from "../../../core/profile/types";
+import { isCollectibleCategory, isProductType } from "../../../core/profile/types";
 
 export type ResearchStreamErrorKind =
   | "invalid-json"
@@ -122,7 +122,8 @@ function isDetectionResult(value: unknown): boolean {
     || !value.version.trim()
     || !isString(value.priceSearchKeywordJa)
     || !value.priceSearchKeywordJa.trim()
-    || !isCollectibleCategory(value.category)) return false;
+    || !isCollectibleCategory(value.category)
+    || (value.productType !== undefined && !isProductType(value.productType))) return false;
 
   if (value.pokemonCard === undefined) return true;
   const card = value.pokemonCard;

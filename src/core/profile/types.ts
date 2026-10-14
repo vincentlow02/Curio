@@ -6,6 +6,24 @@ export const COLLECTIBLE_CATEGORIES = [
 
 export type CollectibleCategory = (typeof COLLECTIBLE_CATEGORIES)[number];
 
+export const PRODUCT_TYPES = [
+  "game_software",
+  "game_hardware",
+  "trading_card",
+  "figure",
+  "character_goods",
+  "book",
+  "record",
+  "cd",
+  "music_memorabilia",
+  "electronics",
+  "accessory",
+  "other",
+  "unknown",
+] as const;
+
+export type ProductType = (typeof PRODUCT_TYPES)[number];
+
 export type PokemonCardIdentity = {
   cardName: string;
   cardNumber: string;
@@ -23,6 +41,7 @@ export type DetectionResult = {
   version: string;
   priceSearchKeywordJa: string;
   category: CollectibleCategory;
+  productType?: ProductType;
   pokemonCard?: PokemonCardIdentity;
 };
 
@@ -51,16 +70,21 @@ export function isCollectibleCategory(value: unknown): value is CollectibleCateg
   return typeof value === "string" && (COLLECTIBLE_CATEGORIES as readonly string[]).includes(value);
 }
 
+export function isProductType(value: unknown): value is ProductType {
+  return typeof value === "string" && (PRODUCT_TYPES as readonly string[]).includes(value);
+}
+
 export function assertDetectionResult(value: unknown): asserts value is DetectionResult {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("The identification result must be a JSON object.");
   const object = value as Record<string, unknown>;
-  const allowed = ["itemName", "version", "priceSearchKeywordJa", "category", "pokemonCard"];
+  const allowed = ["itemName", "version", "priceSearchKeywordJa", "category", "productType", "pokemonCard"];
   const extras = Object.keys(object).filter((key) => !allowed.includes(key));
   if (extras.length) throw new Error(`The identification result contains extra fields: ${extras.join(", ")}`);
   for (const key of ["itemName", "version", "priceSearchKeywordJa"] as const) {
     if (typeof object[key] !== "string" || !object[key].trim()) throw new Error(`${key} must be a non-empty string.`);
   }
   if (!isCollectibleCategory(object.category)) throw new Error("The model could not reliably assign one of the three collectible categories.");
+  if (object.productType !== undefined && !isProductType(object.productType)) throw new Error("productType is invalid.");
   if (object.pokemonCard !== undefined) {
     if (object.category !== "Cards & Game Collectibles") throw new Error("pokemonCard is only valid for Cards & Game Collectibles.");
     if (!object.pokemonCard || typeof object.pokemonCard !== "object" || Array.isArray(object.pokemonCard)) throw new Error("pokemonCard must be an object.");

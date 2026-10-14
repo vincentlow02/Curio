@@ -1,4 +1,4 @@
-import { STORE_DISCLAIMER, type ItemProfile, type ItemSubtype } from "../../price/item-profile";
+import { inferProductType, STORE_DISCLAIMER, type ItemProfile, type ItemSubtype } from "../../price/item-profile";
 import type { DetectionResult } from "./types";
 
 function subtypeFor(result: DetectionResult): ItemSubtype {
@@ -8,6 +8,11 @@ function subtypeFor(result: DetectionResult): ItemSubtype {
 }
 
 export function toPriceItemProfile(result: DetectionResult): ItemProfile {
+  const productType = result.productType ?? inferProductType(
+    result.category,
+    `${result.itemName} ${result.version} ${result.priceSearchKeywordJa}`,
+    Boolean(result.pokemonCard),
+  );
   return {
     itemName: result.itemName,
     brandCharacterSeries: "unknown",
@@ -15,6 +20,7 @@ export function toPriceItemProfile(result: DetectionResult): ItemProfile {
     color: "unknown",
     category: result.category,
     subtype: subtypeFor(result),
+    productType,
     searchKeywordsJa: [result.priceSearchKeywordJa, result.itemName, `${result.itemName} ${result.version}`],
     priceSearchKeywordJa: result.priceSearchKeywordJa,
     recommendedAreas: [],
