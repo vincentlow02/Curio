@@ -5,6 +5,10 @@ import { assertDetectionResult, detectionReviewReason, type CollectibleCategory,
 import { buildPokemonCardSearchKeyword } from "../../../core/profile/pokemon-card";
 import { env, assertLiveConfiguration } from "../../config/env";
 
+type QwenChatCompletionParams = OpenAI.ChatCompletionCreateParamsNonStreaming & {
+  enable_thinking: false;
+};
+
 const OUTPUT_RULES = `你的任务是识别可用于日本二手市场搜索的“完整商品身份”，不是简单抄写图片中最大的文字。
 
 在输出 JSON 前，必须在内部完成以下自检，但不要输出推理过程：
@@ -20,10 +24,17 @@ const OUTPUT_RULES = `你的任务是识别可用于日本二手市场搜索的�
 
 只返回 JSON，不要解释，不要 Markdown。
 只允许返回基础字段：
-{"itemName":"string","version":"string or unknown","priceSearchKeywordJa":"one precise Japanese marketplace keyword","category":"Toys & Character Collectibles | Cards & Game Collectibles | Records & Music Collectibles | unknown"}
+{"itemName":"string","version":"string or unknown","productType":"game_software | game_hardware | trading_card | figure | character_goods | book | record | cd | music_memorabilia | electronics | accessory | other | unknown","priceSearchKeywordJa":"one precise Japanese marketplace keyword","category":"Toys & Character Collectibles | Cards & Game Collectibles | Records & Music Collectibles | unknown"}
+
+productType 必须描述照片中作为交易主体的实体类型，而不是作品主题：
+- 游戏卡带、游戏光盘和游戏软件为 game_software；游戏主机为 game_hardware。
+- Trading Card 为 trading_card；フィギュア、ソフビ为 figure；其他角色周边为 character_goods。
+- 攻略本、公式ガイド、設定資料集等书籍为 book；レコード/LP 为 record；CD 为 cd。
+- 只有配件本身是识别目标时才使用 accessory。无法可靠判断时使用 unknown。
 
 Pokémon Card 专用规则：
 - 只有在确认实物是 Pokémon Trading Card / ポケモンカード时，才额外返回 pokemonCard。Pokémon 玩具、游戏软件、主机、贴纸或其他角色商品绝对不能返回此字段。
+- 返回 pokemonCard 时 productType 必须是 trading_card。
 - pokemonCard 固定格式：
 {"cardName":"exact Japanese card name or unknown","cardNumber":"exact printed card number such as 201/165, 025/165, 098/XY-P or No.025; otherwise unknown","setCode":"printed set code such as SV2a or unknown","setName":"printed set name or unknown","rarity":"SAR | SR | AR | RR | promo rarity or unknown","language":"Japanese | English | unknown","edition":"visible edition such as 1st Edition or unknown","gradingCompany":"PSA | BGS | CGC | ungraded | unknown","grade":"visible numeric grade or unknown"}
 - 必须优先读取卡片正面的卡号、系列代码、稀有度和语言。不得仅根据 Pokémon 名称猜测版本。
@@ -40,7 +51,7 @@ Pokémon Card 专用规则：
 不确定 itemName/version 时写 unknown，不得捏造。无法可靠归类时 category 写 unknown。
 itemName 不要添加引号，不要只返回包装上的一个孤立单词。
 itemName 必须使用日本二手市场常用的日语商品名称。品牌、型号和正式英文产品线可以保留原文，但人物、作品和通用商品类别优先使用日语；例如「ソニー PSP-3000」「メディコム・トイ 鉄腕アトム BE@RBRICK」「山下達郎 FOR YOU LP」。不要输出中文翻译名称。
-priceSearchKeywordJa 必须基于已确认的 itemName，选择 2 到 4 个最有区分力的身份锚点，再加入明确型号/介质和「中古」。不要机械复制冗长完整名称，不要加入东京、店铺或专门店。音乐类优先使用“艺术家 + 作品名 + LP/CD + 中古”，可省略「五重奏」「五重奏団」等不影响身份的通用编制词。itemName 为 unknown 时，priceSearchKeywordJa 也写 unknown。`;
+priceSearchKeywordJa 必须基于已确认的 itemName，选择 2 到 4 个最有区分力的身份锚点，再加入与 productType 一致的明确型号/介质和「中古」。game_software 应包含平台或型号及「ゲームソフト」，game_hardware 应包含型号及「本体」。不要机械复制冗长完整名称，不要加入东京、店铺或专门店。音乐类优先使用“艺术家 + 作品名 + LP/CD + 中古”，可省略「五重奏」「五重奏団」等不影响身份的通用编制词。itemName 为 unknown 时，priceSearchKeywordJa 也写 unknown。`;
 
 const IMAGE_PROMPT = `分析图片中的收藏品。${OUTPUT_RULES}`;
 const TEXT_PROMPT = `根据用户提供的文字识别收藏品。不要补造文字中没有出现的具体版本、年份或型号。${OUTPUT_RULES}`;
@@ -122,13 +133,15 @@ export async function detectCollectible(dataUrl: string, selectedCategory?: Coll
   assertLiveConfiguration("image");
   const client = new OpenAI({ apiKey: env.qwenApiKey, baseURL: env.qwenBaseUrl, timeout: 60_000, maxRetries: 0 });
   const hint = textHint.trim() ? `\n\n用户补充描述：${textHint.trim()}` : "";
-  const response = await client.chat.completions.create({
+  const request = {
     model: env.qwenVisionModel,
     messages: [{ role: "user", content: [{ type: "text", text: `${IMAGE_PROMPT}${hint}${categoryConstraint(selectedCategory)}${collectorMode ? collectorRules(locale) : ""}` }, { type: "image_url", image_url: { url: dataUrl, detail: "high" } }] }],
     response_format: { type: "json_object" },
     temperature: 0,
+    enable_thinking: false,
     max_tokens: collectorMode ? 800 : 520,
-  });
+  } satisfies QwenChatCompletionParams;
+  const response = await client.chat.completions.create(request);
   const usage = { inputTokens: response.usage?.prompt_tokens ?? 0, outputTokens: response.usage?.completion_tokens ?? 0 };
   const text = response.choices[0]?.message.content;
   if (!text) throw new Error("Qwen returned no identification text.");
@@ -138,13 +151,15 @@ export async function detectCollectible(dataUrl: string, selectedCategory?: Coll
 export async function detectTextCollectible(input: string, selectedCategory?: CollectibleCategory | null, collectorMode = false, locale: OutputLocale = "en"): Promise<{ outcome: DetectionOutcome; collectorEvidence: CollectorEvidence | null; usage: { inputTokens: number; outputTokens: number } }> {
   assertLiveConfiguration("text");
   const client = new OpenAI({ apiKey: env.qwenApiKey, baseURL: env.qwenBaseUrl, timeout: 45_000, maxRetries: 0 });
-  const response = await client.chat.completions.create({
+  const request = {
     model: env.qwenTextModel,
     messages: [{ role: "user", content: `${TEXT_PROMPT}${categoryConstraint(selectedCategory)}${collectorMode ? collectorRules(locale) : ""}\n\n用户文字：${input.trim()}` }],
     response_format: { type: "json_object" },
     temperature: 0,
+    enable_thinking: false,
     max_tokens: collectorMode ? 800 : 520,
-  });
+  } satisfies QwenChatCompletionParams;
+  const response = await client.chat.completions.create(request);
   const usage = { inputTokens: response.usage?.prompt_tokens ?? 0, outputTokens: response.usage?.completion_tokens ?? 0 };
   const text = response.choices[0]?.message.content;
   if (!text) throw new Error("Qwen returned no text-identification result.");

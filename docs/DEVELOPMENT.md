@@ -13,10 +13,9 @@ Curio is a web-based collectible research agent for people shopping in Tokyo. Up
 General-purpose chatbots can provide plausible answers, but collectible research needs repeatable identity checks, real source links, explicit uncertainty, and deterministic calculations. Curio separates those responsibilities:
 
 - Qwen Cloud identifies the collectible from an image or text and returns strict structured data.
-- Playwright reads public Japanese marketplace pages using a Japanese search keyword.
+- A Marketplace provider registry selects enabled HTTP or Browser-backed Japanese sources using the confirmed item profile.
 - Node.js matches listings, removes duplicates, and calculates the price reference deterministically.
-- Daytona independently recalculates the result in an isolated sandbox and reports whether it agrees with Node.js.
-- Tavily is a strictly limited fallback only when Rakuten and Mercari produce no usable samples.
+- Tavily is a strictly limited fallback only when the enabled primary providers produce no usable samples.
 
 ## Supported categories
 
@@ -31,21 +30,20 @@ If the category cannot be identified reliably, the identification response retur
 ```text
 Image or text
   -> Qwen Detect
-  -> editable item name, version, category, and Japanese search keyword
-  -> Rakuten + Mercari public search pages
-  -> Tavily basic fallback only when both primary sources have no valid samples
+  -> editable item name, version, product type, category, and Japanese search keyword
+  -> enabled Marketplace providers (Rakuten, Mercari, and optional Yahoo! Shopping)
+  -> Tavily basic fallback only when primary providers have no valid samples
   -> deterministic Node.js matching and price calculation
-  -> optional Daytona consistency verification
   -> sourced asking-price reference and Tokyo area suggestions
 ```
 
-Qwen does not generate prices, store inventory, addresses, or marketplace listings. The UI exposes safe `Run details` showing provider status, call counts, candidate counts, token usage, Node calculation status, Daytona verification, and total duration.
+Qwen does not generate prices, store inventory, addresses, or marketplace listings. The UI exposes safe `Run details` showing provider status, call counts, candidate counts, token usage, Node calculation status, and total duration. Legacy Daytona display types remain compatible, but the current pipeline does not call Daytona.
 
 ## Collector Mode
 
 Collector Mode adds visible edition and condition evidence without making a second Qwen call. During research it may read one public Yahoo! Auctions results page and one Mandarake Auction results page.
 
-- Active auction signals remain separate from the Rakuten/Mercari price range.
+- Active auction signals remain separate from the Marketplace price range.
 - Current price, starting price, and buy-now price retain their original meanings.
 - Auction prices are never presented as confirmed sale prices.
 - Mandarake listings are specialist-source evidence, not automatic proof of authenticity.
@@ -56,13 +54,12 @@ Collector Mode adds visible edition and condition evidence without making a seco
 src/app/                     Next.js pages and API routes
 src/features/analysis/       Responsive UI, stream handling, recent history
 src/core/profile/            Detection types and validation
-src/core/price/              Deterministic calculation and matching
 src/core/recommendation/     Tokyo area recommendations
 src/server/analysis/         Detect and research orchestration
-src/server/providers/        Qwen, marketplaces, Tavily, auctions, Daytona
+src/server/providers/        Qwen, Marketplace providers, and auctions
 src/server/browser/          Local and Browserless browser provider
 src/server/security/         Request limits and upload checks
-src/price/                   Reusable price-spike implementation
+src/price/                   Marketplace contracts, matching, fallback, and pricing
 tests/                       Unit and integration tests
 ```
 
@@ -135,8 +132,14 @@ WEB_USE_FIXTURE=false
 
 QWEN_API_KEY=
 QWEN_BASE_URL=https://your-workspace-id.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
-QWEN_VISION_MODEL=qwen3-vl-plus
+QWEN_VISION_MODEL=qwen3.7-flash
 QWEN_TEXT_MODEL=
+
+RAKUTEN_OFFICIAL_API_ENABLED=false
+RAKUTEN_APPLICATION_ID=
+RAKUTEN_ACCESS_KEY=
+YAHOO_SHOPPING_API_ENABLED=false
+YAHOO_SHOPPING_APP_ID=
 
 PLAYWRIGHT_HEADLESS=true
 BROWSER_PROVIDER=browserless
@@ -189,7 +192,7 @@ npm test
 npm run build
 ```
 
-Fixture tests do not call Qwen, Tavily, Daytona, marketplaces, or other network services.
+Fixture and unit tests do not call Qwen, Tavily, Marketplaces, or other network services. Tests named `*-e2e.test.ts` require separate live credentials and must be run intentionally.
 
 ## Vercel deployment
 
