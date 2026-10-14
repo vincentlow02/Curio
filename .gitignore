@@ -1,11 +1,13 @@
 node_modules/
 .env.local
 deploy/oracle/.env
+deploy/hostinger/.env
 output/**/*.json
 output/**/*.jsonl
 .cache/
 *.log
 .next/
+.gateway-build/
 .tmp/
 coverage/
 *.tsbuildinfo

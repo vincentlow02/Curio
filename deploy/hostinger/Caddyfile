@@ -1,0 +1,3 @@
+{$GATEWAY_DOMAIN} {
+	reverse_proxy rakuten-gateway:3001
+}

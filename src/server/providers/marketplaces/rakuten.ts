@@ -19,6 +19,27 @@ function safeItemUrl(value: unknown): string | null {
   }
 }
 
+function safeImageUrl(value: unknown): string | null {
+  const entries = Array.isArray(value) ? value : [value];
+  for (const entry of entries) {
+    const candidate = typeof entry === "string"
+      ? entry
+      : isRecord(entry) && typeof entry.imageUrl === "string" ? entry.imageUrl : "";
+    if (!candidate) continue;
+    try {
+      const url = new URL(candidate);
+      if (url.protocol === "https:" && url.hostname && !url.username && !url.password) return url.href;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+function itemImageUrl(item: Record<string, unknown>): string | null {
+  return safeImageUrl(item.mediumImageUrls) ?? safeImageUrl(item.smallImageUrls);
+}
+
 export function mapRakutenItems(items: unknown[], maxCards = 30): MarketplaceCandidate[] {
   const candidates: MarketplaceCandidate[] = [];
   const seenUrls = new Set<string>();
@@ -31,7 +52,17 @@ export function mapRakutenItems(items: unknown[], maxCards = 30): MarketplaceCan
     const displayedPrice = Number.isFinite(priceValue) && priceValue >= 0 ? priceValue : null;
     const availabilityText = value.availability === 0 ? "在庫なし" : value.availability === 1 ? "" : "unknown";
     const shopName = typeof value.shopName === "string" && value.shopName.trim() ? value.shopName.trim() : "unknown";
-    candidates.push({ source: MARKETPLACE_IDS.rakuten, rank: candidates.length + 1, title, displayedPrice, url, shopName, availabilityText });
+    const imageUrl = itemImageUrl(value);
+    candidates.push({
+      source: MARKETPLACE_IDS.rakuten,
+      rank: candidates.length + 1,
+      title,
+      displayedPrice,
+      url,
+      shopName,
+      availabilityText,
+      ...(imageUrl ? { imageUrl } : {}),
+    });
     seenUrls.add(url);
   }
   return candidates;

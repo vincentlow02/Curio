@@ -98,48 +98,151 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function invalidResponse(): RakutenApiError {
+  return new RakutenApiError("invalid_response", "Rakuten API returned an invalid item response.");
+}
+
+function optionalString(record: Record<string, unknown>, key: string): string | undefined {
+  if (!Object.hasOwn(record, key)) return undefined;
+  const value = record[key];
+  if (typeof value !== "string") throw invalidResponse();
+  return value;
+}
+
+function validImageField(value: unknown): boolean {
+  if (value === null || typeof value === "string") return true;
+  if (!Array.isArray(value)) return false;
+  return value.every((entry) => typeof entry === "string"
+    || (isRecord(entry) && typeof entry.imageUrl === "string"));
+}
+
+function normalizeRakutenItem(value: unknown): RakutenApiItem {
+  if (!isRecord(value)) throw invalidResponse();
+
+  const hasLowerWrapper = Object.hasOwn(value, "item");
+  const hasUpperWrapper = Object.hasOwn(value, "Item");
+  if (hasLowerWrapper && hasUpperWrapper) throw invalidResponse();
+  const itemValue = hasLowerWrapper ? value.item : hasUpperWrapper ? value.Item : value;
+  if (!isRecord(itemValue)) throw invalidResponse();
+
+  const itemName = optionalString(itemValue, "itemName");
+  const itemUrl = optionalString(itemValue, "itemUrl");
+  if (!itemName?.trim() || !itemUrl?.trim()) throw invalidResponse();
+
+  const normalized: RakutenApiItem = { itemName, itemUrl };
+  for (const key of ["itemCode", "shopName", "shopCode", "itemCaption"] as const) {
+    const field = optionalString(itemValue, key);
+    if (field !== undefined) normalized[key] = field;
+  }
+
+  if (Object.hasOwn(itemValue, "genreId")) {
+    const genreId = itemValue.genreId;
+    if (typeof genreId === "string") {
+      normalized.genreId = genreId;
+    } else if (typeof genreId === "number" && Number.isSafeInteger(genreId) && genreId >= 0) {
+      normalized.genreId = String(genreId);
+    } else {
+      throw invalidResponse();
+    }
+  }
+
+  if (Object.hasOwn(itemValue, "itemPrice")) {
+    const price = itemValue.itemPrice;
+    if (price !== null && typeof price !== "number" && typeof price !== "string") throw invalidResponse();
+    normalized.itemPrice = price;
+  }
+  if (Object.hasOwn(itemValue, "availability")) {
+    const availability = itemValue.availability;
+    if (availability !== null && typeof availability !== "number") throw invalidResponse();
+    normalized.availability = availability;
+  }
+  for (const key of ["mediumImageUrls", "smallImageUrls"] as const) {
+    if (!Object.hasOwn(itemValue, key)) continue;
+    const images = itemValue[key];
+    if (!validImageField(images)) throw invalidResponse();
+    normalized[key] = images;
+  }
+
+  return normalized;
+}
+
 function validateEnvelope(value: unknown): RakutenApiResponse {
-  if (!isRecord(value) || !Array.isArray(value.items)) {
-    throw new RakutenApiError("invalid_response", "Rakuten API returned an invalid response envelope.");
-  }
-  if (!value.items.every(isRecord)) {
-    throw new RakutenApiError("invalid_response", "Rakuten API returned an invalid item list.");
-  }
-  return { items: value.items as RakutenApiItem[] };
+  if (!isRecord(value)) throw invalidResponse();
+  const hasLowerItems = Object.hasOwn(value, "items");
+  const hasUpperItems = Object.hasOwn(value, "Items");
+  if (hasLowerItems === hasUpperItems) throw invalidResponse();
+  const rawItems = hasLowerItems ? value.items : value.Items;
+  if (!Array.isArray(rawItems)) throw invalidResponse();
+  return { items: rawItems.map(normalizeRakutenItem) };
 }
 
 export async function fetchRakutenItems(
   keyword: string,
   options: FetchRakutenItemsOptions = {},
 ): Promise<RakutenApiResponse> {
-  const applicationId = env.rakutenApplicationId;
-  const accessKey = env.rakutenAccessKey;
-  if (!applicationId || !accessKey) {
-    throw new RakutenApiError("configuration_error", "Rakuten Official API credentials are not configured.");
-  }
-
   const normalizedKeyword = keyword.trim();
   if (!normalizedKeyword || new TextEncoder().encode(normalizedKeyword).length > 128) {
     throw new RakutenApiError("invalid_query", "Rakuten API keyword is empty or exceeds 128 UTF-8 bytes.");
   }
 
-  const url = new URL(RAKUTEN_ITEM_SEARCH_ENDPOINT);
-  url.searchParams.set("applicationId", applicationId);
-  url.searchParams.set("keyword", normalizedKeyword);
-  url.searchParams.set("format", "json");
-  url.searchParams.set("formatVersion", "2");
-  url.searchParams.set("hits", "30");
-  url.searchParams.set("page", "1");
-  url.searchParams.set("availability", "1");
+  const gatewayConfigured = Boolean(env.rakutenGatewayUrl || env.rakutenGatewayAuthToken);
+  let requestUrl: URL;
+  let requestInit: RequestInit;
+  if (gatewayConfigured) {
+    if (!env.rakutenGatewayUrl || !env.rakutenGatewayAuthToken) {
+      throw new RakutenApiError("configuration_error", "Rakuten Gateway configuration is incomplete.");
+    }
+
+    let gatewayBase: URL;
+    try {
+      gatewayBase = new URL(env.rakutenGatewayUrl);
+    } catch {
+      throw new RakutenApiError("configuration_error", "Rakuten Gateway URL is invalid.");
+    }
+    if (gatewayBase.protocol !== "https:" || gatewayBase.username || gatewayBase.password
+      || gatewayBase.pathname !== "/" || gatewayBase.search || gatewayBase.hash) {
+      throw new RakutenApiError("configuration_error", "Rakuten Gateway URL must be an HTTPS origin without credentials or a path.");
+    }
+
+    requestUrl = new URL("/internal/rakuten/search", gatewayBase.origin);
+    requestInit = {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.rakutenGatewayAuthToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ keyword: normalizedKeyword }),
+      redirect: "manual",
+    };
+  } else {
+    const applicationId = env.rakutenApplicationId;
+    const accessKey = env.rakutenAccessKey;
+    if (!applicationId || !accessKey) {
+      throw new RakutenApiError("configuration_error", "Rakuten Official API credentials are not configured.");
+    }
+
+    requestUrl = new URL(RAKUTEN_ITEM_SEARCH_ENDPOINT);
+    requestUrl.searchParams.set("applicationId", applicationId);
+    requestUrl.searchParams.set("keyword", normalizedKeyword);
+    requestUrl.searchParams.set("format", "json");
+    requestUrl.searchParams.set("formatVersion", "2");
+    requestUrl.searchParams.set("hits", "30");
+    requestUrl.searchParams.set("page", "1");
+    requestUrl.searchParams.set("availability", "1");
+    requestInit = {
+      method: "GET",
+      headers: { accessKey, Accept: "application/json" },
+    };
+  }
 
   const rateLimit = options.rateLimit ?? waitForRateLimit;
   await rateLimit(options.signal);
   const signal = createTimeoutSignal(options.signal, RAKUTEN_API_TIMEOUT_MS);
   let response: Response;
   try {
-    response = await fetchWithHttpMetrics(options.fetchImpl ?? fetch, url, {
-      method: "GET",
-      headers: { accessKey, Accept: "application/json" },
+    response = await fetchWithHttpMetrics(options.fetchImpl ?? fetch, requestUrl, {
+      ...requestInit,
       signal,
     }, {
       ...(options.onRequest ? { onRequest: options.onRequest } : {}),

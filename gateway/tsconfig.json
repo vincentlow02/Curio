@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node10",
+    "noEmit": false,
+    "incremental": false,
+    "rootDir": "..",
+    "outDir": "../.gateway-build",
+    "plugins": []
+  },
+  "include": ["./main.ts", "./rakuten-gateway.ts"]
+}

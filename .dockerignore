@@ -1,6 +1,8 @@
 node_modules
 .next
 .env.local
+deploy/hostinger/.env
+deploy/oracle/.env
 /production
 .git
 .vercel
