@@ -138,6 +138,7 @@ export type AnalysisResult = {
 
 export type AnalysisSessionView = {
   id: string;
+  recognitionSnapshot?: string;
   status: AnalysisStage;
   queuePosition: number | null;
   progress: number;

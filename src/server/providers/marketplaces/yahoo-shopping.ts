@@ -3,6 +3,7 @@ import "server-only";
 import type { ItemProfile } from "../../../price/item-profile";
 import { MARKETPLACE_IDS } from "../../../core/marketplace";
 import { classifyIdentityMatch } from "../../../price/identity";
+import { buildMarketplaceKeywordForProfile } from "./shared/keyword";
 import { countComparableMarketplaceSamples } from "../../../price/matcher";
 import type { MarketplaceCandidate, SearchSnapshot } from "../../../price/types";
 import { readYahooSellerContributionRates } from "../../analysis/marketplace-cost-store";
@@ -120,7 +121,7 @@ function cleanQuery(value: string): string {
 }
 
 export function buildYahooShoppingQueries(profile: ItemProfile): string[] {
-  const precise = cleanQuery(profile.priceSearchKeywordJa || `${profile.itemName} ${profile.versionOrPeriod}`);
+  const precise = cleanQuery(buildMarketplaceKeywordForProfile(profile) || `${profile.itemName} ${profile.versionOrPeriod}`);
   const relaxed = [...new Set(cleanQuery(`${profile.brandCharacterSeries} ${profile.itemName}`).split(" ").filter(Boolean))].join(" ");
   return [...new Set([precise, relaxed].filter(Boolean))];
 }

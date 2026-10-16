@@ -1,7 +1,7 @@
-import type { CollectorEvidence, ResearchStreamEvent, ToolActivity } from "../../../../../core/analysis/types";
-import { buildPokemonCardSearchKeyword } from "../../../../../core/profile/pokemon-card";
-import { assertDetectionResult, type DetectionResult } from "../../../../../core/profile/types";
+import type { CollectorEvidence, ResearchStreamEvent } from "../../../../../core/analysis/types";
+import { assertConfirmedIdentity } from "../../../../../core/profile/types";
 import { researchCollectible } from "../../../../../server/analysis/run-pipeline";
+import { RecognitionSnapshotError, resolveResearchKeyword, verifyRecognitionSnapshot } from "../../../../../server/analysis/keyword-resolution";
 import { publicError } from "../../../../../server/security/redact-error";
 import { checkDemoRateLimit } from "../../../../../server/security/demo-rate-limit";
 
@@ -10,9 +10,9 @@ export const maxDuration = 300;
 
 type RequestBody = {
   identification?: unknown;
+  recognitionSnapshot?: unknown;
   collectorMode?: unknown;
   collectorEvidence?: CollectorEvidence | null;
-  qwenActivity?: ToolActivity | null;
   locale?: unknown;
 };
 
@@ -22,15 +22,14 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
   const { sessionId: runId } = await context.params;
   if (!/^[0-9a-f-]{36}$/i.test(runId)) return Response.json({ error: "Invalid analysis run ID." }, { status: 400 });
   let body: RequestBody;
-  let identification: DetectionResult;
+  let snapshot: ReturnType<typeof verifyRecognitionSnapshot>;
   try {
     body = await request.json() as RequestBody;
-    assertDetectionResult(body.identification);
-    identification = body.identification;
+    assertConfirmedIdentity(body.identification);
+    snapshot = verifyRecognitionSnapshot(body.recognitionSnapshot, runId);
     if (typeof body.collectorMode !== "boolean") throw new Error("collectorMode must be a boolean.");
-    if (identification.pokemonCard) identification.priceSearchKeywordJa = buildPokemonCardSearchKeyword(identification.pokemonCard);
   } catch (error) {
-    return Response.json({ error: publicError(error, "The research input is invalid.") }, { status: 400 });
+    return Response.json({ error: error instanceof RecognitionSnapshotError ? error.message : publicError(error, "The research input is invalid.") }, { status: error instanceof RecognitionSnapshotError ? error.status : 400 });
   }
 
   const encoder = new TextEncoder();
@@ -48,11 +47,19 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
       };
       void (async () => {
         try {
+          send({ type: "stage", status: "queued_research", message: "Preparing the confirmed marketplace search", toolActivity: snapshot.qwenActivity ? [snapshot.qwenActivity] : [] });
+          let resolved: Awaited<ReturnType<typeof resolveResearchKeyword>>;
+          try { resolved = await resolveResearchKeyword({ snapshot, confirmed: body.identification }); }
+          catch {
+            send({ type: "error", status: "failed", error: "The search keyword could not be prepared. Retry with the confirmed identity; no new image upload is needed." });
+            return;
+          }
+          if (workflowAbort.signal.aborted) return;
           const workflow = await researchCollectible({
-            identification,
+            identification: resolved.identification,
             collectorMode: body.collectorMode as boolean,
             collectorEvidence: body.collectorEvidence ?? null,
-            qwenActivity: body.qwenActivity?.provider === "Qwen" ? body.qwenActivity : null,
+            qwenActivity: resolved.qwenActivity,
             signal: workflowAbort.signal,
             onStage: (event) => send({ type: "stage", ...event }),
           });

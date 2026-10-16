@@ -19,6 +19,7 @@ import type { BrowserSessionUsage } from "../browser/session-meter";
 import { env } from "../config/env";
 import { captureAuctionSearches, skippedAuctionSources } from "../providers/auctions/capture-auctions";
 import { detectCollectible, detectTextCollectible } from "../providers/qwen/detect";
+import { buildMarketplaceKeywordForProfile } from "../providers/marketplaces/shared/keyword";
 import { publicError } from "../security/redact-error";
 import { fixtureResult } from "./fixture-result";
 import { createResearchDeadline } from "./research-deadline";
@@ -127,6 +128,7 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
     const runCostTracker = new ResearchCostTracker(randomUUID());
     costTracker = runCostTracker;
     const profile = toPriceItemProfile(input.identification);
+    const marketplaceKeyword = buildMarketplaceKeywordForProfile(profile);
     const marketplaceProviders = selectMarketplaceProviders(profile);
     const marketplaceSources = marketplaceProviders.map(({ source }) => source);
     let marketplacePagesOpened = 0;
@@ -153,7 +155,7 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
     try {
       const marketplaceSearch = coordinateMarketplaceSearches({
         profile,
-        keyword: input.identification.priceSearchKeywordJa,
+        keyword: marketplaceKeyword,
         maxCardsPerSource: 30,
         signal: workflowSignal,
         getBrowserContext,
@@ -172,13 +174,13 @@ export async function researchCollectible(input: ResearchWorkflowInput): Promise
         marketplaceDurationsMs = market.value.durationMsBySource;
         marketplaceCallsBySource = market.value.callsBySource;
       } else {
-        snapshot = emptySnapshot(input.identification.priceSearchKeywordJa, market?.status === "rejected" ? publicError(market.reason) : "Marketplace search failed.", marketplaceSources);
+        snapshot = emptySnapshot(marketplaceKeyword, market?.status === "rejected" ? publicError(market.reason) : "Marketplace search failed.", marketplaceSources);
       }
       const auctions = auctionSettled?.[0];
       if (input.collectorMode && auctions) auctionSources = auctions.status === "fulfilled" ? auctions.value as typeof auctionSources : (["Yahoo Auctions", "Mandarake Auction"] as const).map((source) => ({ source, status: "failed" as const, candidatesSeen: 0, comparableSignals: 0, signals: [] }));
     } catch (error) {
       if (workflowSignal.aborted) throw error;
-      snapshot = emptySnapshot(input.identification.priceSearchKeywordJa, publicError(error, "The browser provider was unavailable."), marketplaceSources);
+      snapshot = emptySnapshot(marketplaceKeyword, publicError(error, "The browser provider was unavailable."), marketplaceSources);
       if (input.collectorMode) auctionSources = (["Yahoo Auctions", "Mandarake Auction"] as const).map((source) => ({ source, status: "failed" as const, candidatesSeen: 0, comparableSignals: 0, signals: [] }));
     }
     for (const source of snapshot.sources) {

@@ -1,7 +1,7 @@
 import { MAX_DISCOVERY_LISTINGS, type MarketplaceDiscoveryResult } from "../core/analysis/types";
 import { MARKETPLACE_IDS, type MarketplaceSource } from "../core/marketplace";
 import type { ItemProfile } from "./item-profile";
-import { classifyIdentityMatch, normalizeIdentity } from "./identity";
+import { classifyIdentityMatch, matchProductType, normalizeIdentity } from "./identity";
 import type { MarketplaceCandidate, SearchSnapshot } from "./types";
 
 const MAX_DISCOVERY_LISTINGS_PER_SOURCE = 8;
@@ -10,7 +10,6 @@ type DiscoveryAvailability = MarketplaceDiscoveryResult["availability"];
 type DiscoveryCondition = MarketplaceDiscoveryResult["condition"];
 type DiscoveryMatchConfidence = MarketplaceDiscoveryResult["matchConfidence"];
 
-const ACCESSORY_OR_SOFTWARE = /ソフトのみ|ゲームソフト|UMD|ケースのみ|充電器のみ|バッテリーのみ|液晶パネルのみ|交換部品|パーツのみ|保護カバーのみ|収納ケースのみ|コントローラーのみ|ケーブルのみ|(?:^|[\s　・])(?:ケース|充電器|バッテリー|コントローラー|ケーブル|保護カバー|収納ケース)$|\b(?:game software|screen protector|replacement part|accessories?|charger|controller|case)(?:\s+only)?$/i;
 const DAMAGED_ITEM = /ジャンク|故障|動作不良|動作未確認|通電のみ|部品取り|訳あり|訳アリ|アウトレット/i;
 const NEW_ITEM = /新品|未使用|未開封/i;
 const SOLD_OUT = /売り切れ|売切れ|販売終了|在庫なし|sold[_ ]?out|out of stock/i;
@@ -108,9 +107,11 @@ function toDiscoveryResult(
 ): { listing: MarketplaceDiscoveryResult; urlKey: string } | null {
   const title = candidate.title.trim();
   const url = productUrl(candidate.url);
-  if (!title || !url || ACCESSORY_OR_SOFTWARE.test(title)) return null;
+  if (!title || !url) return null;
 
   const identity = classifyIdentityMatch(profile, title);
+  const productType = matchProductType(profile, title);
+  if (productType === "conflict") return null;
   if (identity === "conflict" || (identity === "unknown" && !hasIdentityCue(profile, title))) return null;
 
   const surugayaListing = candidate.source === MARKETPLACE_IDS.surugayaYahooStore
@@ -133,7 +134,7 @@ function toDiscoveryResult(
       shopName: candidate.shopName.trim() && candidate.shopName !== "unknown" ? candidate.shopName.trim() : null,
       availability: availabilityFor(candidate, surugayaListing),
       condition: conditionFor(candidate),
-      matchConfidence: identity === "match" ? "exact" : "possible",
+      matchConfidence: identity === "match" && (productType === "match" || Boolean(profile.pokemonCard)) ? "exact" : "possible",
       damaged: DAMAGED_ITEM.test(title),
     },
   };

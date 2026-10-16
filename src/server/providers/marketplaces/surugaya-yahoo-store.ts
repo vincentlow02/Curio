@@ -206,7 +206,7 @@ function emptySource(keyword: string, url: string, error: string): SearchSnapsho
 }
 
 async function searchSurugayaYahooStore(args: MarketplaceSearchInput): Promise<SearchSnapshot["sources"][number]> {
-  const keyword = buildMarketplaceKeyword(args.profile.priceSearchKeywordJa || args.keyword);
+  const keyword = buildMarketplaceKeyword(args.keyword);
   const url = searchUrl(keyword);
   if (!keyword) return emptySource(keyword, url, "invalid_query: Surugaya Yahoo Store search keyword is empty.");
   if (!env.surugayaYahooStoreDataLicenseVerified) {

@@ -11,6 +11,8 @@ export const env = {
   get qwenBaseUrl() { return process.env.QWEN_BASE_URL?.trim().replace(/\/$/, "") ?? ""; },
   get qwenVisionModel() { return process.env.QWEN_VISION_MODEL?.trim() ?? ""; },
   get qwenTextModel() { return process.env.QWEN_TEXT_MODEL?.trim() ?? ""; },
+  get qwenKeywordModel() { return process.env.QWEN_KEYWORD_MODEL?.trim() || env.qwenVisionModel; },
+  get recognitionSnapshotSecret() { return process.env.RECOGNITION_SNAPSHOT_SECRET?.trim() || env.qwenApiKey; },
   get tavilyApiKey() { return process.env.TAVILY_API_KEY?.trim(); },
   get enableTavily() { return process.env.ENABLE_TAVILY_PRICE_FALLBACK !== "false"; },
   get rakutenOfficialApiEnabled() { return process.env.RAKUTEN_OFFICIAL_API_ENABLED === "true"; },

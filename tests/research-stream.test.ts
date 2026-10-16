@@ -36,6 +36,7 @@ function completedEvent(): Extract<ResearchStreamEvent, { type: "completed" }> {
       identification: {
         itemName: "Vintage figure",
         version: "First release",
+        productType: "ヴィンテージフィギュア",
         priceSearchKeywordJa: "ヴィンテージ フィギュア",
         category: "Toys & Character Collectibles",
       },
@@ -260,6 +261,16 @@ describe("research stream", () => {
       result: { ...completedEvent().result, priceReference: { ...completedEvent().result.priceReference, sampleCount: "zero" } },
     };
     await expectStreamError(JSON.stringify(malformed), "invalid-required-field");
+  });
+
+  it("accepts an open product type and rejects an unsafe one", () => {
+    const openType = completedEvent();
+    openType.result.identification.productType = "プライズフィギュア";
+    expect(validateResearchStreamEvent(openType)).toEqual({ kind: "valid", event: openType });
+
+    const unsafeType = completedEvent();
+    unsafeType.result.identification.productType = "フィギュア\u0000";
+    expect(validateResearchStreamEvent(unsafeType).kind).toBe("invalid-required-field");
   });
 
   it("classifies and ignores unknown object event types for forward compatibility", async () => {

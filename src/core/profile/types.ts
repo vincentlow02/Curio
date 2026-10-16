@@ -6,23 +6,23 @@ export const COLLECTIBLE_CATEGORIES = [
 
 export type CollectibleCategory = (typeof COLLECTIBLE_CATEGORIES)[number];
 
-export const PRODUCT_TYPES = [
-  "game_software",
-  "game_hardware",
-  "trading_card",
-  "figure",
-  "character_goods",
-  "book",
-  "record",
-  "cd",
-  "music_memorabilia",
-  "electronics",
-  "accessory",
-  "other",
-  "unknown",
-] as const;
+export const UNKNOWN_PRODUCT_TYPE = "不明";
+export const MAX_PRODUCT_TYPE_LENGTH = 40;
 
-export type ProductType = (typeof PRODUCT_TYPES)[number];
+/**
+ * A short, user-editable Japanese description of the actual traded object.
+ * Legacy English values remain valid because saved analyses may still contain them.
+ */
+export type ProductType = string;
+
+export function normalizeProductType(value: string): ProductType {
+  return value.normalize("NFKC").replace(/\s+/gu, " ").trim();
+}
+
+export function isUnknownProductType(value: string | null | undefined): boolean {
+  if (!value) return true;
+  return /^(?:不明|未確認|unknown|other)$/i.test(normalizeProductType(value));
+}
 
 export type PokemonCardIdentity = {
   cardName: string;
@@ -44,6 +44,28 @@ export type DetectionResult = {
   productType?: ProductType;
   pokemonCard?: PokemonCardIdentity;
 };
+
+/** User-confirmed identity; the search keyword is owned by the server. */
+export type ConfirmedIdentity = Omit<DetectionResult, "priceSearchKeywordJa">;
+
+export function assertConfirmedIdentity(value: unknown): asserts value is ConfirmedIdentity {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("The confirmed identity must be an object.");
+  const object = value as Record<string, unknown>;
+  if (Object.keys(object).some((key) => !["itemName", "version", "productType", "category", "pokemonCard"].includes(key))) {
+    throw new Error("The confirmed identity contains unsupported fields.");
+  }
+  assertDetectionResult({ ...object, priceSearchKeywordJa: "server-owned" });
+  for (const key of ["itemName", "version"] as const) {
+    const text = object[key] as string;
+    if ([...text].length > 200 || /[\u0000-\u001f\u007f]/u.test(text)) throw new Error(`${key} is invalid.`);
+  }
+  if (object.pokemonCard) {
+    const card = object.pokemonCard as Record<string, string>;
+    if (Object.values(card).some((text) => [...text].length > 100 || /[\u0000-\u001f\u007f]/u.test(text))) {
+      throw new Error("The Pokémon card identity is invalid.");
+    }
+  }
+}
 
 export type DetectionOutcome =
   | { status: "identified"; result: DetectionResult }
@@ -71,7 +93,9 @@ export function isCollectibleCategory(value: unknown): value is CollectibleCateg
 }
 
 export function isProductType(value: unknown): value is ProductType {
-  return typeof value === "string" && (PRODUCT_TYPES as readonly string[]).includes(value);
+  if (typeof value !== "string" || /[\u0000-\u001f\u007f]/u.test(value)) return false;
+  const normalized = normalizeProductType(value);
+  return normalized.length > 0 && [...normalized].length <= MAX_PRODUCT_TYPE_LENGTH;
 }
 
 export function assertDetectionResult(value: unknown): asserts value is DetectionResult {

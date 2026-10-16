@@ -42,7 +42,7 @@ describe("recognition service", () => {
 });
 
 describe("research service", () => {
-  it("posts the existing research request contract to the encoded run endpoint", async () => {
+  it("posts the confirmed identity and signed snapshot to the encoded run endpoint", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     const identification = {
@@ -53,10 +53,10 @@ describe("research service", () => {
 
     await startResearch({
       sessionId: "run/id",
+      recognitionSnapshot: "signed-snapshot",
       identification,
       collectorMode: true,
       collectorEvidence: null,
-      qwenActivity: null,
       locale: "ja",
     });
 
@@ -65,9 +65,9 @@ describe("research service", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         identification,
+        recognitionSnapshot: "signed-snapshot",
         collectorMode: true,
         collectorEvidence: null,
-        qwenActivity: null,
         locale: "ja",
       }),
     });
@@ -81,6 +81,7 @@ describe("research service", () => {
 
     await expect(startResearch({
       sessionId: "run-id",
+      recognitionSnapshot: "signed-snapshot",
       identification: {
         itemName: "Figure",
         version: "Standard",
@@ -88,7 +89,6 @@ describe("research service", () => {
       },
       collectorMode: false,
       collectorEvidence: null,
-      qwenActivity: null,
       locale: "en",
     })).rejects.toThrow("Research is unavailable.");
   });
@@ -100,6 +100,7 @@ describe("research service", () => {
 
     await startResearch({
       sessionId: "run-id",
+      recognitionSnapshot: "signed-snapshot",
       identification: {
         itemName: "Figure",
         version: "Standard",
@@ -107,7 +108,6 @@ describe("research service", () => {
       },
       collectorMode: false,
       collectorEvidence: null,
-      qwenActivity: null,
       locale: "en",
     }, controller.signal);
 

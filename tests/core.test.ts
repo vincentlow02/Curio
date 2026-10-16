@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { assertDetectionResult, COLLECTIBLE_CATEGORIES, detectionReviewReason, type DetectionResult } from "../src/core/profile/types";
 import { toPriceItemProfile } from "../src/core/profile/to-price-profile";
 import { assertSafeRecommendations, FORBIDDEN_INVENTORY, recommendAreas, verifiedStoreSuggestions } from "../src/core/recommendation/recommend";
-import { identityMatches } from "../src/price/identity";
-import { buildMarketplaceKeyword } from "../src/server/providers/marketplaces/shared/keyword";
+import { identityMatches, matchProductType } from "../src/price/identity";
+import { buildMarketplaceKeyword, buildMarketplaceKeywordForProfile } from "../src/server/providers/marketplaces/shared/keyword";
 import { buildMercariKeyword } from "../src/server/providers/marketplaces/mercari";
 import { buildTavilyPriceQuery } from "../src/price/tavily-price-fallback";
 import { STORE_DISCLAIMER, type ItemProfile } from "../src/price/item-profile";
@@ -18,10 +18,13 @@ describe("public detection contract", () => {
     expect(() => assertDetectionResult({ itemName: "Test", version: "unknown", priceSearchKeywordJa: "Test 中古", category: "unknown" })).toThrow();
     expect(() => assertDetectionResult({ itemName: "Test", version: "unknown", priceSearchKeywordJa: "Test 中古", category: COLLECTIBLE_CATEGORIES[0], subtype: "toys_character" })).toThrow(/extra fields/);
   });
-  it("accepts a supported product type and rejects an invalid one", () => {
+  it("accepts open and legacy product types while rejecting unsafe values", () => {
     const result = { itemName: "Test", version: "unknown", priceSearchKeywordJa: "Test 中古", category: COLLECTIBLE_CATEGORIES[0] };
+    expect(() => assertDetectionResult({ ...result, productType: "プライズフィギュア" })).not.toThrow();
     expect(() => assertDetectionResult({ ...result, productType: "figure" })).not.toThrow();
-    expect(() => assertDetectionResult({ ...result, productType: "invalid" })).toThrow(/productType/);
+    expect(() => assertDetectionResult({ ...result, productType: "   " })).toThrow(/productType/);
+    expect(() => assertDetectionResult({ ...result, productType: "フィギュア\u0000" })).toThrow(/productType/);
+    expect(() => assertDetectionResult({ ...result, productType: "商品".repeat(21) })).toThrow(/productType/);
   });
   it("rejects an ambiguous single cover word as a music identity", () => {
     expect(detectionReviewReason({ itemName: "MINE", version: "unknown", priceSearchKeywordJa: "MINE 中古", category: "Records & Music Collectibles" })).not.toBeNull();
@@ -34,7 +37,7 @@ describe("product type marketplace matching", () => {
     const detection: DetectionResult = {
       itemName: "ポポロクロイス牧場物語",
       version: "Nintendo 3DS",
-      productType: "game_software",
+      productType: "Nintendo 3DS ゲームソフト",
       priceSearchKeywordJa: "ポポロクロイス牧場物語 Nintendo 3DS ゲームソフト 中古",
       category: "Cards & Game Collectibles",
     };
@@ -62,13 +65,16 @@ describe("product type marketplace matching", () => {
             candidate(3, "ポポロクロイス牧場物語 公式パーフェクトガイド 攻略本", 900),
             candidate(4, "ポポロクロイス牧場物語 3DS ケースのみ", 500),
             candidate(5, "ポポロクロイス牧場物語 アクリルスタンド", 1200),
+            candidate(6, "ポポロクロイス牧場物語 Nintendo 3DS", 2100),
           ],
         },
         { source: "Rakuten", keyword: detection.priceSearchKeywordJa, searchUrl: "https://search.rakuten.co.jp/", error: null, candidates: [] },
       ],
     };
+    const profile = toPriceItemProfile(detection);
+    expect(matchProductType(profile, "ポポロクロイス牧場物語 Nintendo 3DS")).toBe("unknown");
     const built = buildPriceResult({
-      profile: toPriceItemProfile(detection),
+      profile,
       snapshot,
       tavilyFallback: { version: 1, provider: "Tavily", triggered: false, query: "", searchUrl: "", capturedAt: new Date(0).toISOString(), searchError: null, results: [], candidates: [], usage: null },
       storeSnapshot: { version: 1, enabled: false, query: "", searchUrl: "", capturedAt: new Date(0).toISOString(), error: null, stores: [] },
@@ -79,11 +85,42 @@ describe("product type marketplace matching", () => {
     expect(built.result.samples.map((sample) => sample.title)).toEqual([
       "ポポロクロイス牧場物語 Nintendo 3DS ゲームソフト",
       "ポポロクロイス牧場物語 3DS ソフトのみ",
+      "ポポロクロイス牧場物語 Nintendo 3DS",
     ]);
     expect(built.result.samples[1]?.packageStatus).toBe("without_box");
     expect(built.excluded).toContainEqual(expect.objectContaining({ rank: 3, reason: "different_product_type" }));
     expect(built.excluded).toContainEqual(expect.objectContaining({ rank: 4, reason: "different_product_type" }));
     expect(built.excluded).toContainEqual(expect.objectContaining({ rank: 5, reason: "different_product_type" }));
+    expect(built.excluded).not.toContainEqual(expect.objectContaining({ rank: 6 }));
+  });
+
+  it("maps an open Japanese product type to a compatibility family without changing the public value", () => {
+    const profile: ItemProfile = {
+      itemName: "Re:ゼロから始める異世界生活 レム マジシャン Renewal",
+      brandCharacterSeries: "Re:ゼロから始める異世界生活 レム",
+      versionOrPeriod: "Renewal",
+      color: "unknown",
+      category: "Toys & Character Collectibles",
+      subtype: "toys_character",
+      productType: "プライズフィギュア",
+      searchKeywordsJa: ["TAITO レム マジシャン Renewal 中古"],
+      priceSearchKeywordJa: "TAITO レム マジシャン Renewal 中古",
+      recommendedAreas: [],
+      storeRecommendationDisclaimer: STORE_DISCLAIMER,
+      notes: [],
+    };
+
+    expect(matchProductType(profile, "レム マジシャン Renewal フィギュア")).toBe("match");
+    expect(matchProductType(profile, "レム マジシャン Renewal 公式攻略本")).toBe("conflict");
+    expect(matchProductType(profile, "レム マジシャン Renewal")).toBe("unknown");
+    expect(buildMarketplaceKeywordForProfile(profile)).toBe("TAITO レム マジシャン Renewal 中古");
+    expect(buildMarketplaceKeywordForProfile({ ...profile, priceSearchKeywordJa: "TAITO レム フィギュア 中古" }))
+      .toBe("TAITO レム フィギュア 中古");
+    expect(buildMarketplaceKeywordForProfile({
+      ...profile,
+      productType: "Nintendo 3DS ゲームソフト",
+      priceSearchKeywordJa: "ポポロクロイス牧場物語 Nintendo 3DS 中古",
+    })).toBe("ポポロクロイス牧場物語 Nintendo 3DS 中古");
   });
 });
 
@@ -120,7 +157,7 @@ describe("rare record marketplace search", () => {
   it("uses a broader single marketplace query without adding a second search", () => {
     expect(buildMarketplaceKeyword(profile.priceSearchKeywordJa)).toBe("峰厚介 MINE 中古");
     expect(buildMercariKeyword(profile.priceSearchKeywordJa)).toBe("峰厚介 MINE");
-    expect(buildTavilyPriceQuery(profile)).toBe("峰厚介 MINE LP 中古 価格");
+    expect(buildTavilyPriceQuery(profile)).toBe("峰厚介 MINE 中古 価格");
   });
 
   it("matches artist plus title but rejects unrelated MINE products", () => {

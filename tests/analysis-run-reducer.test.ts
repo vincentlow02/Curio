@@ -19,12 +19,13 @@ const recognition: DetectionResult = {
 };
 
 function identifiedSession(): AnalysisSessionView {
-  return { ...fixtureSession("identifying"), status: "identified", identification: recognition };
+  return { ...fixtureSession("identifying"), status: "identified", identification: recognition, recognitionSnapshot: "signed-snapshot" };
 }
 
 function record(overrides: Partial<RecentAnalysisRecord> = {}): RecentAnalysisRecord {
   return {
     id: "history-id",
+    recognitionSnapshot: "signed-snapshot",
     title: "Vintage figure",
     submittedText: "Vintage figure",
     recognition,
@@ -84,7 +85,8 @@ describe("analysis run reducer", () => {
     expect(restored.phase).toBe("completed");
     const legacy = record();
     delete legacy.status;
-    expect(createInitialAnalysisRunState(legacy).session?.status).toBe("identified");
+    delete legacy.recognitionSnapshot;
+    expect(createInitialAnalysisRunState(legacy)).toMatchObject({ phase: "error", session: { status: "failed" } });
   });
 
   it("initializes a new workflow and restores the selected history view", () => {
@@ -180,6 +182,71 @@ describe("analysis run reducer", () => {
     }).recognitionDraft).toEqual(recognition);
   });
 
+  it("allows research after identity edits without keyword confirmation", () => {
+    const identified = {
+      ...createInitialAnalysisRunState(null),
+      phase: "confirmation" as const,
+      session: identifiedSession(),
+      recognitionDraft: recognition,
+    };
+    const renamed = analysisRunReducer(identified, {
+      type: "recognition-field-updated",
+      key: "itemName",
+      value: "Updated vintage figure",
+    });
+
+    expect(analysisRunReducer(renamed, { type: "research-started" }).phase).toBe("research-starting");
+
+    const changedAgain = analysisRunReducer(renamed, {
+      type: "recognition-field-updated",
+      key: "productType",
+      value: "プライズフィギュア",
+    });
+    expect(analysisRunReducer(changedAgain, { type: "research-started" }).phase).toBe("research-starting");
+
+    const versionChanged = analysisRunReducer(renamed, {
+      type: "recognition-field-updated",
+      key: "version",
+      value: "Renewal",
+    });
+    expect(analysisRunReducer(versionChanged, { type: "research-started" }).phase).toBe("research-starting");
+  });
+
+  it("keeps the old draft keyword inert while editing Pokémon card identity", () => {
+    const cardRecognition: DetectionResult = {
+      ...recognition,
+      category: "Cards & Game Collectibles",
+      pokemonCard: {
+        cardName: "Card",
+        cardNumber: "001",
+        setCode: "SET",
+        setName: "Set",
+        rarity: "Rare",
+        language: "Japanese",
+        edition: "1st",
+        gradingCompany: "ungraded",
+        grade: "N/A",
+      },
+    };
+    const identified = {
+      ...createInitialAnalysisRunState(null),
+      phase: "confirmation" as const,
+      session: { ...identifiedSession(), identification: cardRecognition },
+      recognitionDraft: cardRecognition,
+    };
+    const cardUpdated = analysisRunReducer(identified, {
+      type: "pokemon-card-field-updated",
+      key: "cardNumber",
+      value: "002",
+    });
+    expect(cardUpdated).toMatchObject({
+      recognitionDraft: {
+        priceSearchKeywordJa: recognition.priceSearchKeywordJa,
+        pokemonCard: { cardNumber: "002" },
+      },
+    });
+  });
+
   it("transitions from confirmation into research and updates progress atomically", () => {
     const identified = { ...createInitialAnalysisRunState(null), phase: "confirmation" as const, session: identifiedSession() };
     const startingResearch = analysisRunReducer(identified, { type: "research-started" });
@@ -213,7 +280,7 @@ describe("analysis run reducer", () => {
     expect(invalidCompletion).toBe(accepted);
   });
 
-  it("completes research and enters an explicit failure state", () => {
+  it("completes research and keeps confirmed identity retryable after failure", () => {
     const confirmation = {
       ...createInitialAnalysisRunState(null),
       phase: "confirmation" as const,
@@ -241,24 +308,25 @@ describe("analysis run reducer", () => {
       updatedAt: "2026-10-08T00:03:00.000Z",
     });
     expect(failed).toMatchObject({
-      phase: "error",
+      phase: "confirmation",
       error: { kind: "workflow", message: "Research request failed" },
       session: {
-        status: "failed",
-        progress: 100,
+        status: "identified",
+        progress: 32,
         identification: recognition,
         error: "Research request failed",
         updatedAt: "2026-10-08T00:03:00.000Z",
       },
     });
     expect(deriveAnalysisRunFlags(failed)).toMatchObject({
-      phase: "error",
-      status: "failed",
+      phase: "confirmation",
+      status: "identified",
       isConversation: true,
       isResearch: false,
       isBusy: false,
     });
-    expect(shouldShowInlineAnalysisError(failed.error, failed.phase, true)).toBe(false);
+    expect(shouldShowInlineAnalysisError(failed.error, failed.phase, true)).toBe(true);
+    expect(analysisRunReducer(failed, { type: "research-started" }).phase).toBe("research-starting");
     expect(analysisRunReducer(completed, {
       type: "research-failed",
       error: "Late error",

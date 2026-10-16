@@ -116,10 +116,13 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
     if (!onHistorySave || !status) return;
     const id = sessionId ?? historyView?.id;
     if (!id) return;
-    const savedRecognition = recognitionDraft ?? session?.identification ?? historyView?.recognition ?? null;
+    const savedRecognition = result?.identification ?? recognitionDraft ?? session?.identification ?? historyView?.recognition ?? null;
     const savedImageName = selectedImage?.name ?? historyView?.imageName;
     onHistorySave({
       id,
+      ...(session?.recognitionSnapshot || historyView?.recognitionSnapshot
+        ? { recognitionSnapshot: (session?.recognitionSnapshot ?? historyView?.recognitionSnapshot)! }
+        : {}),
       title: savedRecognition?.itemName || submittedText || "Analyzing collectible…",
       submittedText,
       recognition: savedRecognition,
@@ -130,7 +133,7 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
       ...(savedImageName ? { imageName: savedImageName } : {}),
       createdAt: session?.createdAt ?? historyView?.createdAt ?? new Date().toISOString(),
     });
-  }, [activities, collectorMode, historyView, onHistorySave, recognitionDraft, result, selectedImage?.name, session?.collectorMode, session?.createdAt, session?.identification, sessionId, status, submittedText]);
+  }, [activities, collectorMode, historyView, onHistorySave, recognitionDraft, result, selectedImage?.name, session?.collectorMode, session?.createdAt, session?.identification, session?.recognitionSnapshot, sessionId, status, submittedText]);
 
   function selectImage(file: File | null): void {
     setError(null);
@@ -200,6 +203,7 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
 
       {recognitionDraft && status && ["confirmation", "research-starting", "researching", "completed"].includes(phase) ? (
         <RecognitionStage
+          key={sessionId ?? historyView?.id}
           recognition={recognitionDraft}
           status={status}
           image={selectedImage}

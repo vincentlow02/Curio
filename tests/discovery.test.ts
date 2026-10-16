@@ -82,6 +82,29 @@ describe("marketplace discovery", () => {
     ]);
   });
 
+  it("lets the identity matcher decide when the product type is unconfirmed", () => {
+    const unconfirmedType = candidate({
+      title: "中古 PSP handheld console",
+      url: "https://jp.mercari.com/item/psp-unconfirmed-type",
+    });
+    const results = buildDiscoveryResults(profile, snapshot([unconfirmedType]));
+    const priced = buildPriceResult({
+      profile,
+      snapshot: snapshot([unconfirmedType]),
+      tavilyFallback: disabledTavilyFallback(profile),
+      storeSnapshot: disabledStoreSnapshot(),
+      maxCardsScannedPerSource: 30,
+      maxSamplesPerSource: 5,
+    });
+
+    expect(results).toMatchObject([{
+      url: "https://jp.mercari.com/item/psp-unconfirmed-type",
+      matchConfidence: "possible",
+    }]);
+    expect(priced.result.samples).toEqual([]);
+    expect(priced.excluded[0]?.reason).toBe("unconfirmed_model");
+  });
+
   it("does not promote an explicit unknown stock state to in-stock", () => {
     const result = buildDiscoveryResults(profile, snapshot([candidate({
       source: MARKETPLACE_IDS.yahooShopping,

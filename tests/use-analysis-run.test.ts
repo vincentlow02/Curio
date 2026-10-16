@@ -99,7 +99,7 @@ describe("analysis run workflow", () => {
     });
   });
 
-  it("rebuilds the Pokémon card search keyword when confirmed card identity changes", () => {
+  it("leaves keyword resolution to the server when confirmed card identity changes", () => {
     const recognition = {
       itemName: "Trading card",
       version: "First edition",
@@ -121,6 +121,6 @@ describe("analysis run workflow", () => {
     const updated = updatePokemonCardDraft(recognition, "cardNumber", "002");
 
     expect(updated?.pokemonCard?.cardNumber).toBe("002");
-    expect(updated?.priceSearchKeywordJa).not.toBe("old keyword");
+    expect(updated?.priceSearchKeywordJa).toBe("old keyword");
   });
 });

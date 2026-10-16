@@ -1,13 +1,13 @@
-import type { CollectorEvidence, ToolActivity } from "../../../core/analysis/types";
-import type { DetectionResult } from "../../../core/profile/types";
+import type { CollectorEvidence } from "../../../core/analysis/types";
+import type { ConfirmedIdentity } from "../../../core/profile/types";
 import type { UiLocale } from "../locales";
 
 export type ResearchRequest = {
   sessionId: string;
-  identification: DetectionResult;
+  recognitionSnapshot: string;
+  identification: ConfirmedIdentity;
   collectorMode: boolean;
   collectorEvidence: CollectorEvidence | null;
-  qwenActivity: ToolActivity | null;
   locale: UiLocale;
 };
 
@@ -18,9 +18,9 @@ export async function startResearch(request: ResearchRequest, signal?: AbortSign
     ...(signal ? { signal } : {}),
     body: JSON.stringify({
       identification: request.identification,
+      recognitionSnapshot: request.recognitionSnapshot,
       collectorMode: request.collectorMode,
       collectorEvidence: request.collectorEvidence,
-      qwenActivity: request.qwenActivity,
       locale: request.locale,
     }),
   });

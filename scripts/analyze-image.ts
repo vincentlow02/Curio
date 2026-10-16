@@ -13,19 +13,19 @@ const PROJECT_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const OUTPUT_PATH = resolve(PROJECT_ROOT, "output", "item-profile.json");
 const COST_PATH = resolve(PROJECT_ROOT, "output", "item-profile-cost.json");
 const CACHE_ROOT = resolve(PROJECT_ROOT, ".cache", "identification");
-const PROMPT_VERSION = "detection-product-type-v2";
+const PROMPT_VERSION = "detection-open-product-type-v3";
 
 const PROMPT = `分析图片中的收藏品，只返回 JSON，不要解释，不要 Markdown。
 只允许返回以下五个字段，不得增加字段：
 {
   "itemName": "string or unknown",
   "version": "string or unknown",
-  "productType": "game_software | game_hardware | trading_card | figure | character_goods | book | record | cd | music_memorabilia | electronics | accessory | other | unknown",
+  "productType": "short and precise Japanese product type or 不明",
   "priceSearchKeywordJa": "one precise Japanese marketplace price-search phrase",
   "category": "Toys & Character Collectibles | Cards & Game Collectibles | Records & Music Collectibles | unknown"
 }
 
-productType 表示作为交易主体的实体类型。游戏卡带/光盘是 game_software，游戏主机是 game_hardware，攻略本/公式ガイド是 book，空盒/说明书/充电器等单独配件是 accessory。无法可靠判断时返回 unknown。
+productType 表示作为交易主体的实体类型，必须使用日本二手市场常用的简短日文名称，不从固定枚举中选择。例如「Nintendo 3DS ゲームソフト」「携帯ゲーム機本体」「プライズフィギュア」「公式攻略本」「アクリルスタンド」「アナログレコード」「交換用バッテリー」。制造商、作品、角色、型号和版本不等于商品类型。无法可靠判断时返回「不明」。
 
 分类必须按 PRIMARY COLLECTIBLE TYPE：
 - Toys & Character Collectibles：designer toys、手办、ソフビ、角色周边。
@@ -33,7 +33,7 @@ productType 表示作为交易主体的实体类型。游戏卡带/光盘是 gam
 - Records & Music Collectibles：黑胶、CD、磁带、海报、音乐纪念品。
 
 优先读取 Logo、商品名、型号、编号和包装文字。不确定的名称或版本写 unknown，不得捏造。
-priceSearchKeywordJa 只保留商品名称、与 productType 一致的明确型号或介质和「中古」，不得加入东京、店铺或专门店。
+priceSearchKeywordJa 只保留 2 到 4 个可靠的商品身份锚点、productType 中稳定的常用类型词和「中古」。不要让拼写不确定的片假名词成为搜索的必要条件，不得加入东京、店铺或专门店。
 无法可靠分类时 category 返回 unknown。只返回 JSON。`;
 
 class AppError extends Error { constructor(message: string) { super(message); this.name = "AppError"; } }

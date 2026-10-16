@@ -10,7 +10,7 @@
     "color": { "type": "string", "minLength": 1 },
     "category": { "enum": ["Toys & Character Collectibles", "Cards & Game Collectibles", "Records & Music Collectibles", "unknown"] },
     "subtype": { "enum": ["toys_character", "trading_cards", "retro_games", "records_vinyl", "music_memorabilia", "unknown"] },
-    "productType": { "enum": ["game_software", "game_hardware", "trading_card", "figure", "character_goods", "book", "record", "cd", "music_memorabilia", "electronics", "accessory", "other", "unknown"] },
+    "productType": { "type": "string", "minLength": 1, "maxLength": 40, "pattern": "^(?!\\s*$)[^\\u0000-\\u001F\\u007F]+$" },
     "searchKeywordsJa": { "type": "array", "minItems": 3, "maxItems": 6, "items": { "type": "string", "minLength": 1 } },
     "priceSearchKeywordJa": { "type": "string", "minLength": 1 },
     "recommendedAreas": { "$ref": "#/$defs/recommendedAreas" },

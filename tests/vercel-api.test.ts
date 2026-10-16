@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const originalFixture = process.env.WEB_USE_FIXTURE;
 afterEach(() => {
+  vi.unstubAllEnvs();
   if (originalFixture === undefined) delete process.env.WEB_USE_FIXTURE;
   else process.env.WEB_USE_FIXTURE = originalFixture;
   vi.resetModules();
@@ -10,6 +11,7 @@ afterEach(() => {
 describe("stateless Vercel API", () => {
   it("identifies synchronously and completes research through NDJSON", async () => {
     process.env.WEB_USE_FIXTURE = "true";
+    vi.stubEnv("RECOGNITION_SNAPSHOT_SECRET", "test-recognition-snapshot-secret-with-high-entropy");
     vi.resetModules();
     const analysisRoute = await import("../src/app/api/analysis/route");
     const data = new FormData();
@@ -17,7 +19,7 @@ describe("stateless Vercel API", () => {
     data.set("collectorMode", "false");
     data.set("locale", "en");
     const identifyResponse = await analysisRoute.POST(new Request("http://localhost/api/analysis", { method: "POST", body: data }));
-    const identified = await identifyResponse.json() as { runId: string; status: string; identification: unknown; collectorEvidence: unknown; toolActivity: unknown[] };
+    const identified = await identifyResponse.json() as { runId: string; status: string; identification: { itemName: string; version: string; productType?: string; category: string }; recognitionSnapshot: string; collectorEvidence: unknown; toolActivity: unknown[] };
     expect(identifyResponse.status).toBe(200);
     expect(identified).toMatchObject({ status: "identified" });
     expect(identified.runId).toMatch(/^[0-9a-f-]{36}$/i);
@@ -26,7 +28,7 @@ describe("stateless Vercel API", () => {
     const researchResponse = await researchRoute.POST(new Request(`http://localhost/api/analysis/${identified.runId}/research`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ identification: identified.identification, collectorMode: false, collectorEvidence: identified.collectorEvidence, qwenActivity: identified.toolActivity[0] }),
+      body: JSON.stringify({ identification: { itemName: identified.identification.itemName, version: identified.identification.version, productType: identified.identification.productType, category: identified.identification.category }, recognitionSnapshot: identified.recognitionSnapshot, collectorMode: false, collectorEvidence: identified.collectorEvidence }),
     }), { params: Promise.resolve({ sessionId: identified.runId }) });
     expect(researchResponse.status).toBe(200);
     expect(researchResponse.headers.get("content-type")).toContain("application/x-ndjson");

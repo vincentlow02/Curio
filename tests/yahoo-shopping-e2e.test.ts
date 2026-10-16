@@ -8,6 +8,7 @@ import type { DetectionResult, PokemonCardIdentity } from "../src/core/profile/t
 import { classifyIdentityMatch } from "../src/price/identity";
 import { toPriceItemProfile } from "../src/core/profile/to-price-profile";
 import type { ItemProfile } from "../src/price/item-profile";
+import { createRecognitionSnapshot } from "../src/server/analysis/keyword-resolution";
 
 const previousEnv = {
   yahooEnabled: process.env.YAHOO_SHOPPING_API_ENABLED,
@@ -17,6 +18,7 @@ const previousEnv = {
   yahooMaxSellerSearches: process.env.YAHOO_SHOPPING_MAX_SELLER_SEARCHES,
   fixtureMode: process.env.WEB_USE_FIXTURE,
   tavilyEnabled: process.env.ENABLE_TAVILY_PRICE_FALLBACK,
+  snapshotSecret: process.env.RECOGNITION_SNAPSHOT_SECRET,
 };
 
 function result(hits: unknown[]): Response {
@@ -52,6 +54,7 @@ const relaxedHits = [
 ];
 
 beforeEach(() => {
+  process.env.RECOGNITION_SNAPSHOT_SECRET = "test-recognition-snapshot-secret-with-high-entropy";
   process.env.YAHOO_SHOPPING_API_ENABLED = "true";
   process.env.YAHOO_SHOPPING_APP_ID = "fixture-client-id";
   delete process.env.JANPARA_YAHOO_SHOPPING_STORE_SEARCH_ENABLED;
@@ -71,6 +74,7 @@ afterEach(() => {
     YAHOO_SHOPPING_MAX_SELLER_SEARCHES: previousEnv.yahooMaxSellerSearches,
     WEB_USE_FIXTURE: previousEnv.fixtureMode,
     ENABLE_TAVILY_PRICE_FALLBACK: previousEnv.tavilyEnabled,
+    RECOGNITION_SNAPSHOT_SECRET: previousEnv.snapshotSecret,
   })) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -120,7 +124,7 @@ describe("Yahoo! Shopping Provider MVP fixtures", () => {
     const responseStream = await POST(new Request(`http://localhost/api/analysis/${runId}/research`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.201" },
-      body: JSON.stringify({ identification: detection, collectorMode: false }),
+      body: JSON.stringify({ identification: { itemName: detection.itemName, version: detection.version, category: detection.category, productType: detection.productType, pokemonCard: detection.pokemonCard }, recognitionSnapshot: createRecognitionSnapshot(runId, detection, null), collectorMode: false }),
     }), { params: Promise.resolve({ sessionId: runId }) });
     const events = (await responseStream.text()).trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>);
     expect(events.every((event) => validateResearchStreamEvent(event).kind === "valid")).toBe(true);

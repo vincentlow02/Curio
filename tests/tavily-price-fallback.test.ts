@@ -2,11 +2,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fixtureResult } from "../src/server/analysis/fixture-result";
 import { toPriceItemProfile } from "../src/core/profile/to-price-profile";
-import { captureTavilyPriceFallback } from "../src/price/tavily-price-fallback";
+import { buildTavilyPriceQuery, captureTavilyPriceFallback } from "../src/price/tavily-price-fallback";
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Tavily fallback Browser access", () => {
+  it("does not silently append a different identity version to the confirmed search keyword", () => {
+    const fixture = fixtureResult({ collectorMode: false });
+    const profile = toPriceItemProfile({ ...fixture.identification, version: "Renewal", priceSearchKeywordJa: "TAITO レム マジシャン 中古" });
+    expect(buildTavilyPriceQuery(profile)).toBe("TAITO レム マジシャン 中古 価格");
+  });
+
   it("uses the supplied context to inspect results without opening its own Browser lease", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       results: [{ title: "Listing", url: "https://shop.example/item" }],

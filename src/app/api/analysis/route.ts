@@ -8,6 +8,7 @@ import { env } from "../../../server/config/env";
 import { boundedFormData, RequestBodyTooLargeError } from "../../../server/security/bounded-form-data";
 import { checkDemoRateLimit } from "../../../server/security/demo-rate-limit";
 import { publicError } from "../../../server/security/redact-error";
+import { createRecognitionSnapshot, RecognitionSnapshotError } from "../../../server/analysis/keyword-resolution";
 import { assertImageSignature, validateUpload } from "../../../server/security/upload-validation";
 
 export const runtime = "nodejs";
@@ -43,9 +44,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
     const runId = randomUUID();
     const result = await identifyCollectible({ imageDataUrl, inputText: text, selectedCategory: category, collectorMode, locale });
-    return NextResponse.json({ runId, sessionId: runId, createdAt: new Date().toISOString(), collectorMode, ...result }, { status: result.status === "failed" ? 502 : 200, headers: { "Cache-Control": "no-store" } });
+    const recognitionSnapshot = result.status === "identified" && result.identification
+      ? createRecognitionSnapshot(runId, result.identification, result.toolActivity.find((entry) => entry.provider === "Qwen") ?? null)
+      : null;
+    return NextResponse.json({ runId, sessionId: runId, createdAt: new Date().toISOString(), collectorMode, ...result, recognitionSnapshot }, { status: result.status === "failed" ? 502 : 200, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ error: error.message }, { status: 413 });
+    if (error instanceof RecognitionSnapshotError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json({ error: publicError(error, "The analysis request could not be completed.") }, { status: 400 });
   }
 }

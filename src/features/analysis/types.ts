@@ -10,6 +10,7 @@ export type PendingInput = {
 
 export type RecentAnalysisRecord = {
   id: string;
+  recognitionSnapshot?: string;
   title: string;
   submittedText: string;
   recognition: DetectionResult | null;

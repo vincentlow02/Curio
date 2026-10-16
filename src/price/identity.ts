@@ -1,6 +1,6 @@
 import type { ItemProfile } from "./item-profile";
-import { explicitProductType, inferProductType } from "./item-profile";
-import type { ProductType } from "../core/profile/types";
+import { inferProductType, inferProductTypeFamily } from "./item-profile";
+import { isUnknownProductType, normalizeProductType } from "../core/profile/types";
 import { matchPokemonCardIdentity } from "../core/profile/pokemon-card";
 
 const GENERIC = new Set([
@@ -34,24 +34,22 @@ function termCounts(values: string[]): Map<string, number> {
 
 export type ProductTypeMatch = "match" | "conflict" | "unknown";
 
-function productTypesConflict(target: ProductType, listing: ProductType): boolean {
-  return target !== listing
-    && target !== "other"
-    && target !== "unknown"
-    && listing !== "other"
-    && listing !== "unknown";
-}
-
 export function matchProductType(profile: ItemProfile, text: string): ProductTypeMatch {
   const target = profile.productType ?? inferProductType(
     profile.category,
     `${profile.itemName} ${profile.versionOrPeriod} ${profile.priceSearchKeywordJa}`,
     Boolean(profile.pokemonCard),
   );
-  const listing = explicitProductType(text);
-  if (target === "unknown" || target === "other" || !listing) return "unknown";
-  if (target === listing) return "match";
-  return productTypesConflict(target, listing) ? "conflict" : "unknown";
+  if (isUnknownProductType(target)) return "unknown";
+
+  const targetFamily = inferProductTypeFamily(target);
+  const listingFamily = inferProductTypeFamily(text);
+  if (targetFamily && listingFamily) return targetFamily === listingFamily ? "match" : "conflict";
+
+  const normalizedTarget = normalizeIdentity(normalizeProductType(target));
+  const normalizedListing = normalizeIdentity(text);
+  if (normalizedTarget.length >= 2 && normalizedListing.includes(normalizedTarget)) return "match";
+  return "unknown";
 }
 
 export function identityMatches(profile: ItemProfile, text: string): boolean {

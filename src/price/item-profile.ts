@@ -1,4 +1,4 @@
-import type { PokemonCardIdentity, ProductType } from "../core/profile/types";
+import { UNKNOWN_PRODUCT_TYPE, type PokemonCardIdentity, type ProductType } from "../core/profile/types";
 
 const ITEM_CATEGORIES = [
   "Toys & Character Collectibles",
@@ -41,31 +41,59 @@ export type ItemProfile = {
   pokemonCard?: PokemonCardIdentity;
 };
 
-const BOOK = /攻略本|攻略書|公式(?:パーフェクト)?ガイド|パーフェクトガイド|設定資料集|原画集|ムック|書籍|\bBOOK\b|ISBN/i;
-const ACCESSORY = /ケースのみ|説明書のみ|充電器のみ|バッテリーのみ|液晶のみ|交換部品|パーツのみ|保護カバーのみ|収納ケースのみ/i;
-const GAME_PLATFORM = /(?:NINTENDO\s*)?(?:3DS|2DS|DS|SWITCH)|PSP(?:-\d+)?|PS\s*VITA|PLAYSTATION|PS[1-5]|XBOX|ゲームボーイ|GAME\s*BOY/i;
+export type ProductTypeFamily =
+  | "game_software"
+  | "game_hardware"
+  | "trading_card"
+  | "figure"
+  | "character_goods"
+  | "book"
+  | "record"
+  | "cd"
+  | "music_memorabilia"
+  | "electronics"
+  | "accessory";
 
-export function explicitProductType(text: string): ProductType | null {
+const BOOK = /攻略本|攻略書|公式(?:パーフェクト)?ガイド|パーフェクトガイド|設定資料集|原画集|ムック|書籍|写真集|画集|ISBN|\bBOOKS?\b|\bPUBLICATION\b|\bbook\b/i;
+const ACCESSORY = /空箱|箱のみ|ケースのみ|説明書のみ|取扱説明書|充電器(?:のみ)?|バッテリー(?:のみ)?|液晶(?:パネル)?のみ|交換部品|交換用|パーツのみ|保護カバーのみ|収納ケースのみ|コントローラーのみ|ケーブルのみ|\bACCESSOR(?:Y|IES)\b|\bREPLACEMENT\s+PARTS?\b/i;
+const GAME_PLATFORM = /(?:NINTENDO\s*)?(?:3DS|2DS|DS|SWITCH)|PSP(?:-\d+)?|PS\s*VITA|PLAYSTATION|PS[1-5]|XBOX|ゲームボーイ|GAME\s*BOY/i;
+const HARDWARE_MODEL = /PSP[-\s]?\d{3,4}|PS\s*VITA|ゲームボーイ(?:カラー|アドバンス)?|GAME\s*BOY(?:\s*COLOR|\s*ADVANCE)?/i;
+
+const FAMILY_LABELS: Readonly<Record<ProductTypeFamily, ProductType>> = {
+  game_software: "ゲームソフト",
+  game_hardware: "ゲーム機本体",
+  trading_card: "トレーディングカード",
+  figure: "フィギュア",
+  character_goods: "キャラクターグッズ",
+  book: "書籍",
+  record: "レコード",
+  cd: "CD",
+  music_memorabilia: "音楽関連グッズ",
+  electronics: "電子機器本体",
+  accessory: "アクセサリー",
+};
+
+export function inferProductTypeFamily(text: string): ProductTypeFamily | null {
   if (BOOK.test(text)) return "book";
   if (ACCESSORY.test(text)) return "accessory";
-  if (/ゲームソフト|ソフトのみ|カセットのみ|ROM(?:カセット)?(?:のみ)?|UMD(?:のみ)?/i.test(text)) return "game_software";
-  if (/ゲーム機本体/i.test(text) || (/本体/i.test(text) && GAME_PLATFORM.test(text))) return "game_hardware";
-  if (/トレーディングカード|ポケモンカード|遊戯王[^\s]{0,12}カード|カード\s*(?:のみ|単品)/i.test(text)) return "trading_card";
-  if (/フィギュア|ソフビ|スタチュー|ドール/i.test(text)) return "figure";
-  if (/アクリルスタンド|アクスタ|キーホルダー|缶バッジ|ぬいぐるみ/i.test(text)) return "character_goods";
-  if (/\b(?:LP|VINYL)\b|レコード|アナログ盤/i.test(text)) return "record";
+  if (/ゲームソフト|ソフトのみ|カセットのみ|ROM(?:カセット)?(?:のみ)?|UMD(?:のみ)?|GAME[_\s-]?SOFTWARE/i.test(text)) return "game_software";
+  if (/ゲーム機本体|GAME[_\s-]?HARDWARE/i.test(text) || (/本体/i.test(text) && GAME_PLATFORM.test(text)) || HARDWARE_MODEL.test(text)) return "game_hardware";
+  if (/トレーディングカード|ポケモンカード|遊戯王[^\s]{0,12}カード|カード\s*(?:のみ|単品)|TRADING[_\s-]?CARD/i.test(text)) return "trading_card";
+  if (/フィギュア|ソフビ|スタチュー|ドール|FIGURE/i.test(text)) return "figure";
+  if (/アクリルスタンド|アクスタ|キーホルダー|缶バッジ|ぬいぐるみ|キャラクターグッズ|CHARACTER[_\s-]?GOODS/i.test(text)) return "character_goods";
+  if (/\b(?:LP|VINYL)\b|レコード|アナログ盤|\brecord\b/i.test(text)) return "record";
   if (/\bCD\b|コンパクトディスク/i.test(text)) return "cd";
-  if (/音楽ポスター|ツアーグッズ|コンサートグッズ|MUSIC\s+MEMORABILIA/i.test(text)) return "music_memorabilia";
-  if (/(?:カメラ|スマートフォン|ヘッドホン|イヤホン|プレーヤー)\s*本体/i.test(text)) return "electronics";
+  if (/音楽ポスター|ツアーグッズ|コンサートグッズ|音楽関連グッズ|MUSIC[_\s-]?MEMORABILIA/i.test(text)) return "music_memorabilia";
+  if (/(?:カメラ|スマートフォン|ヘッドホン|イヤホン|プレーヤー)\s*本体|電子機器本体|\bELECTRONICS\b/i.test(text)) return "electronics";
   return null;
 }
 
 export function inferProductType(category: ItemCategory, text: string, hasPokemonCard = false): ProductType {
-  if (hasPokemonCard) return "trading_card";
-  const explicit = explicitProductType(text);
-  if (explicit) return explicit;
-  if (category === "Toys & Character Collectibles" && /TOY|玩具/i.test(text)) return "figure";
-  return "unknown";
+  if (hasPokemonCard) return FAMILY_LABELS.trading_card;
+  const family = inferProductTypeFamily(text);
+  if (family) return FAMILY_LABELS[family];
+  if (category === "Toys & Character Collectibles" && /TOY|玩具/i.test(text)) return FAMILY_LABELS.figure;
+  return UNKNOWN_PRODUCT_TYPE;
 }
 
 export const STORE_DISCLAIMER =

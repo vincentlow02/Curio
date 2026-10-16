@@ -73,7 +73,7 @@ export function shouldShowInlineAnalysisError(
   phase: AnalysisPhase,
   isConversation: boolean,
 ): boolean {
-  return error?.kind === "input" || (error?.kind === "workflow" && phase === "error" && !isConversation);
+  return error?.kind === "input" || (error?.kind === "workflow" && (phase === "confirmation" || (phase === "error" && !isConversation)));
 }
 
 export function createInitialAnalysisRunState(historyView: RecentAnalysisRecord | null): AnalysisRunState {
@@ -81,13 +81,16 @@ export function createInitialAnalysisRunState(historyView: RecentAnalysisRecord 
   // Persisted progress is not a live request. Resume only after explicit confirmation.
   const interrupted = historyStatus === "queued" || historyStatus === "identifying"
     || (historyStatus !== null && researchStages.has(historyStatus));
-  const resumable = Boolean(historyView?.recognition && (historyStatus === "identified" || interrupted));
+  const resumable = Boolean(historyView?.recognition && historyView.recognitionSnapshot && (historyStatus === "identified" || interrupted));
   const restoredStatus = resumable ? "identified" : historyStatus === "needs_review" ? "needs_review" : "failed";
   const restoredError = resumable ? null : interrupted || historyStatus === null
-    ? "This analysis was interrupted. Start a new analysis."
+    ? historyView?.recognition && !historyView.recognitionSnapshot
+      ? "This older saved analysis has no trusted recognition snapshot. Start a new recognition."
+      : "This analysis was interrupted. Start a new analysis."
     : "The saved analysis could not be completed. Start a new analysis.";
   const session: AnalysisSessionView | null = historyView && !historyView.result ? {
     id: historyView.id,
+    ...(historyView.recognitionSnapshot ? { recognitionSnapshot: historyView.recognitionSnapshot } : {}),
     status: restoredStatus,
     queuePosition: null,
     progress: resumable ? 32 : 100,
@@ -146,6 +149,7 @@ export function analysisRunReducer(state: AnalysisRunState, action: AnalysisRunA
         : state;
     case "recognition-field-updated":
       if (state.phase !== "confirmation") return state;
+      if (action.key === "priceSearchKeywordJa") return state;
       return {
         ...state,
         recognitionDraft: updateRecognitionDraft(state.recognitionDraft, action.key, action.value),
@@ -165,7 +169,9 @@ export function analysisRunReducer(state: AnalysisRunState, action: AnalysisRunA
         error: action.value ? { kind: "input", message: action.value } : null,
       };
     case "research-started":
-      return state.phase === "confirmation" && state.session?.status === "identified"
+      return state.phase === "confirmation"
+        && state.session?.status === "identified"
+        && Boolean(state.session.recognitionSnapshot)
         ? { ...state, phase: "research-starting", error: null }
         : state;
     case "research-accepted":
@@ -201,12 +207,14 @@ export function analysisRunReducer(state: AnalysisRunState, action: AnalysisRunA
         ...state,
         phase: "completed",
         error: null,
+        recognitionDraft: action.event.result.identification,
         session: {
           ...state.session,
           status: "completed",
           progress: 100,
           message: "Analysis complete",
           result: action.event.result,
+          identification: action.event.result.identification,
           toolActivity: action.event.toolActivity,
           updatedAt: action.updatedAt,
           error: null,
@@ -216,13 +224,13 @@ export function analysisRunReducer(state: AnalysisRunState, action: AnalysisRunA
       if (state.phase !== "research-starting" && state.phase !== "researching") return state;
       return {
         ...state,
-        phase: "error",
+        phase: "confirmation",
         error: { kind: "workflow", message: action.error },
         session: state.session ? {
           ...state.session,
-          status: "failed",
-          progress: 100,
-          message: "Analysis failed",
+          status: "identified",
+          progress: 32,
+          message: "Research failed. Review the identity and retry.",
           error: action.error,
           updatedAt: action.updatedAt,
         } : null,

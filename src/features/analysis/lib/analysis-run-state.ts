@@ -1,4 +1,3 @@
-import { buildPokemonCardSearchKeyword } from "../../../core/profile/pokemon-card";
 import type { DetectionResult, PokemonCardIdentity } from "../../../core/profile/types";
 
 export function updateRecognitionDraft<Key extends keyof DetectionResult>(
@@ -19,5 +18,5 @@ export function updatePokemonCardDraft<Key extends keyof PokemonCardIdentity>(
 ): DetectionResult | null {
   if (!current?.pokemonCard) return current;
   const pokemonCard = { ...current.pokemonCard, [key]: value };
-  return { ...current, pokemonCard, priceSearchKeywordJa: buildPokemonCardSearchKeyword(pokemonCard) };
+  return { ...current, pokemonCard };
 }

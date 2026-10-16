@@ -42,6 +42,7 @@ body:has(.home-page) { background:#fcfcfc; }
 .figma-left-toolbar.is-expanded .curio-account__avatar { margin-left:0; width:29px; height:29px; }
 .curio-settings button:focus-visible,.curio-settings select:focus-visible { outline:2px solid #e98470; outline-offset:3px; }
 .curio-settings::backdrop { background:rgb(0 0 0 / 28%); backdrop-filter:blur(3px); }
+.figma-recognition-edit-dialog::backdrop { background:rgb(0 0 0 / 35%); backdrop-filter:blur(2px); }
 .figma-language-switcher { display:flex; align-items:center; gap:19px; }
 .figma-language-switcher button { position:relative; min-width:20px; height:32px; padding:0; border:0; background:transparent; color:#888; cursor:pointer; font:400 17px/32px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; }
 .figma-language-switcher button::after { content:""; position:absolute; right:0; bottom:0; left:0; height:2px; background:#111; opacity:0; transform:scaleX(.55); transition:opacity 140ms ease,transform 140ms ease; }

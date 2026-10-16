@@ -3,6 +3,7 @@ import type { DetectionResult } from "../../../core/profile/types";
 
 export type RecognitionResponse = {
   runId?: string;
+  recognitionSnapshot?: string | null;
   sessionId?: string;
   status?: "identified" | "needs_review" | "failed";
   identification?: DetectionResult | null;

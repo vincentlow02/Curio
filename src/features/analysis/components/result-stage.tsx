@@ -195,34 +195,6 @@ export function ResultStage({ result, activities, locale }: ResultStageProps): R
         </div>
       </div>
 
-      {result.discoveryListings ? (
-        <section className="figma-agent-section">
-          <header className="!mb-[10px] !flex !items-center !justify-between !gap-[12px]">
-            <h3 className="!m-0 !text-[14px] !font-semibold">{copy.result.discoveredListings}</h3>
-            <span className="!text-[#777] !text-[11px]">{copy.result.discoveryCount(result.discoveryListings.length)}</span>
-          </header>
-          {result.discoveryListings.length ? (
-            <div className="grid grid-cols-1 gap-[8px] md:grid-cols-2">
-              {result.discoveryListings.map((listing) => (
-                <article className="grid grid-cols-[80px_minmax(0,1fr)] gap-[12px] overflow-hidden rounded-[8px] border border-solid border-[#e5e5e5] bg-white p-[10px]" key={`${listing.source}-${listing.url}`}>
-                  <div className="relative grid h-[80px] w-[80px] place-items-center overflow-hidden rounded-[5px] bg-[#f3f3f3]">
-                    <span className="absolute text-[10px] text-[#888]" aria-hidden="true">{listing.source}</span>
-                    {listing.imageUrl ? <img className="relative h-full w-full object-cover" src={listing.imageUrl} alt="" width={80} height={80} loading="lazy" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} /> : null}
-                  </div>
-                  <div className="min-w-0">
-                    <a className="block overflow-hidden text-ellipsis text-[12px] font-semibold text-[#222] [overflow-wrap:anywhere] hover:underline" href={listing.url} target="_blank" rel="noreferrer">{listing.title}</a>
-                    <p className="!mt-[4px] !mb-0 !text-[10px] !text-[#777]">{MARKETPLACE_METADATA[listing.source].displayName[locale]}{listing.shopName ? ` · ${listing.shopName}` : ""}</p>
-                    <p className="!mt-[5px] !mb-0 !text-[12px] !font-semibold">{listing.price === null ? copy.result.priceUnavailable : formatYen(listing.price)}</p>
-                    <p className="!mt-[4px] !mb-0 !text-[10px] !text-[#666]">{copy.result.availability[listing.availability]} · {copy.result.condition[listing.condition]}</p>
-                    <p className="!mt-[4px] !mb-0 !text-[10px] !text-[#666]">{listing.matchConfidence === "exact" ? copy.result.exactMatch : copy.result.possibleMatch}{listing.damaged ? ` · ${copy.result.damaged}` : ""}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : <p className="!m-0 !text-[12px] !text-[#777]">{copy.result.noDiscoveredListings}</p>}
-        </section>
-      ) : null}
-
       <article className="figma-agent-result-card !overflow-hidden !border !border-solid !border-[#e4e4e4] !rounded-[14px] !bg-white">
         <header className="!flex !min-h-[70px] !items-center !justify-between !border-b !border-[#ededed] !px-[18px] !py-[14px] max-[767px]:!px-[14px] max-[767px]:!py-[13px]">
           <div>
@@ -264,6 +236,34 @@ export function ResultStage({ result, activities, locale }: ResultStageProps): R
           {copy.result.basedOn(result.priceReference.sampleCount)}
         </p>
       </article>
+
+      {result.discoveryListings ? (
+        <section className="figma-agent-section">
+          <header className="!mb-[10px] !flex !items-center !justify-between !gap-[12px]">
+            <h3 className="!m-0 !text-[14px] !font-semibold">{copy.result.discoveredListings}</h3>
+            <span className="!text-[#777] !text-[11px]">{copy.result.discoveryCount(result.discoveryListings.length)}</span>
+          </header>
+          {result.discoveryListings.length ? (
+            <div className="grid grid-cols-1 gap-[8px] md:grid-cols-2">
+              {result.discoveryListings.map((listing) => (
+                <article className="grid grid-cols-[80px_minmax(0,1fr)] gap-[12px] overflow-hidden rounded-[8px] border border-solid border-[#e5e5e5] bg-white p-[10px]" key={`${listing.source}-${listing.url}`}>
+                  <div className="relative grid h-[80px] w-[80px] place-items-center overflow-hidden rounded-[5px] bg-[#f3f3f3]">
+                    <span className="absolute text-[10px] text-[#888]" aria-hidden="true">{listing.source}</span>
+                    {listing.imageUrl ? <img className="relative h-full w-full object-cover" src={listing.imageUrl} alt="" width={80} height={80} loading="lazy" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} /> : null}
+                  </div>
+                  <div className="min-w-0">
+                    <a className="block overflow-hidden text-ellipsis text-[12px] font-semibold text-[#222] [overflow-wrap:anywhere] hover:underline" href={listing.url} target="_blank" rel="noreferrer">{listing.title}</a>
+                    <p className="!mt-[4px] !mb-0 !text-[10px] !text-[#777]">{MARKETPLACE_METADATA[listing.source].displayName[locale]}{listing.shopName ? ` · ${listing.shopName}` : ""}</p>
+                    <p className="!mt-[5px] !mb-0 !text-[12px] !font-semibold">{listing.price === null ? copy.result.priceUnavailable : formatYen(listing.price)}</p>
+                    <p className="!mt-[4px] !mb-0 !text-[10px] !text-[#666]">{copy.result.availability[listing.availability]} · {copy.result.condition[listing.condition]}</p>
+                    <p className="!mt-[4px] !mb-0 !text-[10px] !text-[#666]">{listing.matchConfidence === "exact" ? copy.result.exactMatch : copy.result.possibleMatch}{listing.damaged ? ` · ${copy.result.damaged}` : ""}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : <p className="!m-0 !text-[12px] !text-[#777]">{copy.result.noDiscoveredListings}</p>}
+        </section>
+      ) : null}
 
       {result.collectorMode && result.collectorEvidence ? (
         <div className="figma-agent-section figma-collector-evidence">

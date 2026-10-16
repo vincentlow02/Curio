@@ -11,6 +11,7 @@ import { disabledTavilyFallback } from "../src/price/tavily-price-fallback";
 import { disabledStoreSnapshot } from "../src/price/store-verifier";
 import type { RakutenApiItem } from "../src/server/providers/marketplaces/rakuten-api-client";
 import { validateResearchStreamEvent } from "../src/features/analysis/services/research-stream";
+import { createRecognitionSnapshot } from "../src/server/analysis/keyword-resolution";
 
 const previousEnv = {
   apiEnabled: process.env.RAKUTEN_OFFICIAL_API_ENABLED,
@@ -18,6 +19,7 @@ const previousEnv = {
   accessKey: process.env.RAKUTEN_ACCESS_KEY,
   fixtureMode: process.env.WEB_USE_FIXTURE,
   tavilyEnabled: process.env.ENABLE_TAVILY_PRICE_FALLBACK,
+  snapshotSecret: process.env.RECOGNITION_SNAPSHOT_SECRET,
 };
 
 function wait(milliseconds: number): Promise<void> {
@@ -129,6 +131,7 @@ function apiResponse(): Response {
 }
 
 beforeEach(() => {
+  process.env.RECOGNITION_SNAPSHOT_SECRET = "test-recognition-snapshot-secret-with-high-entropy";
   process.env.RAKUTEN_OFFICIAL_API_ENABLED = "true";
   process.env.RAKUTEN_APPLICATION_ID = "mock-application-id";
   process.env.RAKUTEN_ACCESS_KEY = "mock-access-key";
@@ -145,6 +148,7 @@ afterEach(() => {
     RAKUTEN_ACCESS_KEY: previousEnv.accessKey,
     WEB_USE_FIXTURE: previousEnv.fixtureMode,
     ENABLE_TAVILY_PRICE_FALLBACK: previousEnv.tavilyEnabled,
+    RECOGNITION_SNAPSHOT_SECRET: previousEnv.snapshotSecret,
   })) {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
@@ -215,7 +219,7 @@ describe("Rakuten API end-to-end data flow", () => {
     const response = await POST(new Request(`http://localhost/api/analysis/${runId}/research`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.91" },
-      body: JSON.stringify({ identification: identified, collectorMode: false }),
+      body: JSON.stringify({ identification: { itemName: identified.itemName, version: identified.version, category: identified.category, productType: identified.productType, pokemonCard: identified.pokemonCard }, recognitionSnapshot: createRecognitionSnapshot(runId, identified, null), collectorMode: false }),
     }), { params: Promise.resolve({ sessionId: runId }) });
     const lines = (await response.text()).trim().split("\n");
     const events = lines.map((line) => JSON.parse(line) as Record<string, unknown>);
@@ -272,7 +276,7 @@ describe("Rakuten API end-to-end data flow", () => {
     const response = await POST(new Request(`http://localhost/api/analysis/${runId}/research`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.92" },
-      body: JSON.stringify({ identification: identification(), collectorMode: false }),
+      body: JSON.stringify({ identification: { itemName: identification().itemName, version: identification().version, category: identification().category, pokemonCard: identification().pokemonCard }, recognitionSnapshot: createRecognitionSnapshot(runId, identification(), null), collectorMode: false }),
     }), { params: Promise.resolve({ sessionId: runId }) });
     const events = (await response.text()).trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>);
     const completed = events.at(-1) as { result: { priceReference: { sampleCount: number; samples: Array<{ source: string }> } }; toolActivity: Array<{ provider: string; status: string; resultCount?: number }> };

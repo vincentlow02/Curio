@@ -19,7 +19,6 @@ const SOLD_OUT = /売り切れ|売切れ|販売終了|在庫なし|sold_out/i;
 const JUNK = /ジャンク|故障|動作不良|動作未確認|通電のみ|部品取り|訳あり|訳アリ|アウトレット/i;
 const NEW_ITEM = /新品|未使用|未開封/i;
 const INCOMPLETE = /裏蓋なし|背面蓋なし|欠品|電池なし|バッテリーなし/i;
-const ACCESSORY_ONLY = /ケースのみ|説明書のみ|充電器のみ|バッテリーのみ|液晶のみ|交換部品|パーツのみ|保護カバーのみ|収納ケースのみ/i;
 const BUNDLE = /まとめ売り|まとめて|\d+台セット|本体セット|すぐ(?:に)?遊べるセット|ソフト.*セット|バリュー[・\s-]?パック|ソフトプレゼント|カセット.*セット|カセット\s*\d+本|ソフト\s*\d+本|充電器.*ケース付き|メモリースティック付|モンハンセット/i;
 
 function normalize(value: string): string {
@@ -93,6 +92,7 @@ export function buildPriceResult(args: {
     for (const candidate of sourceSnapshot.candidates.slice(0, args.maxCardsScannedPerSource)) {
       let reason: ExclusionReason | null = null;
       const combined = `${candidate.title} ${candidate.availabilityText}`;
+      const productTypeMatch = matchProductType(args.profile, combined);
       if (candidate.displayedPrice === null || candidate.displayedPrice <= 0) reason = "missing_price";
       else if (candidate.availabilityStatus === "sold_out") reason = "sold_out";
       else if (candidate.availabilityText === "在庫なし") reason = "out_of_stock";
@@ -100,8 +100,7 @@ export function buildPriceResult(args: {
       else if (JUNK.test(candidate.title)) reason = "junk_or_broken";
       else if (candidate.source === MARKETPLACE_IDS.rakuten && NEW_ITEM.test(candidate.title)) reason = "new_item";
       else if (INCOMPLETE.test(candidate.title)) reason = "incomplete_item";
-      else if (matchProductType(args.profile, combined) === "conflict") reason = "different_product_type";
-      else if (ACCESSORY_ONLY.test(candidate.title) && args.profile.productType !== "accessory") reason = "accessory_or_software_only";
+      else if (productTypeMatch === "conflict") reason = "different_product_type";
       else if (args.profile.pokemonCard) {
         const cardMatch = matchPokemonCardIdentity(args.profile.pokemonCard, combined);
         if (cardMatch === "ambiguous") reason = "unconfirmed_card_identity";

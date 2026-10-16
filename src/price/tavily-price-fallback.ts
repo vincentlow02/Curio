@@ -4,7 +4,7 @@ import type { BrowserContext, Page } from "playwright-core";
 
 import type { ItemProfile } from "./item-profile";
 import { WEB_FALLBACK_SOURCE } from "../core/marketplace";
-import { buildMarketplaceKeyword } from "../server/providers/marketplaces/shared/keyword";
+import { buildMarketplaceKeywordForProfile } from "../server/providers/marketplaces/shared/keyword";
 import { createTimeoutSignal, fetchWithHttpMetrics } from "../server/providers/marketplaces/shared/http";
 import { observeBrowserPageRequests, type ResearchCostTracker, type ProviderSearchMeter } from "../server/analysis/marketplace-cost-tracker";
 import { identityMatches } from "./identity";
@@ -16,9 +16,8 @@ type TavilyResponse = {
 };
 
 export function buildTavilyPriceQuery(profile: ItemProfile): string {
-  const primary = buildMarketplaceKeyword(profile.priceSearchKeywordJa).replace(/中古/g, " ").replace(/\s+/g, " ").trim();
-  const version = profile.versionOrPeriod.trim().toLowerCase() === "unknown" ? "" : profile.versionOrPeriod.trim();
-  return `${primary}${version && !primary.toUpperCase().includes(version.toUpperCase()) ? ` ${version}` : ""} 中古 価格`.replace(/\s+/g, " ").trim();
+  const primary = buildMarketplaceKeywordForProfile(profile).replace(/中古/g, " ").replace(/\s+/g, " ").trim();
+  return `${primary} 中古 価格`.replace(/\s+/g, " ").trim();
 }
 
 function safeResultUrl(raw: string): string | null {

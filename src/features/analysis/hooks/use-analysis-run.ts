@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { AnalysisSessionView } from "../../../core/analysis/types";
 import { isSpecificDescription } from "../../../core/profile/input-routing";
-import type { DetectionResult, PokemonCardIdentity } from "../../../core/profile/types";
+import { normalizeProductType, UNKNOWN_PRODUCT_TYPE, type ConfirmedIdentity, type DetectionResult, type PokemonCardIdentity } from "../../../core/profile/types";
 import { compressUpload } from "../lib/compress-upload";
 import type { UiLocale } from "../locales";
 import { createAnalysisRunLifecycle } from "../lib/analysis-run-lifecycle";
@@ -27,6 +27,7 @@ export function createAnalysisSession(body: RecognitionResponse, input: PendingI
     id,
     session: {
       id,
+      ...(body.recognitionSnapshot ? { recognitionSnapshot: body.recognitionSnapshot } : {}),
       status: body.status,
       queuePosition: null,
       progress: body.status === "identified" ? 32 : 100,
@@ -126,7 +127,22 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
   }, [createAnalysis]);
 
   const continueResearch = useCallback(async (): Promise<void> => {
-    if (!sessionId || !recognitionDraft || phase !== "confirmation" || status !== "identified") return;
+    if (!sessionId
+      || !recognitionDraft
+      || !session?.recognitionSnapshot
+      || phase !== "confirmation"
+      || status !== "identified") return;
+    const confirmedRecognition: DetectionResult = {
+      ...recognitionDraft,
+      productType: normalizeProductType(recognitionDraft.productType ?? "") || UNKNOWN_PRODUCT_TYPE,
+    };
+    const confirmedIdentity: ConfirmedIdentity = {
+      itemName: confirmedRecognition.itemName,
+      version: confirmedRecognition.version,
+      ...(confirmedRecognition.productType ? { productType: confirmedRecognition.productType } : {}),
+      category: confirmedRecognition.category,
+      ...(confirmedRecognition.pokemonCard ? { pokemonCard: confirmedRecognition.pokemonCard } : {}),
+    };
     const runId = lifecycle.restoreRun();
     if (runId === null) return;
     const execution = lifecycle.beginResearch(runId);
@@ -135,15 +151,15 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
     try {
       const response = await startResearch({
         sessionId,
-        identification: recognitionDraft,
+        recognitionSnapshot: session.recognitionSnapshot,
+        identification: confirmedIdentity,
         collectorMode,
         collectorEvidence: session?.collectorEvidence ?? null,
-        qwenActivity: activities.find((entry) => entry.provider === "Qwen") ?? null,
         locale,
       }, execution.controller.signal);
       if (!lifecycle.isCurrent(execution)) return;
       onHistoryPromote?.(sessionId);
-      dispatch({ type: "research-accepted", recognition: recognitionDraft });
+      dispatch({ type: "research-accepted", recognition: confirmedRecognition });
       if (!response.body) throw new Error("The research stream was unavailable.");
       let terminalEventReceived = false;
       await readResearchStream(response.body, {
@@ -170,7 +186,7 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
     } finally {
       lifecycle.finish(execution);
     }
-  }, [activities, collectorMode, lifecycle, locale, onHistoryPromote, phase, readResearchStream, recognitionDraft, session?.collectorEvidence, sessionId, status]);
+  }, [collectorMode, lifecycle, locale, onHistoryPromote, phase, readResearchStream, recognitionDraft, session?.collectorEvidence, session?.recognitionSnapshot, sessionId, status]);
 
   const updateRecognition = useCallback(<Key extends keyof DetectionResult>(key: Key, value: DetectionResult[Key]): void => {
     dispatch({ type: "recognition-field-updated", key, value });
