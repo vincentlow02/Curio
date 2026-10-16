@@ -119,6 +119,8 @@ body:has(.home-page) { background:#fcfcfc; }
 .figma-composer-content { width:100%; display:flex; flex-direction:column; align-items:flex-start; }
 .figma-composer-box.has-image .figma-composer-content { gap:9px; }
 .figma-composer-box.has-category .figma-composer-content { gap:6px; }
+.figma-composer-box.is-drop-active { border-color:#111; background:#fcfcfc; box-shadow:0 0 0 4px rgba(17,17,17,0.05); }
+.figma-composer-drop-hint { position:absolute; inset:0; z-index:5; display:flex; align-items:center; justify-content:center; border-radius:15px; background:rgba(255,255,255,0.85); color:#111; font:500 13px/16px var(--font-geist-sans), Geist, Arial, sans-serif; letter-spacing:-.26px; pointer-events:none; }
 @keyframes figma-category-enter { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 .figma-composer-box textarea { display:block; width:100%; height:15px; min-height:15px; max-height:75px; resize:none; overflow:hidden; overflow-wrap:anywhere; padding:0; border:0; outline:0; background:transparent; color:#4f4b4b; font:500 13px/15px var(--font-geist-sans), Geist, Arial, sans-serif; letter-spacing:-.26px; }
 .figma-composer-box textarea::placeholder { color:#a3a3a3; opacity:1; }
@@ -136,6 +138,13 @@ body:has(.home-page) { background:#fcfcfc; }
 .figma-composer-actions-right { width:61px; height:33px; display:flex; align-items:center; justify-content:space-between; }
 .figma-composer-microphone { width:9px; height:16px; flex:none; }
 .figma-composer-microphone img { display:block; width:9px; height:16px; }
+.figma-composer-microphone.is-listening, .figma-followup-microphone.is-listening { position:relative; }
+.figma-composer-microphone.is-listening img, .figma-followup-microphone.is-listening img { filter:brightness(0); }
+.figma-composer-microphone.is-listening::after, .figma-followup-microphone.is-listening::after { content:""; position:absolute; inset:-8px -9px; border-radius:50%; border:1.5px solid #111; animation:figma-mic-pulse 1.2s ease-in-out infinite; }
+.figma-composer-speech-preview { display:flex; align-items:center; gap:7px; width:100%; min-height:15px; color:#8a8a8a; font:400 12px/15px var(--font-geist-sans), Geist, Arial, sans-serif; letter-spacing:-.24px; overflow-wrap:anywhere; }
+.figma-composer-speech-preview__dot { width:6px; height:6px; flex:none; border-radius:50%; background:#111; animation:figma-mic-pulse 1.2s ease-in-out infinite; }
+@keyframes figma-mic-pulse { 0%,100% { opacity:.3; transform:scale(.9); } 50% { opacity:1; transform:scale(1); } }
+@media (prefers-reduced-motion: reduce) { .figma-composer-microphone.is-listening::after, .figma-followup-microphone.is-listening::after, .figma-composer-speech-preview__dot { animation:none; opacity:.7; } }
 .figma-home-composer.has-selected-category .figma-clarification-bubble { top:95px; }
 .figma-home-composer.has-selected-category.has-selected-image.is-conversation,
 .figma-home-composer.has-selected-category.is-conversation,

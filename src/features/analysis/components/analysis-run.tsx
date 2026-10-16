@@ -1,5 +1,6 @@
 "use client";
 
+import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { useEffect, useRef, useState } from "react";
 import type { AnalysisStage } from "../../../core/analysis/types";
 import type { CollectibleCategory } from "../../../core/profile/types";
@@ -31,6 +32,20 @@ type Props = {
 
 type SelectedImage = { file: File; name: string; url: string };
 
+const speechLocales: Record<UiLocale, string> = { en: "en-US", zh: "zh-CN", ja: "ja-JP" };
+
+const cjkPattern = /[\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff66-\uff9f]/;
+const leadingPunctuationPattern = /^[,.!?;:、。，．！？：；]/;
+
+function joinTranscript(existing: string, addition: string): string {
+  if (!existing) return addition;
+  if (!addition) return existing;
+  const left = existing.slice(-1);
+  const right = addition.slice(0, 1);
+  const needsSpace = !/\s/.test(left) && !/\s/.test(right) && !leadingPunctuationPattern.test(right) && !cjkPattern.test(left) && !cjkPattern.test(right);
+  return needsSpace ? `${existing} ${addition}` : existing + addition;
+}
+
 function stageMessage(status: AnalysisStage | null, locale: UiLocale, fallback?: string): string {
   const messages = uiCopy[locale].stages;
   return (status && messages[status]) || fallback || messages.starting;
@@ -52,9 +67,20 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [nextText, setNextText] = useState("");
   const [nextFile, setNextFile] = useState<File | null>(null);
-  const [speechSupported, setSpeechSupported] = useState(false);
   const previewUrlRef = useRef<string | null>(null);
   const nextFileInputRef = useRef<HTMLInputElement>(null);
+  const {
+    interimTranscript,
+    finalTranscript,
+    listening,
+    resetTranscript,
+    browserSupportsSpeechRecognition,
+  } = useSpeechRecognition();
+  const speechSupported = browserSupportsSpeechRecognition;
+  const consumedFinalRef = useRef(0);
+  const speechTargetRef = useRef<"main" | "followup">("main");
+  const listeningRef = useRef(false);
+  listeningRef.current = listening;
   const {
     activities,
     clarificationRequested,
@@ -91,8 +117,52 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
 
   useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
 
+  // Submitting the main composer moves into the conversation view and unmounts
+  // that mic button; flush its dictation. The followup composer keeps its own mic.
   useEffect(() => {
-    setSpeechSupported("webkitSpeechRecognition" in window || "SpeechRecognition" in window);
+    if (isConversation && listening && speechTargetRef.current === "main") void SpeechRecognition.stopListening();
+  }, [isConversation, listening]);
+
+  // Consume each finalized dictation chunk exactly once: finalTranscript keeps
+  // accumulating for the whole session, so track how much has been appended.
+  useEffect(() => {
+    if (!finalTranscript) {
+      consumedFinalRef.current = 0;
+      return;
+    }
+    const addition = finalTranscript.slice(consumedFinalRef.current);
+    if (!addition) return;
+    consumedFinalRef.current = finalTranscript.length;
+    const append = speechTargetRef.current === "followup" ? setNextText : setQuery;
+    append((previous) => joinTranscript(previous, addition));
+  }, [finalTranscript]);
+
+  // react-speech-recognition only maps "not-allowed" internally; surface the
+  // remaining recognition errors with the raw recognition's error event, and
+  // abort on recoverable ones so continuous mode does not restart into them.
+  useEffect(() => {
+    const recognition = SpeechRecognition.getRecognition();
+    if (!recognition) return;
+    const handleError = (event: SpeechRecognitionErrorEvent): void => {
+      // "not-allowed" is handled (and disabled) by the library itself.
+      if (event.error === "not-allowed") setError(copy.speechPermission);
+      else if (event.error === "service-not-allowed") {
+        void SpeechRecognition.abortListening();
+        setError(copy.speechPermission);
+      } else if (event.error === "audio-capture") {
+        void SpeechRecognition.abortListening();
+        setError(copy.speechNoMic);
+      } else if (event.error === "network") {
+        void SpeechRecognition.abortListening();
+        setError(copy.speechNetwork);
+      }
+    };
+    recognition.addEventListener("error", handleError);
+    return () => recognition.removeEventListener("error", handleError);
+  }, [copy, setError]);
+
+  useEffect(() => () => {
+    if (listeningRef.current) void SpeechRecognition.abortListening();
   }, []);
 
   useEffect(() => () => {
@@ -153,17 +223,26 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
     setSelectedImage(null);
   }
 
-  function startSpeech(setter: (value: string) => void): void {
-    const root = window as typeof window & { SpeechRecognition?: new () => { lang: string; start(): void; onresult: (event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void }; webkitSpeechRecognition?: new () => { lang: string; start(): void; onresult: (event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void } };
-    const Constructor = root.SpeechRecognition ?? root.webkitSpeechRecognition;
-    if (!Constructor) return;
-    const recognition = new Constructor();
-    recognition.lang = "en-US";
-    recognition.onresult = (event) => setter(event.results[0]?.[0]?.transcript ?? "");
-    recognition.start();
+  function toggleSpeech(target: "main" | "followup"): void {
+    if (listening) {
+      void SpeechRecognition.stopListening();
+      return;
+    }
+    if (!browserSupportsSpeechRecognition) {
+      setError(copy.speechUnsupported);
+      return;
+    }
+    setError(null);
+    speechTargetRef.current = target;
+    resetTranscript();
+    consumedFinalRef.current = 0;
+    void SpeechRecognition.startListening({ continuous: true, language: speechLocales[locale] });
   }
 
   function resetToNew(): void {
+    // Abort (not stop) so a pending interim chunk is discarded instead of
+    // being finalized into the freshly cleared composer.
+    if (listeningRef.current) void SpeechRecognition.abortListening();
     resetAnalysis();
     setQuery("");
     setSelectedCategory(null);
@@ -186,12 +265,14 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
         creating={creating}
         submitActive={submitActive}
         speechSupported={speechSupported}
+        speechListening={listening && speechTargetRef.current === "main"}
+        interimTranscript={interimTranscript}
         onQueryChange={setQuery}
         onCategoryChange={setSelectedCategory}
         onImageSelect={selectImage}
         onImageClear={clearImage}
         onCollectorModeChange={setCollectorMode}
-        onSpeechInput={() => startSpeech(setQuery)}
+        onSpeechToggle={() => toggleSpeech("main")}
         onSubmit={submitInput}
       />
     </> : <div className="figma-chat-thread" aria-live="polite">
@@ -223,7 +304,7 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
 
       {phase === "completed" && result ? <>
         <ResultStage result={result} activities={activities} locale={locale} />
-        <form className="figma-followup-composer" onSubmit={(event) => { event.preventDefault(); const text = nextText.trim(); const file = nextFile; resetToNew(); submitInput({ file, text, category: null, collectorMode: false }); }}><textarea rows={1} value={nextText} onChange={(event) => setNextText(event.target.value)} placeholder={nextFile ? nextFile.name : copy.placeholder} /><div className="figma-followup-actions"><button className="figma-followup-add" type="button" aria-label="Add image" onClick={() => nextFileInputRef.current?.click()}><img src="/figma/composer-add.svg" alt="" /></button><input ref={nextFileInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setNextFile(event.target.files?.[0] ?? null)} /><div className="figma-followup-actions-right">{speechSupported ? <button className="figma-followup-microphone" type="button" onClick={() => startSpeech(setNextText)}><img src="/figma/composer-microphone.svg" alt="" /></button> : <span />}<button className="figma-followup-submit" type="submit" disabled={!nextText.trim() && !nextFile}><img src="/figma/composer-submit-active.svg" alt="" /></button></div></div></form>
+        <form className="figma-followup-composer" onSubmit={(event) => { event.preventDefault(); const text = nextText.trim(); const file = nextFile; resetToNew(); submitInput({ file, text, category: null, collectorMode: false }); }}><textarea rows={1} value={nextText} onChange={(event) => setNextText(event.target.value)} placeholder={nextFile ? nextFile.name : copy.placeholder} /><div className="figma-followup-actions"><button className="figma-followup-add" type="button" aria-label="Add image" onClick={() => nextFileInputRef.current?.click()}><img src="/figma/composer-add.svg" alt="" /></button><input ref={nextFileInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setNextFile(event.target.files?.[0] ?? null)} /><div className="figma-followup-actions-right">{speechSupported ? <button className={`figma-followup-microphone${listening && speechTargetRef.current === "followup" ? " is-listening" : ""}`} type="button" aria-label={listening && speechTargetRef.current === "followup" ? copy.stopVoiceInput : copy.voiceInput} onClick={() => toggleSpeech("followup")}><img src="/figma/composer-microphone.svg" alt="" /></button> : <span />}<button className="figma-followup-submit" type="submit" disabled={!nextText.trim() && !nextFile}><img src="/figma/composer-submit-active.svg" alt="" /></button></div></div></form>
       </> : null}
     </div>}
     {showInlineError ? <div className="figma-inline-error" role="alert">{error}</div> : null}

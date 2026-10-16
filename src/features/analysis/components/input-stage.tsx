@@ -1,6 +1,7 @@
 "use client";
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { useDropzone } from "react-dropzone";
 import { useRef, type RefObject } from "react";
 import type { CollectibleCategory } from "../../../core/profile/types";
 import { uiCopy, type UiLocale } from "../locales";
@@ -20,12 +21,14 @@ type InputStageProps = {
   creating: boolean;
   submitActive: boolean;
   speechSupported: boolean;
+  speechListening: boolean;
+  interimTranscript: string;
   onQueryChange: (value: string) => void;
   onCategoryChange: (category: CollectibleCategory | null) => void;
   onImageSelect: (file: File | null) => void;
   onImageClear: () => void;
   onCollectorModeChange: (enabled: boolean) => void;
-  onSpeechInput: () => void;
+  onSpeechToggle: () => void;
   onSubmit: (input: PendingInput) => void;
 };
 
@@ -166,6 +169,12 @@ function ImageUploader({
   );
 }
 
+function keepNativeTextDrag(event: React.DragEvent): void {
+  // The composer-root dropzone preventDefaults every drag event; stop non-file
+  // drags at the textarea so its native text drag-and-drop still works.
+  if (!event.dataTransfer?.types.includes("Files")) event.stopPropagation();
+}
+
 function ProductInput(props: InputStageProps): React.ReactElement {
   const {
     locale,
@@ -177,12 +186,14 @@ function ProductInput(props: InputStageProps): React.ReactElement {
     creating,
     submitActive,
     speechSupported,
+    speechListening,
+    interimTranscript,
     onQueryChange,
     onCategoryChange,
     onImageSelect,
     onImageClear,
     onCollectorModeChange,
-    onSpeechInput,
+    onSpeechToggle,
     onSubmit,
   } = props;
   const copy = uiCopy[locale];
@@ -190,6 +201,13 @@ function ProductInput(props: InputStageProps): React.ReactElement {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { getRootProps, isDragActive } = useDropzone({
+    multiple: false,
+    noClick: true,
+    noKeyboard: true,
+    noDragEventsBubbling: true,
+    onDrop: (files) => onImageSelect(files[0] ?? null),
+  });
 
   const clearImage = (): void => {
     for (const input of [cameraInputRef.current, imageInputRef.current, fileInputRef.current]) {
@@ -211,7 +229,7 @@ function ProductInput(props: InputStageProps): React.ReactElement {
   return (
     <>
       {clarificationRequested ? <div className="figma-clarification-bubble absolute top-[340px] left-1/2 flex min-h-[50px] w-[520px] items-start rounded-[14px] bg-[#f1f1f1] px-[13px] py-[10px] text-[#333] text-[12px] font-normal leading-[1.45] [transform:translateX(-50%)] [font-family:var(--font-geist-sans),_Geist,_Arial,sans-serif] animate-[figma-chat-enter_220ms_cubic-bezier(0.22,1,0.36,1)_both] max-[767px]:relative max-[767px]:inset-auto max-[767px]:w-full max-[767px]:min-h-0 max-[767px]:[transform:none]" role="status"><p className="m-0">{copy.clarification}</p></div> : null}
-      <form className={`figma-composer-box${selectedImage ? " has-image" : ""}${selectedCategory ? " has-category" : ""}`} onSubmit={(event) => {
+      <form {...getRootProps()} className={`figma-composer-box${selectedImage ? " has-image" : ""}${selectedCategory ? " has-category" : ""}${isDragActive ? " is-drop-active" : ""}`} onSubmit={(event) => {
         event.preventDefault();
         onSubmit({ file: selectedImage?.file ?? null, text: query.trim(), category: selectedCategory, collectorMode });
       }}>
@@ -229,7 +247,8 @@ function ProductInput(props: InputStageProps): React.ReactElement {
             copy={copy}
           />
           {selectedCategory ? <div className="figma-selected-category !flex !w-full !min-h-[15px] !items-center !justify-between !text-black !text-[13px] !font-medium !leading-[15px] !tracking-[-0.26px] ![font-family:var(--font-geist-sans),_Geist,_Arial,sans-serif] !animate-[figma-category-enter_220ms_cubic-bezier(0.22,1,0.36,1)_both]"><span>{selectedCategory}</span><button className="!grid !h-[18px] !w-[18px] !place-items-center !p-0 !border-0 !rounded-full !bg-transparent !text-[#8a8a8a] !text-[17px] !font-normal !leading-[18px] ![font-family:Arial,sans-serif] !cursor-pointer !transition-[background-color,color] !duration-[140ms] hover:!bg-[#f0f0f0] hover:!text-black focus-visible:!outline-2 focus-visible:!outline-solid focus-visible:!outline-[#111] focus-visible:!outline-offset-[2px]" type="button" aria-label="Remove category" onClick={() => onCategoryChange(null)}>×</button></div> : null}
-          <textarea ref={textareaRef} rows={1} aria-label="Describe collectible" value={query} onInput={updateQuery} onChange={(event) => onQueryChange(event.target.value)} placeholder={selectedCategory ? "" : copy.placeholder} />
+          <textarea ref={textareaRef} rows={1} aria-label="Describe collectible" value={query} onInput={updateQuery} onChange={(event) => onQueryChange(event.target.value)} onDragOver={keepNativeTextDrag} onDrop={keepNativeTextDrag} placeholder={selectedCategory ? "" : copy.placeholder} />
+          {speechListening ? <div className="figma-composer-speech-preview" aria-hidden="true"><i className="figma-composer-speech-preview__dot" />{interimTranscript ? <span>{interimTranscript}</span> : null}</div> : null}
         </div>
         <div className="figma-composer-actions">
           <div className="figma-composer-actions-left">
@@ -248,10 +267,11 @@ function ProductInput(props: InputStageProps): React.ReactElement {
           {collectorMode ? <CollectorModeToggle enabled={collectorMode} onChange={onCollectorModeChange} placement="chip" label={copy.collectorMode} /> : null}
           </div>
           <div className="figma-composer-actions-right">
-            {speechSupported ? <button className="figma-composer-microphone" type="button" aria-label="Use microphone" onClick={onSpeechInput}><img src="/figma/composer-microphone.svg" alt="" /></button> : <span />}
+            {speechSupported ? <button className={`figma-composer-microphone${speechListening ? " is-listening" : ""}`} type="button" aria-label={speechListening ? copy.stopVoiceInput : copy.voiceInput} title={speechListening ? copy.stopVoiceInput : copy.voiceInput} onClick={onSpeechToggle}><img src="/figma/composer-microphone.svg" alt="" /></button> : <span />}
             <button className={`figma-composer-round-button figma-composer-submit${submitActive ? " is-active" : ""}`} type="submit" disabled={!submitActive || creating} aria-label="Submit"><img src={submitActive ? "/figma/composer-submit-active.svg" : "/figma/composer-submit.svg"} alt="" /></button>
           </div>
         </div>
+        {isDragActive ? <div className="figma-composer-drop-hint" aria-hidden="true"><span>{copy.dropImage}</span></div> : null}
       </form>
     </>
   );
