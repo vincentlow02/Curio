@@ -1,0 +1,97 @@
+"use client";
+
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import type { User } from "@supabase/supabase-js";
+import { hasSupabaseConfig } from "../../lib/supabase/config";
+import { createSupabaseBrowserClient } from "../../lib/supabase/client";
+
+type AuthContextValue = {
+  user: User | null;
+  loading: boolean;
+  authConfigured: boolean;
+  error: string | null;
+  signInWithGoogle: (returnTo?: string) => Promise<void>;
+  signOut: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }): React.ReactElement {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const authConfigured = hasSupabaseConfig();
+  const supabase = useMemo(() => authConfigured ? createSupabaseBrowserClient() : null, [authConfigured]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("authError") === "callback") {
+      setError("Google sign-in could not be completed. Please try again.");
+      params.delete("authError");
+      const query = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+    }
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+    let active = true;
+    void supabase.auth.getUser().then(({ data, error: authError }) => {
+      if (!active) return;
+      if (authError) setError(authError.message);
+      setUser(data.user);
+      setLoading(false);
+    }).catch((authError: unknown) => {
+      if (!active) return;
+      setError(authError instanceof Error ? authError.message : "Unable to verify the current session.");
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session) setError(null);
+      setLoading(false);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  const signInWithGoogle = useCallback(async (returnTo = "/"): Promise<void> => {
+    if (!supabase) throw new Error("Google sign-in is not configured for this deployment.");
+    setError(null);
+    const next = returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
+    const redirectTo = new URL("/auth/callback", window.location.origin);
+    redirectTo.searchParams.set("next", next);
+    const { error: signInError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: redirectTo.toString() },
+    });
+    if (signInError) {
+      setError(signInError.message);
+      throw signInError;
+    }
+  }, [supabase]);
+
+  const signOut = useCallback(async (): Promise<void> => {
+    if (!supabase) throw new Error("Supabase Auth is not configured for this deployment.");
+    setError(null);
+    const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+    if (signOutError) {
+      setError(signOutError.message);
+      throw signOutError;
+    }
+  }, [supabase]);
+
+  const value = useMemo(() => ({ user, loading, authConfigured, error, signInWithGoogle, signOut }), [user, loading, authConfigured, error, signInWithGoogle, signOut]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth(): AuthContextValue {
+  const value = useContext(AuthContext);
+  if (!value) throw new Error("useAuth must be used within AuthProvider.");
+  return value;
+}

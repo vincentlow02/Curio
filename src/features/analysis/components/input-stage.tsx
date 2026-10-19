@@ -1,9 +1,11 @@
 "use client";
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { ArrowUp, Camera, Check, CircleHelp, FileUp, Image, Mic, Plus, Sparkles, X } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { useRef, type RefObject } from "react";
 import type { CollectibleCategory } from "../../../core/profile/types";
+import { Icon } from "../../../components/ui/icon";
 import { uiCopy, type UiLocale } from "../locales";
 import type { PendingInput } from "../types";
 
@@ -75,18 +77,18 @@ function CollectorModeToggle({
         checked={enabled}
         onCheckedChange={(checked) => onChange(checked === true)}
       >
-        <span className="w-[14px] flex-none text-center text-[18px] font-semibold leading-[14px] text-[#111] [font-family:Georgia,serif]" aria-hidden="true">✧</span>
+        <Icon icon={Sparkles} className="w-[14px] flex-none text-[#111]" size={16} />
         <span>{label}</span>
-        <DropdownMenu.ItemIndicator className="absolute right-[5px] text-[11px] text-[#111]" aria-hidden="true">✓</DropdownMenu.ItemIndicator>
+        <DropdownMenu.ItemIndicator className="absolute right-[5px] text-[#111]" aria-hidden="true"><Icon icon={Check} size={14} /></DropdownMenu.ItemIndicator>
       </DropdownMenu.CheckboxItem>
     );
   }
 
   return enabled ? (
     <button className="figma-collector-chip !flex !h-[29px] !items-center !gap-[7px] !rounded-[15px] !border !border-solid !border-[#e3e3e7] !bg-[#f8f8fa] !px-[10px] !text-[#242424] !shadow-[0_1px_2px_rgba(0,0,0,0.02)] !whitespace-nowrap hover:!bg-[#f0f0f2] max-[767px]:!max-w-[190px]" type="button" aria-label="Disable Collector Mode" title="Disable Collector Mode" onClick={() => onChange(false)}>
-      <span className="figma-collector-spark !w-[14px] !flex-none !text-center !text-[#111] !text-[18px] !font-semibold !leading-[14px] ![font-family:Georgia,serif]" aria-hidden="true">✧</span>
+      <Icon icon={Sparkles} className="figma-collector-spark !w-[14px] !flex-none !text-[#111]" size={16} />
       <b className="!text-[11px] !font-semibold max-[767px]:!overflow-hidden max-[767px]:!text-ellipsis">{label}</b>
-      <span className="figma-collector-info !grid !h-[14px] !w-[14px] !place-items-center !rounded-[50%] !border !border-solid !border-[#9a9a9a] !text-[#777] !text-[9px] !font-semibold !leading-[12px] ![font-family:Arial,sans-serif]" aria-hidden="true">i</span>
+      <Icon icon={CircleHelp} className="figma-collector-info !text-[#777]" size={14} />
     </button>
   ) : <></>;
 }
@@ -123,8 +125,8 @@ function ImageUploader({
     return selectedImage ? (
       <div className="figma-upload-preview relative h-[57px] w-[58px] flex-none overflow-hidden rounded-[11px] border-[0.7px] border-solid border-[#ededed] bg-white">
         <img className="figma-upload-preview__image block h-full w-full object-cover" src={selectedImage.url} alt={selectedImage.name} />
-        <button className="absolute top-[5px] right-[7px] h-[13px] w-[13px] !cursor-pointer !border-0 !bg-transparent !p-0" type="button" aria-label="Remove uploaded image" onClick={onImageClear}>
-          <img className="block h-[13px] w-[13px]" src="/figma/upload-preview-remove.svg" alt="" />
+        <button className="absolute top-[3px] right-[3px] grid h-[20px] w-[20px] place-items-center !cursor-pointer !rounded-full !border-0 !bg-white/90 !p-0 text-[#555] hover:!bg-white" type="button" aria-label="Remove uploaded image" onClick={onImageClear}>
+          <Icon icon={X} size={14} />
         </button>
       </div>
     ) : <></>;
@@ -135,7 +137,7 @@ function ImageUploader({
       <div className="figma-upload-control">
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <button className="figma-composer-round-button" type="button" aria-label="Add attachment or mode"><img src="/figma/composer-add.svg" alt="" /></button>
+            <button className="figma-composer-round-button" type="button" aria-label="Add attachment or mode"><Icon icon={Plus} /></button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content
@@ -146,15 +148,15 @@ function ImageUploader({
               collisionPadding={8}
             >
               <DropdownMenu.Item className="flex h-[13px] w-full flex-none cursor-pointer items-center gap-[12px] rounded-[2px] border-0 bg-transparent p-0 text-left text-[11px] font-medium leading-[normal] text-black outline-none [font-family:Inter,Arial,sans-serif] data-[highlighted]:outline-2 data-[highlighted]:outline-solid data-[highlighted]:outline-[#111] data-[highlighted]:outline-offset-[4px] hover:[&_span]:opacity-[0.58] whitespace-nowrap" onSelect={() => cameraInputRef.current?.click()}>
-                <img className="block h-[13px] w-[14px] flex-none" src="/figma/upload-menu-camera.svg" alt="" />
+                <Icon icon={Camera} className="block flex-none" size={16} />
                 <span>{copy.takePhoto}</span>
               </DropdownMenu.Item>
               <DropdownMenu.Item className="flex h-[13px] w-full flex-none cursor-pointer items-center gap-[12px] rounded-[2px] border-0 bg-transparent p-0 text-left text-[11px] font-medium leading-[normal] text-black outline-none [font-family:Inter,Arial,sans-serif] data-[highlighted]:outline-2 data-[highlighted]:outline-solid data-[highlighted]:outline-[#111] data-[highlighted]:outline-offset-[4px] hover:[&_span]:opacity-[0.58] whitespace-nowrap" onSelect={() => imageInputRef.current?.click()}>
-                <img className="mr-[1px] block h-[11px] w-[13px] flex-none" src="/figma/upload-menu-image.svg" alt="" />
+                <Icon icon={Image} className="mr-[1px] block flex-none" size={16} />
                 <span>{copy.uploadImage}</span>
               </DropdownMenu.Item>
               <DropdownMenu.Item className="flex h-[13px] w-full flex-none cursor-pointer items-center gap-[18px] rounded-[2px] border-0 bg-transparent p-0 text-left text-[11px] font-medium leading-[normal] tracking-[-0.266px] text-black outline-none [font-family:Inter,Arial,sans-serif] data-[highlighted]:outline-2 data-[highlighted]:outline-solid data-[highlighted]:outline-[#111] data-[highlighted]:outline-offset-[4px] hover:[&_span]:opacity-[0.58] whitespace-nowrap" onSelect={() => fileInputRef.current?.click()}>
-                <img className="block h-[12.291px] w-[7.125px] flex-none" src="/figma/upload-menu-file.svg" alt="" />
+                <Icon icon={FileUp} className="block flex-none" size={16} />
                 <span>{copy.uploadFile}</span>
               </DropdownMenu.Item>
               <CollectorModeToggle enabled={collectorMode} onChange={onCollectorModeChange} placement="menu" label={copy.collectorMode} />
@@ -246,7 +248,7 @@ function ProductInput(props: InputStageProps): React.ReactElement {
             onCollectorModeChange={onCollectorModeChange}
             copy={copy}
           />
-          {selectedCategory ? <div className="figma-selected-category !flex !w-full !min-h-[15px] !items-center !justify-between !text-black !text-[13px] !font-medium !leading-[15px] !tracking-[-0.26px] ![font-family:var(--font-geist-sans),_Geist,_Arial,sans-serif] !animate-[figma-category-enter_220ms_cubic-bezier(0.22,1,0.36,1)_both]"><span>{selectedCategory}</span><button className="!grid !h-[18px] !w-[18px] !place-items-center !p-0 !border-0 !rounded-full !bg-transparent !text-[#8a8a8a] !text-[17px] !font-normal !leading-[18px] ![font-family:Arial,sans-serif] !cursor-pointer !transition-[background-color,color] !duration-[140ms] hover:!bg-[#f0f0f0] hover:!text-black focus-visible:!outline-2 focus-visible:!outline-solid focus-visible:!outline-[#111] focus-visible:!outline-offset-[2px]" type="button" aria-label="Remove category" onClick={() => onCategoryChange(null)}>×</button></div> : null}
+          {selectedCategory ? <div className="figma-selected-category !flex !w-full !min-h-[15px] !items-center !justify-between !text-black !text-[13px] !font-medium !leading-[15px] !tracking-[-0.26px] ![font-family:var(--font-geist-sans),_Geist,_Arial,sans-serif] !animate-[figma-category-enter_220ms_cubic-bezier(0.22,1,0.36,1)_both]"><span>{selectedCategory}</span><button className="!grid !h-[20px] !w-[20px] !place-items-center !p-0 !border-0 !rounded-full !bg-transparent !text-[#8a8a8a] !cursor-pointer !transition-[background-color,color] !duration-[140ms] hover:!bg-[#f0f0f0] hover:!text-black focus-visible:!outline-2 focus-visible:!outline-solid focus-visible:!outline-[#111] focus-visible:!outline-offset-[2px]" type="button" aria-label="Remove category" onClick={() => onCategoryChange(null)}><Icon icon={X} size={14} /></button></div> : null}
           <textarea ref={textareaRef} rows={1} aria-label="Describe collectible" value={query} onInput={updateQuery} onChange={(event) => onQueryChange(event.target.value)} onDragOver={keepNativeTextDrag} onDrop={keepNativeTextDrag} placeholder={selectedCategory ? "" : copy.placeholder} />
           {speechListening ? <div className="figma-composer-speech-preview" aria-hidden="true"><i className="figma-composer-speech-preview__dot" />{interimTranscript ? <span>{interimTranscript}</span> : null}</div> : null}
         </div>
@@ -267,8 +269,8 @@ function ProductInput(props: InputStageProps): React.ReactElement {
           {collectorMode ? <CollectorModeToggle enabled={collectorMode} onChange={onCollectorModeChange} placement="chip" label={copy.collectorMode} /> : null}
           </div>
           <div className="figma-composer-actions-right">
-            {speechSupported ? <button className={`figma-composer-microphone${speechListening ? " is-listening" : ""}`} type="button" aria-label={speechListening ? copy.stopVoiceInput : copy.voiceInput} title={speechListening ? copy.stopVoiceInput : copy.voiceInput} onClick={onSpeechToggle}><img src="/figma/composer-microphone.svg" alt="" /></button> : <span />}
-            <button className={`figma-composer-round-button figma-composer-submit${submitActive ? " is-active" : ""}`} type="submit" disabled={!submitActive || creating} aria-label="Submit"><img src={submitActive ? "/figma/composer-submit-active.svg" : "/figma/composer-submit.svg"} alt="" /></button>
+            {speechSupported ? <button className={`figma-composer-microphone${speechListening ? " is-listening" : ""}`} type="button" aria-label={speechListening ? copy.stopVoiceInput : copy.voiceInput} title={speechListening ? copy.stopVoiceInput : copy.voiceInput} onClick={onSpeechToggle}><Icon icon={Mic} size={16} /></button> : <span />}
+            <button className={`figma-composer-round-button figma-composer-submit${submitActive ? " is-active text-white" : " text-[#777]"}`} type="submit" disabled={!submitActive || creating} aria-label="Submit"><Icon icon={ArrowUp} size={18} /></button>
           </div>
         </div>
         {isDragActive ? <div className="figma-composer-drop-hint" aria-hidden="true"><span>{copy.dropImage}</span></div> : null}

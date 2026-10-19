@@ -17,7 +17,6 @@ import type { PendingInput, RecentAnalysisRecord } from "../types";
 type UseAnalysisRunOptions = {
   locale: UiLocale;
   initialHistory: RecentAnalysisRecord | null;
-  onHistoryPromote?: ((id: string) => void) | undefined;
 };
 
 export function createAnalysisSession(body: RecognitionResponse, input: PendingInput, now = new Date().toISOString()): { id: string; session: AnalysisSessionView } {
@@ -44,7 +43,7 @@ export function createAnalysisSession(body: RecognitionResponse, input: PendingI
   };
 }
 
-export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: UseAnalysisRunOptions) {
+export function useAnalysisRun({ locale, initialHistory }: UseAnalysisRunOptions) {
   const [state, dispatch] = useReducer(analysisRunReducer, initialHistory, createInitialAnalysisRunState);
   const lastInput = useRef<PendingInput | null>(null);
   const lifecycleRef = useRef<ReturnType<typeof createAnalysisRunLifecycle> | null>(null);
@@ -158,7 +157,6 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
         locale,
       }, execution.controller.signal);
       if (!lifecycle.isCurrent(execution)) return;
-      onHistoryPromote?.(sessionId);
       dispatch({ type: "research-accepted", recognition: confirmedRecognition });
       if (!response.body) throw new Error("The research stream was unavailable.");
       let terminalEventReceived = false;
@@ -186,7 +184,7 @@ export function useAnalysisRun({ locale, initialHistory, onHistoryPromote }: Use
     } finally {
       lifecycle.finish(execution);
     }
-  }, [collectorMode, lifecycle, locale, onHistoryPromote, phase, readResearchStream, recognitionDraft, session?.collectorEvidence, session?.recognitionSnapshot, sessionId, status]);
+  }, [collectorMode, lifecycle, locale, phase, readResearchStream, recognitionDraft, session?.collectorEvidence, session?.recognitionSnapshot, sessionId, status]);
 
   const updateRecognition = useCallback(<Key extends keyof DetectionResult>(key: Key, value: DetectionResult[Key]): void => {
     dispatch({ type: "recognition-field-updated", key, value });

@@ -1,3 +1,5 @@
+import { Check } from "lucide-react";
+import { Icon } from "../../../components/ui/icon";
 import type { AnalysisStage } from "../../../core/analysis/types";
 import { uiCopy, type UiLocale } from "../locales";
 
@@ -49,7 +51,7 @@ function ResearchSourceStatus({ status, locale, collectorMode }: Pick<ResearchSt
         const state = current > stepPosition ? "complete" : current === stepPosition ? "active" : "pending";
         return (
           <li className={`${state} ${researchStepClass}`} key={step}>
-            <span className={researchStepMarkerClass}>{state === "complete" ? "✓" : ""}</span>
+            <span className={researchStepMarkerClass}>{state === "complete" ? <Icon icon={Check} size={10} /> : ""}</span>
             <p className={researchStepTextClass}>{steps[step]}</p>
           </li>
         );

@@ -14,9 +14,12 @@ export function AnalysisWorkspace(): React.ReactElement {
   const {
     history,
     selectedHistory,
+    historyError,
+    legacyCleanupDone,
     analysisRunKey,
     saveHistory,
-    promoteHistory,
+    prepareOAuthSave,
+    retryHistory,
     startNewChat,
     openHistory,
     deleteHistory,
@@ -48,10 +51,22 @@ export function AnalysisWorkspace(): React.ReactElement {
         onNewChat={startNewChat}
         onOpenHistory={openHistory}
         onDeleteHistory={deleteHistory}
+        onSaveConversation={prepareOAuthSave}
         onLocaleChange={changeLocale}
         languageDisabled={languageDisabled}
       />
-      <AnalysisRun key={analysisRunKey} locale={locale} initialHistory={selectedHistory} onHistorySave={saveHistory} onHistoryPromote={promoteHistory} onBusyChange={setLanguageDisabled} />
+      {historyError ? <div className="fixed top-3 left-1/2 z-[110] flex max-w-[min(640px,calc(100vw-24px))] -translate-x-1/2 items-center gap-3 rounded-[10px] border border-[#ecd0cd] bg-white px-4 py-3 text-[12px] text-[#7c241c] shadow-lg" role="alert">
+        <span>{historyError}</span>
+        <button type="button" className="flex-none border-0 bg-transparent p-0 text-inherit underline underline-offset-2" onClick={retryHistory}>Retry</button>
+      </div> : null}
+      {legacyCleanupDone ? <AnalysisRun
+          key={analysisRunKey}
+          locale={locale}
+          initialHistory={selectedHistory?.messages.slice().reverse().find((message) => message.role === "assistant" && message.metadata)?.metadata ?? null}
+          initialConversation={selectedHistory}
+          onHistorySave={saveHistory}
+          onBusyChange={setLanguageDisabled}
+        /> : <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[13px] text-[#777]" role="status">Preparing Curio…</div>}
     </div>
   );
 }

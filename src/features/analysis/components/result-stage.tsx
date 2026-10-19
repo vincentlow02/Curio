@@ -1,3 +1,5 @@
+import { Check } from "lucide-react";
+import { Icon } from "../../../components/ui/icon";
 import type { AnalysisResult, ToolActivity } from "../../../core/analysis/types";
 import { MARKETPLACE_IDS, MARKETPLACE_METADATA, MARKETPLACE_SOURCE_IDS, WEB_FALLBACK_SOURCE, type MarketplaceSource } from "../../../core/marketplace";
 import type { DetectionResult } from "../../../core/profile/types";
@@ -406,7 +408,7 @@ export function ResultStage({ result, activities, locale }: ResultStageProps): R
                 : "";
             return (
               <li className={`is-${effectiveStatus} relative grid min-h-[58px] grid-cols-[22px_minmax(0,1fr)_auto] items-start gap-[10px] !border-0 !border-t !border-solid !border-[#eee] px-0 py-[10px] max-[767px]:!grid-cols-[22px_minmax(0,1fr)] [&:not(:last-child)]:after:absolute [&:not(:last-child)]:after:top-[34px] [&:not(:last-child)]:after:-bottom-[12px] [&:not(:last-child)]:after:left-[8px] [&:not(:last-child)]:after:w-px [&:not(:last-child)]:after:bg-[#dedede] [&:not(:last-child)]:after:content-['']`} key={activity.provider}>
-                <span className={`figma-run-marker relative z-[1] grid h-[17px] w-[17px] place-items-center rounded-full bg-[#111] text-[9px] leading-none text-white ${markerStatusClass}`}>{effectiveStatus === "skipped" ? "—" : effectiveStatus === "failed" || effectiveStatus === "fallback" ? "!" : "✓"}</span>
+                <span className={`figma-run-marker relative z-[1] grid h-[17px] w-[17px] place-items-center rounded-full bg-[#111] text-[9px] leading-none text-white ${markerStatusClass}`}>{effectiveStatus === "skipped" ? "—" : effectiveStatus === "failed" || effectiveStatus === "fallback" ? "!" : <Icon icon={Check} size={11} />}</span>
                 <div className="min-w-0">
                   <b className="!block !text-[#222] !text-[12px] !font-[600]">{activityText.title}</b>
                   <p className="!mt-[3px] !mr-0 !mb-0 !ml-0 !text-[#707070] !text-[11px] !leading-[1.45]">{activityText.description}</p>
@@ -432,7 +434,7 @@ export function ResultStage({ result, activities, locale }: ResultStageProps): R
             );
           })}
           <li className="is-succeeded is-total relative grid min-h-[58px] grid-cols-[22px_minmax(0,1fr)_auto] items-start gap-[10px] !border-0 !border-t !border-solid !border-[#eee] px-0 !pt-[10px] !pb-[2px] max-[767px]:!grid-cols-[22px_minmax(0,1fr)] [&:not(:last-child)]:after:absolute [&:not(:last-child)]:after:top-[34px] [&:not(:last-child)]:after:-bottom-[12px] [&:not(:last-child)]:after:left-[8px] [&:not(:last-child)]:after:w-px [&:not(:last-child)]:after:bg-[#dedede] [&:not(:last-child)]:after:content-['']">
-            <span className="figma-run-marker relative z-[1] grid h-[17px] w-[17px] place-items-center rounded-full bg-[#111] text-[9px] leading-none text-white">✓</span>
+            <span className="figma-run-marker relative z-[1] grid h-[17px] w-[17px] place-items-center rounded-full bg-[#111] text-[9px] leading-none text-white"><Icon icon={Check} size={11} /></span>
             <div className="min-w-0">
               <b className="!block !text-[#222] !text-[12px] !font-[600]">{copy.result.completedRun}</b>
               <p className="!mt-[3px] !mr-0 !mb-0 !ml-0 !text-[#707070] !text-[11px] !leading-[1.45]">{copy.result.completedRunDescription(result.priceReference.sampleCount)}</p>

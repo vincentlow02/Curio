@@ -1,17 +1,21 @@
 "use client";
 
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
+import { ArrowUp, Mic, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "../../../components/ui/icon";
 import type { AnalysisStage } from "../../../core/analysis/types";
 import type { CollectibleCategory } from "../../../core/profile/types";
 import { uiCopy, type UiLocale } from "../locales";
 import { loadAnalysisImage } from "../services/history-service";
+import { answerFollowup } from "../services/followup-service";
+import { getConversationImageUrl } from "../services/conversation-service";
 import { InputStage } from "./input-stage";
 import { RecognitionStage } from "./recognition-stage";
 import { ResearchStage } from "./research-stage";
 import { ResultStage } from "./result-stage";
 import { useAnalysisRun } from "../hooks/use-analysis-run";
-import type { RecentAnalysisRecord } from "../types";
+import type { AnalysisFollowup, ConversationRecord, ConversationMessage, RecentAnalysisRecord } from "../types";
 export type { RecentAnalysisRecord } from "../types";
 
 const recognitionAnalyzingCardClass = "!flex !flex-row !items-center !gap-[28px] max-[767px]:!flex-col max-[767px]:!items-start max-[767px]:!gap-[18px]";
@@ -25,8 +29,8 @@ const recognitionCardClass = "!relative !w-full !min-h-[202px] !overflow-hidden 
 type Props = {
   locale?: UiLocale;
   initialHistory?: RecentAnalysisRecord | null;
+  initialConversation?: ConversationRecord | null;
   onHistorySave?: (record: RecentAnalysisRecord) => void;
-  onHistoryPromote?: (id: string) => void;
   onBusyChange?: (busy: boolean) => void;
 };
 
@@ -59,14 +63,18 @@ function errorCopy(message: string | null | undefined): string {
   return message;
 }
 
-export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySave, onHistoryPromote, onBusyChange }: Props): React.ReactElement {
+export function AnalysisRun({ locale = "en", initialHistory = null, initialConversation = null, onHistorySave, onBusyChange }: Props): React.ReactElement {
   const copy = uiCopy[locale];
-  const analysis = useAnalysisRun({ locale, initialHistory, onHistoryPromote });
+  const analysis = useAnalysisRun({ locale, initialHistory });
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<CollectibleCategory | null>(null);
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [nextText, setNextText] = useState("");
   const [nextFile, setNextFile] = useState<File | null>(null);
+  const [followups, setFollowups] = useState<AnalysisFollowup[]>(initialHistory?.followups ?? []);
+  const [followupPending, setFollowupPending] = useState(false);
+  const [followupError, setFollowupError] = useState<string | null>(null);
+  const historyRecordRef = useRef<RecentAnalysisRecord | null>(initialHistory);
   const previewUrlRef = useRef<string | null>(null);
   const nextFileInputRef = useRef<HTMLInputElement>(null);
   const {
@@ -110,6 +118,13 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
     updateRecognition,
   } = analysis;
   const submitActive = Boolean(selectedImage || query.trim());
+  const currentFollowupIds = new Set((initialHistory?.followups ?? followups).flatMap((followup) => [followup.userMessageId, followup.assistantMessageId]));
+  const currentMessageIds = new Set([
+    ...(initialHistory?.id ? [initialHistory.id] : []),
+    ...(initialHistory?.userMessageId ? [initialHistory.userMessageId] : []),
+    ...currentFollowupIds,
+  ]);
+  const priorMessages = (initialConversation?.messages ?? []).filter((message) => !currentMessageIds.has(message.id));
 
   useEffect(() => {
     onBusyChange?.(isBusy);
@@ -170,9 +185,24 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
   }, []);
 
   useEffect(() => {
+    setFollowups(initialHistory?.followups ?? []);
+    historyRecordRef.current = initialHistory;
+    setFollowupError(null);
+  }, [initialHistory?.id, initialHistory?.followups]);
+
+  useEffect(() => {
     if (!initialHistory?.id || !initialHistory.imageName) return;
     let cancelled = false;
-    void loadAnalysisImage(initialHistory.id).then((file) => {
+    const loadImage = async (): Promise<File | null> => {
+      const localImage = await loadAnalysisImage(initialHistory.id);
+      if (localImage || !initialHistory.conversationImagePath || !initialConversation) return localImage;
+      const signedUrl = await getConversationImageUrl(initialConversation.id, initialHistory.conversationImagePath);
+      const response = await fetch(signedUrl);
+      if (!response.ok) throw new Error("The saved image could not be loaded.");
+      const blob = await response.blob();
+      return new File([blob], initialHistory.imageName!, { type: blob.type || "image/jpeg" });
+    };
+    void loadImage().then((file) => {
       if (cancelled || !file) return;
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       const url = URL.createObjectURL(file);
@@ -180,7 +210,7 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
       setSelectedImage({ file, name: file.name, url });
     }).catch(() => undefined);
     return () => { cancelled = true; };
-  }, [initialHistory?.id, initialHistory?.imageName]);
+  }, [initialConversation?.id, initialHistory?.conversationImagePath, initialHistory?.id, initialHistory?.imageName]);
 
   useEffect(() => {
     if (!onHistorySave || !status) return;
@@ -188,8 +218,11 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
     if (!id) return;
     const savedRecognition = result?.identification ?? recognitionDraft ?? session?.identification ?? historyView?.recognition ?? null;
     const savedImageName = selectedImage?.name ?? historyView?.imageName;
-    onHistorySave({
+    const savedRecord: RecentAnalysisRecord = {
       id,
+      ...(initialHistory?.userMessageId ? { userMessageId: initialHistory.userMessageId } : {}),
+      ...(initialHistory?.conversationImagePath ? { conversationImagePath: initialHistory.conversationImagePath } : {}),
+      ...(followups.length ? { followups } : {}),
       ...(session?.recognitionSnapshot || historyView?.recognitionSnapshot
         ? { recognitionSnapshot: (session?.recognitionSnapshot ?? historyView?.recognitionSnapshot)! }
         : {}),
@@ -202,8 +235,48 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
       collectorMode: session?.collectorMode ?? collectorMode,
       ...(savedImageName ? { imageName: savedImageName } : {}),
       createdAt: session?.createdAt ?? historyView?.createdAt ?? new Date().toISOString(),
-    });
-  }, [activities, collectorMode, historyView, onHistorySave, recognitionDraft, result, selectedImage?.name, session?.collectorMode, session?.createdAt, session?.identification, session?.recognitionSnapshot, sessionId, status, submittedText]);
+    };
+    historyRecordRef.current = savedRecord;
+    onHistorySave(savedRecord);
+  }, [activities, collectorMode, followups, historyView, initialHistory?.conversationImagePath, initialHistory?.userMessageId, onHistorySave, recognitionDraft, result, selectedImage?.name, session?.collectorMode, session?.createdAt, session?.identification, session?.recognitionSnapshot, sessionId, status, submittedText]);
+
+  async function submitFollowup(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    const question = nextText.trim();
+    if (!question || followupPending) return;
+    if (nextFile) {
+      const file = nextFile;
+      setNextText("");
+      setNextFile(null);
+      resetAnalysis();
+      submitInput({ file, text: question, category: null, collectorMode: false });
+      return;
+    }
+    const record = historyRecordRef.current;
+    if (!record?.result) {
+      setFollowupError("Complete an analysis before asking a follow-up question.");
+      return;
+    }
+    setFollowupPending(true);
+    setFollowupError(null);
+    try {
+      const answer = await answerFollowup(question, record.result, locale, followups);
+      const createdAt = new Date().toISOString();
+      const next: AnalysisFollowup[] = [
+        ...followups,
+        { userMessageId: crypto.randomUUID(), assistantMessageId: crypto.randomUUID(), question, answer, createdAt },
+      ];
+      setFollowups(next);
+      setNextText("");
+      const updatedRecord = { ...record, followups: next };
+      historyRecordRef.current = updatedRecord;
+      onHistorySave?.(updatedRecord);
+    } catch (error) {
+      setFollowupError(error instanceof Error ? error.message : "The follow-up could not be answered.");
+    } finally {
+      setFollowupPending(false);
+    }
+  }
 
   function selectImage(file: File | null): void {
     setError(null);
@@ -276,6 +349,7 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
         onSubmit={submitInput}
       />
     </> : <div className="figma-chat-thread" aria-live="polite">
+      {priorMessages.map((message) => renderConversationMessage(message, locale))}
       <div className="figma-chat-user-message">{selectedImage ? <img src={selectedImage.url} alt={selectedImage.name} /> : null}<p>{submittedText || copy.identifyPrompt}</p></div>
 
       {creating || status === "queued" || status === "identifying" ? <div className={`figma-recognition-card is-analyzing ${recognitionCardClass} ${recognitionAnalyzingCardClass}`}><div className={`figma-recognition-loading-image ${recognitionLoadingImageClass}`} /><div className={`figma-recognition-loading-copy ${recognitionLoadingCopyClass}`}><strong className={recognitionLoadingTitleClass}>{stageMessage(status, locale, session?.message)}</strong><span className={recognitionLoadingDescriptionClass}>{copy.identifyingDetail}</span><i className={recognitionLoadingDotsClass}><b className={recognitionLoadingDotClass} /><b className={recognitionLoadingDotClass} /><b className={recognitionLoadingDotClass} /></i></div></div> : null}
@@ -304,10 +378,41 @@ export function AnalysisRun({ locale = "en", initialHistory = null, onHistorySav
 
       {phase === "completed" && result ? <>
         <ResultStage result={result} activities={activities} locale={locale} />
-        <form className="figma-followup-composer" onSubmit={(event) => { event.preventDefault(); const text = nextText.trim(); const file = nextFile; resetToNew(); submitInput({ file, text, category: null, collectorMode: false }); }}><textarea rows={1} value={nextText} onChange={(event) => setNextText(event.target.value)} placeholder={nextFile ? nextFile.name : copy.placeholder} /><div className="figma-followup-actions"><button className="figma-followup-add" type="button" aria-label="Add image" onClick={() => nextFileInputRef.current?.click()}><img src="/figma/composer-add.svg" alt="" /></button><input ref={nextFileInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setNextFile(event.target.files?.[0] ?? null)} /><div className="figma-followup-actions-right">{speechSupported ? <button className={`figma-followup-microphone${listening && speechTargetRef.current === "followup" ? " is-listening" : ""}`} type="button" aria-label={listening && speechTargetRef.current === "followup" ? copy.stopVoiceInput : copy.voiceInput} onClick={() => toggleSpeech("followup")}><img src="/figma/composer-microphone.svg" alt="" /></button> : <span />}<button className="figma-followup-submit" type="submit" disabled={!nextText.trim() && !nextFile}><img src="/figma/composer-submit-active.svg" alt="" /></button></div></div></form>
+        {followups.map((followup) => <div className="figma-followup-pair" key={followup.userMessageId}>
+          <div className="figma-chat-user-message"><p>{followup.question}</p></div>
+          <p className="figma-followup-answer">{followup.answer}</p>
+        </div>)}
+        {followupPending ? <p className="figma-followup-answer" role="status">{locale === "zh" ? "正在整理回答…" : locale === "ja" ? "回答を準備しています…" : "Preparing an answer…"}</p> : null}
+        {followupError ? <p className="figma-followup-error" role="alert">{followupError}</p> : null}
+        <form className="figma-followup-composer" onSubmit={(event) => { void submitFollowup(event); }}>
+          <textarea rows={1} value={nextText} onChange={(event) => setNextText(event.target.value)} placeholder={nextFile ? nextFile.name : copy.placeholder} disabled={followupPending} />
+          <div className="figma-followup-actions">
+            <button className="figma-followup-add" type="button" aria-label="Add image" onClick={() => nextFileInputRef.current?.click()} disabled={followupPending}><Icon icon={Plus} /></button>
+            <input ref={nextFileInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setNextFile(event.target.files?.[0] ?? null)} />
+            <div className="figma-followup-actions-right">
+              {speechSupported ? <button className={`figma-followup-microphone${listening && speechTargetRef.current === "followup" ? " is-listening" : ""}`} type="button" aria-label={listening && speechTargetRef.current === "followup" ? copy.stopVoiceInput : copy.voiceInput} onClick={() => toggleSpeech("followup")} disabled={followupPending}><Icon icon={Mic} size={16} /></button> : <span />}
+              <button className="figma-followup-submit" type="submit" aria-label="Send message" disabled={followupPending || (!nextText.trim() && !nextFile)}><Icon icon={ArrowUp} size={18} /></button>
+            </div>
+          </div>
+        </form>
       </> : null}
     </div>}
     {showInlineError ? <div className="figma-inline-error" role="alert">{error}</div> : null}
 
   </section>;
+}
+
+function renderConversationMessage(message: ConversationMessage, locale: UiLocale): React.ReactElement {
+  if (message.role === "user") {
+    return <div className="figma-chat-user-message" key={message.id}>
+      {message.attachmentName ? <span className="figma-prior-attachment">{message.attachmentName}</span> : null}
+      <p>{message.content}</p>
+    </div>;
+  }
+  if (message.metadata?.result) {
+    return <div className="figma-prior-result" key={message.id}>
+      <ResultStage result={message.metadata.result} activities={message.metadata.toolActivity} locale={locale} />
+    </div>;
+  }
+  return <p className="figma-followup-answer" key={message.id}>{message.content}</p>;
 }

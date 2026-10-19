@@ -1,25 +1,28 @@
 "use client";
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Ellipsis, PanelLeftClose, Search, SquarePen } from "lucide-react";
 import { useState } from "react";
-import type { RecentAnalysisRecord } from "../../features/analysis/types";
+import type { ConversationSummary } from "../../features/analysis/types";
 import { uiCopy, type UiLocale } from "../../features/analysis/locales";
 import { AccountSettings } from "./account-settings";
+import { Icon } from "./icon";
 
 type AnalysisSidebarProps = {
   expanded: boolean;
   locale: UiLocale;
-  history: RecentAnalysisRecord[];
+  history: ConversationSummary[];
   activeHistoryId: string | null;
   onToggle: () => void;
   onNewChat: () => void;
-  onOpenHistory: (record: RecentAnalysisRecord) => void;
-  onDeleteHistory: (id: string) => void;
+  onOpenHistory: (record: ConversationSummary) => void;
+  onDeleteHistory: (id: string) => void | Promise<void>;
+  onSaveConversation: () => void;
   onLocaleChange: (locale: UiLocale) => void;
   languageDisabled?: boolean;
 };
 
-export function AnalysisSidebar({ expanded, locale, history, activeHistoryId, onToggle, onNewChat, onOpenHistory, onDeleteHistory, onLocaleChange, languageDisabled = false }: AnalysisSidebarProps): React.ReactElement {
+export function AnalysisSidebar({ expanded, locale, history, activeHistoryId, onToggle, onNewChat, onOpenHistory, onDeleteHistory, onSaveConversation, onLocaleChange, languageDisabled = false }: AnalysisSidebarProps): React.ReactElement {
   const copy = uiCopy[locale];
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
@@ -33,9 +36,11 @@ export function AnalysisSidebar({ expanded, locale, history, activeHistoryId, on
     <>
       {expanded ? <button className="figma-toolbar-backdrop" type="button" aria-label="Close navigation" onClick={onToggle} /> : null}
       <aside className={`figma-left-toolbar ${expanded ? "is-expanded" : ""}`} aria-label="Primary tools" data-node-id={expanded ? "18:581" : "15:529"}>
-      <button className="figma-toolbar-mobile-toggle" type="button" aria-label="Close navigation" aria-expanded={expanded} onClick={onToggle}>
-        <img src="/figma/sidebar-collapse.svg" alt="" />
-      </button>
+      {expanded ? (
+        <button className="figma-toolbar-mobile-toggle" type="button" aria-label="Collapse sidebar" aria-expanded={expanded} onClick={onToggle}>
+          <Icon icon={PanelLeftClose} />
+        </button>
+      ) : null}
       <button className="figma-toolbar-brand" type="button" aria-label={expanded ? "Curio" : "Open navigation"} onClick={() => { if (!expanded) onToggle(); }}>
         <span className="figma-toolbar-brand__icon"><img src="/brands/curio-logo.png" alt="" /></span>
         <span className="figma-toolbar-brand__wordmark"><img src="/brands/curio-logo.png" alt="" /></span>
@@ -43,11 +48,11 @@ export function AnalysisSidebar({ expanded, locale, history, activeHistoryId, on
       <div className="figma-left-toolbar__content" data-node-id="15:528">
         <div className="figma-left-toolbar__tools" data-node-id="15:527">
           <button className="figma-toolbar-row figma-toolbar-row--new" type="button" aria-label="New chat" aria-expanded={expanded} onClick={() => { onNewChat(); if (isMobileViewport()) { if (expanded) onToggle(); } else if (!expanded) onToggle(); }}>
-            <img src="/figma/toolbar-edit.svg" alt="" />
+            <Icon icon={SquarePen} />
             <span>{copy.newChat}</span>
           </button>
-          <button className="figma-toolbar-row figma-toolbar-row--search" type="button" aria-label="Search" onClick={() => { if (!expanded) onToggle(); setSearching((current) => !current); }}>
-            <img src="/figma/toolbar-search.svg" alt="" />
+          <button className={`figma-toolbar-row figma-toolbar-row--search${searching ? " is-active" : ""}`} type="button" aria-label="Search" aria-pressed={searching} onClick={() => { if (!expanded) onToggle(); setSearching((current) => !current); }}>
+            <Icon icon={Search} />
             <span>{copy.search}</span>
           </button>
           {expanded && searching ? (
@@ -65,7 +70,7 @@ export function AnalysisSidebar({ expanded, locale, history, activeHistoryId, on
             <p className="figma-toolbar-recent">{copy.recent}</p>
             <nav className="figma-toolbar-history" aria-label="Recent analyses">
               {visibleHistory.length ? visibleHistory.map((record) => (
-                <div className={`figma-toolbar-history-item${record.id === activeHistoryId ? " is-active" : ""}${record.status && !["identified", "completed", "needs_review", "failed"].includes(record.status) ? " is-running" : ""}`} key={record.id}>
+                <div className={`figma-toolbar-history-item${record.id === activeHistoryId ? " is-active" : ""}`} key={record.id}>
                   <button
                     className="figma-toolbar-history-item__open"
                     type="button"
@@ -75,7 +80,6 @@ export function AnalysisSidebar({ expanded, locale, history, activeHistoryId, on
                   >
                     <span>{record.title}</span>
                   </button>
-                  {record.status && !["identified", "completed", "needs_review", "failed"].includes(record.status) ? <span className="figma-toolbar-history-running" aria-label="Analysis running" title="Analysis running" /> : null}
                   <DropdownMenu.Root>
                     <DropdownMenu.Trigger asChild>
                       <button
@@ -83,7 +87,7 @@ export function AnalysisSidebar({ expanded, locale, history, activeHistoryId, on
                         type="button"
                         aria-label={`More options for ${record.title}`}
                         tabIndex={expanded ? 0 : -1}
-                      >⋯</button>
+                      ><Icon icon={Ellipsis} size={18} /></button>
                     </DropdownMenu.Trigger>
                     <DropdownMenu.Portal>
                       <DropdownMenu.Content
@@ -108,7 +112,13 @@ export function AnalysisSidebar({ expanded, locale, history, activeHistoryId, on
           </div>
         </div>
         <div className="figma-toolbar-footer">
-          <AccountSettings locale={locale} onLocaleChange={onLocaleChange} languageDisabled={languageDisabled} />
+          <AccountSettings
+            locale={locale}
+            onLocaleChange={onLocaleChange}
+            languageDisabled={languageDisabled}
+            hasConversation={activeHistoryId !== null}
+            onSaveConversation={onSaveConversation}
+          />
         </div>
       </div>
       </aside>

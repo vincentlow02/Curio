@@ -27,7 +27,7 @@ Qwen は商品特定だけを担当し、価格計算は検証可能な TypeScri
 - 通常価格を Low / Typical / High の範囲として決定論的に計算
 - Collector Mode で可視の版・状態情報と公開オークション情報を別枠で表示
 - 各プロバイダーの失敗を分離し、利用できる結果を維持
-- 英語・日本語・簡体字中国語 UI と、端末内に保存される最近の履歴
+- 英語・日本語・簡体字中国語 UI、ゲスト利用、Google ログイン後の会話保存
 
 Curio は **Agent Forge AI Hackathon Top 10 finalist** に選出された個人開発プロジェクトです。
 プロダクト設計、UI、API 統合、価格ロジック、テスト、デプロイまで一人で実装しました。
@@ -45,7 +45,7 @@ Curio は **Agent Forge AI Hackathon Top 10 finalist** に選出された個人�
   → 参考価格・根拠 URL・東京エリアを表示
 ```
 
-本番環境はステートレスです。サーバー側データベースは使用せず、最近の履歴と画像プレビューはブラウザの `localStorage` と IndexedDB に保存します。
+ゲスト利用中の会話はページを開いている間だけ保持されます。Google ログイン後は会話と非公開画像を Supabase に保存し、ユーザー単位の Row Level Security で保護します。Vercel にデプロイする場合は Supabase の Google プロバイダー設定も必要です。
 
 ### 技術スタック
 
@@ -69,6 +69,8 @@ npm run dev
 ```
 
 `.env.local` に Qwen などの認証情報を設定してください。外部 API を使わず UI と計算フローを確認する場合は `WEB_USE_FIXTURE=true` を使用できます。秘密情報は `NEXT_PUBLIC_` 変数や Git に含めないでください。
+
+Google ログインと会話保存を有効にするには、Supabase で Google プロバイダーを設定し、`supabase/migrations/20261019130000_conversation_persistence.sql` を適用してください。Supabase の Auth URL 設定にはローカルの `http://localhost:3000/auth/callback` と本番の `https://<your-domain>/auth/callback` を許可し、Google OAuth の承認済みリダイレクト URI には Supabase が表示する callback URL を設定します。`.env.local` と Vercel の環境変数に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を設定します。
 
 ```powershell
 npm run typecheck
@@ -97,7 +99,7 @@ Qwen handles product identification only. Pricing is performed by testable TypeS
 - Calculates a deterministic Low / Typical / High asking-price range
 - Keeps visible edition evidence and active-auction signals separate in Collector Mode
 - Isolates provider failures so partial evidence can still be returned
-- Supports English, Japanese, and Simplified Chinese, with recent history stored on the device
+- Supports English, Japanese, and Simplified Chinese, with guest access and Google sign-in for saved conversations
 
 Curio was selected as a **Top 10 finalist at the Agent Forge AI Hackathon** and was built as a solo project.
 I independently implemented the product design, UI, API integrations, pricing logic, tests, and deployment.
@@ -115,7 +117,7 @@ Image / text input
   → price reference, source URLs, and Tokyo area suggestions
 ```
 
-Production requests are stateless. There is no server-side database; recent records and image previews remain in the browser through `localStorage` and IndexedDB.
+Guest conversations remain in memory while the page is open. After Google sign-in, conversations and private images are stored in Supabase and protected by per-user Row Level Security. Google provider setup is required to enable sign-in on Vercel.
 
 ### Stack
 
@@ -139,6 +141,8 @@ npm run dev
 ```
 
 Add the required provider credentials to `.env.local`. Set `WEB_USE_FIXTURE=true` to review the interface and deterministic pipeline without external API usage. Never place secrets in `NEXT_PUBLIC_` variables or commit them to Git.
+
+To enable Google sign-in and saved conversations, configure the Google provider in Supabase and apply `supabase/migrations/20261019130000_conversation_persistence.sql`. Add `http://localhost:3000/auth/callback` and `https://<your-domain>/auth/callback` to Supabase's allowed redirect URLs, and use the callback URL shown by Supabase as the authorized redirect URI in Google OAuth. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` and in the Vercel project environment.
 
 ```powershell
 npm run typecheck

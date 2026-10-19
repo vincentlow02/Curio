@@ -1,7 +1,9 @@
 "use client";
 
 import * as Select from "@radix-ui/react-select";
+import { Check, ChevronDown } from "lucide-react";
 import { useCallback, useState } from "react";
+import { Icon } from "./icon";
 
 type Option = { value: string; label: string };
 
@@ -21,12 +23,12 @@ export function SettingsDropdown({ id, label, value, options, disabled = false, 
         >
           <Select.Value />
           <Select.Icon aria-hidden="true">
-            <svg className="size-[18px] shrink-0 fill-none stroke-current [stroke-width:1.5] [stroke-linecap:round] [stroke-linejoin:round]" viewBox="0 0 20 20"><path d="m4 7 6 6 6-6" /></svg>
+            <Icon icon={ChevronDown} className="size-[18px] shrink-0" size={18} />
           </Select.Icon>
         </Select.Trigger>
         <Select.Portal container={portalContainer ?? undefined}>
           <Select.Content
-            className="z-[2] w-[min(180px,calc(100vw-96px))] min-w-0 rounded-[14px] border-[1px] border-solid border-[#d2d2d2] bg-white p-[5px] shadow-[0_4px_12px_rgb(0_0_0_/_8%)] [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:[stroke-width:1.5] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round] [&_svg]:shrink-0 [&_svg]:size-[15px]"
+            className="z-[2] w-[min(180px,calc(100vw-96px))] min-w-0 rounded-[14px] border-[1px] border-solid border-[#d2d2d2] bg-white p-[5px] shadow-[0_4px_12px_rgb(0_0_0_/_8%)]"
             position="popper"
             sideOffset={5}
             collisionPadding={8}
@@ -40,7 +42,7 @@ export function SettingsDropdown({ id, label, value, options, disabled = false, 
                 >
                   <Select.ItemText>{option.label}</Select.ItemText>
                   <Select.ItemIndicator className="flex items-center">
-                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-10" /></svg>
+                    <Icon icon={Check} size={15} />
                   </Select.ItemIndicator>
                 </Select.Item>
               ))}

@@ -1,6 +1,8 @@
 import { useId, useRef, useState } from "react";
+import { SquarePen } from "lucide-react";
 import type { AnalysisStage, CollectorEvidence } from "../../../core/analysis/types";
 import { COLLECTIBLE_CATEGORIES, MAX_PRODUCT_TYPE_LENGTH, UNKNOWN_PRODUCT_TYPE, type CollectibleCategory, type DetectionResult, type PokemonCardIdentity } from "../../../core/profile/types";
+import { Icon } from "../../../components/ui/icon";
 import { uiCopy, type UiLocale } from "../locales";
 
 type RecognitionStageProps = {
@@ -104,7 +106,7 @@ export function RecognitionStage({
       </div>
       {collectorEvidence ? <div className="figma-collector-evidence-preview !my-0 !mr-[16px] !mb-[12px] !ml-[16px] !flex !items-center !justify-between !rounded-[8px] !bg-[#f5f5f5] !px-[12px] !py-[10px] !text-[11px] max-[767px]:!mt-[14px] max-[767px]:!mr-0 max-[767px]:!mb-0 max-[767px]:!ml-0 max-[767px]:!items-start max-[767px]:!gap-[8px] max-[767px]:!flex-col"><b>{copy.collectorEvidence}</b><span className="!text-[#777]">{copy.visibleSignals(collectorEvidence.editionSignals.length + collectorEvidence.conditionSignals.length + collectorEvidence.visibleIdentifiers.length, collectorEvidence.missingEvidence.length)}</span></div> : null}
       <div className={`figma-recognition-actions ${recognitionActionsClass}`}>
-        <button ref={editButtonRef} className="figma-recognition-edit !h-[26px] !w-[60px] !rounded-[8px] !px-[9px] !py-[6px] !flex !items-center !gap-[7px] !border-[0.7px] !border-solid !border-[#d9d9d9] !bg-white !text-black !text-[12px] !font-normal !leading-[normal] !tracking-[-0.24px] !cursor-pointer hover:!opacity-[.72] max-[391px]:!w-auto max-[391px]:!flex-1 max-[391px]:!justify-center" type="button" aria-haspopup="dialog" disabled={status !== "identified" || researchStarting} onClick={openEditor}><img className="!block !h-[9px] !w-[9px]" src="/figma/toolbar-edit.svg" alt="" /><span>{copy.edit}</span></button>
+        <button ref={editButtonRef} className="figma-recognition-edit !h-[26px] !w-[60px] !rounded-[8px] !px-[9px] !py-[6px] !flex !items-center !gap-[7px] !border-[0.7px] !border-solid !border-[#d9d9d9] !bg-white !text-black !text-[12px] !font-normal !leading-[normal] !tracking-[-0.24px] !cursor-pointer hover:!opacity-[.72] max-[391px]:!w-auto max-[391px]:!flex-1 max-[391px]:!justify-center" type="button" aria-haspopup="dialog" disabled={status !== "identified" || researchStarting} onClick={openEditor}><Icon icon={SquarePen} size={14} /><span>{copy.edit}</span></button>
         <button className="figma-recognition-continue !h-[26px] !w-[118px] !rounded-[8px] !border-0 !border-none !pt-[4px] !pr-[8px] !pb-[6px] !pl-[9px] !bg-black !text-white !text-[12px] !font-normal !leading-[normal] !tracking-[-0.24px] !cursor-pointer hover:!opacity-[.72] disabled:!cursor-default disabled:!opacity-[.45] max-[391px]:!w-auto max-[391px]:!flex-1 max-[391px]:!justify-center" type="button" disabled={status !== "identified" || researchStarting} onClick={onContinueResearch}>{researchStarting ? copy.starting : copy.continueResearch}</button>
       </div>
       <dialog ref={dialogRef} className="figma-recognition-edit-dialog !m-auto !w-[560px] !max-w-[calc(100vw-24px)] !max-h-[calc(100dvh-32px)] !overflow-y-auto !rounded-[16px] !border !border-solid !border-[#e6e6e6] !bg-white !p-[22px] !text-[#222] !shadow-[0_24px_90px_#0002] max-[480px]:!p-[16px]" aria-labelledby={dialogTitleId} onClose={() => editButtonRef.current?.focus()}>
