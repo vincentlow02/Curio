@@ -4,7 +4,7 @@
   <img src="./public/brands/curio-logo.png" width="96" alt="Curio logo">
 </p>
 
-**日本語** ｜ [English](#english)
+**日本語** ｜ [English](#english) 
 
 [Live Demo](https://foragent-testing.vercel.app/) · [Architecture](./docs/ARCHITECTURE.md) · [Developer Guide](./docs/DEVELOPMENT.md)
 
