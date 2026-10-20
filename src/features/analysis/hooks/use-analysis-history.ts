@@ -62,7 +62,7 @@ function summarize(conversation: ConversationRecord): ConversationSummary {
 }
 
 export function useAnalysisHistory() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [history, setHistory] = useState<ConversationSummary[]>([]);
   const [selectedHistory, setSelectedHistory] = useState<ConversationRecord | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -100,9 +100,20 @@ export function useAnalysisHistory() {
 
   useEffect(() => {
     let cancelled = false;
+    if (loading) return;
     if (!user) {
       setHistory([]);
       importedDraftUserRef.current = null;
+      try {
+        const draft = readOAuthConversationDraft();
+        if (draft) {
+          updateCurrent(draft);
+          clearOAuthConversationDraft();
+          setAnalysisRunKey((current) => current + 1);
+        }
+      } catch (error) {
+        setHistoryError(error instanceof Error ? error.message : "The sign-in draft could not be restored.");
+      }
       return;
     }
 
@@ -132,7 +143,7 @@ export function useAnalysisHistory() {
       }
     })();
     return () => { cancelled = true; };
-  }, [historyRetryKey, refreshHistory, updateCurrent, user]);
+  }, [historyRetryKey, loading, refreshHistory, updateCurrent, user]);
 
   const prepareOAuthSave = useCallback((): void => {
     const conversation = currentRef.current;

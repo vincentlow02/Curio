@@ -70,7 +70,9 @@ npm run dev
 
 `.env.local` に Qwen などの認証情報を設定してください。外部 API を使わず UI と計算フローを確認する場合は `WEB_USE_FIXTURE=true` を使用できます。秘密情報は `NEXT_PUBLIC_` 変数や Git に含めないでください。
 
-Google ログインと会話保存を有効にするには、Supabase で Google プロバイダーを設定し、`supabase/migrations/20261019130000_conversation_persistence.sql` を適用してください。Supabase の Auth URL 設定にはローカルの `http://localhost:3000/auth/callback` と本番の `https://<your-domain>/auth/callback` を許可し、Google OAuth の承認済みリダイレクト URI には Supabase が表示する callback URL を設定します。`.env.local` と Vercel の環境変数に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を設定します。
+Google／メールアドレスとパスワードでのログイン、会話保存を有効にするには、Supabase Auth で Email プロバイダーを有効にし、必要に応じて Google プロバイダーも設定して、`supabase/migrations/20261019130000_conversation_persistence.sql` を適用してください。Supabase の Auth URL 設定にはローカルの `http://localhost:3000/auth/callback` と本番の `https://<your-domain>/auth/callback` を許可します。パスワード再設定には、それぞれの `/auth/callback?next=%2Fauth%2Freset-password` も許可します。Supabase はクエリ文字列も照合するため、ログインにはクエリなしの callback URL を使います。メール確認とパスワード再設定メールを送信する SMTP／メールテンプレートも設定してください。Google OAuth の承認済みリダイレクト URI には Supabase が表示する callback URL を設定します。`.env.local` と Vercel の環境変数に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` を設定します。
+
+Google ログインで `provider_unexpected_failure` と「Unable to exchange external code」が表示された場合、Supabase Auth ログの失敗した `/callback` を確認してください。Google とのトークン交換で発生した原因が記録されます。Supabase に設定した Google OAuth Web クライアント ID と現在のクライアントシークレットが Google Cloud の認証情報と一致するか確認します。
 
 ```powershell
 npm run typecheck
@@ -117,7 +119,7 @@ Image / text input
   → price reference, source URLs, and Tokyo area suggestions
 ```
 
-Guest conversations remain in memory while the page is open. After Google sign-in, conversations and private images are stored in Supabase and protected by per-user Row Level Security. Google provider setup is required to enable sign-in on Vercel.
+Guest conversations remain in memory while the page is open. After Google or email/password sign-in, conversations and private images are stored in Supabase and protected by per-user Row Level Security. Enable Supabase's Email provider for email sign-up, sign-in, and password recovery; configure Google separately if Google sign-in is also required.
 
 ### Stack
 
@@ -142,7 +144,9 @@ npm run dev
 
 Add the required provider credentials to `.env.local`. Set `WEB_USE_FIXTURE=true` to review the interface and deterministic pipeline without external API usage. Never place secrets in `NEXT_PUBLIC_` variables or commit them to Git.
 
-To enable Google sign-in and saved conversations, configure the Google provider in Supabase and apply `supabase/migrations/20261019130000_conversation_persistence.sql`. Add `http://localhost:3000/auth/callback` and `https://<your-domain>/auth/callback` to Supabase's allowed redirect URLs, and use the callback URL shown by Supabase as the authorized redirect URI in Google OAuth. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` and in the Vercel project environment.
+To enable email/password sign-in and saved conversations, enable the Email provider in Supabase Auth and apply `supabase/migrations/20261019130000_conversation_persistence.sql`. Configure email confirmation and password recovery delivery (SMTP and email templates), then add `http://localhost:3000/auth/callback` and `https://<your-domain>/auth/callback` to Supabase's allowed redirect URLs. For password recovery, also allow each origin's `/auth/callback?next=%2Fauth%2Freset-password` URL. Supabase matches query strings, so sign-in uses the callback URL without one. Configure the Google provider separately if Google sign-in is required, and use the callback URL shown by Supabase as the authorized redirect URI in Google OAuth. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` and in the Vercel project environment.
+
+If Google sign-in returns `provider_unexpected_failure` with “Unable to exchange external code,” inspect the failed `/callback` entry in Supabase Auth logs. The underlying Google token-exchange error is recorded there; verify that the Google OAuth web client ID and current client secret in Supabase match the Google Cloud credentials.
 
 ```powershell
 npm run typecheck
